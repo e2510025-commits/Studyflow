@@ -3,6 +3,7 @@ import {
   addDoc,
   deleteDoc,
   doc,
+  setDoc,
   query,
   where,
   orderBy,
@@ -52,16 +53,28 @@ export function subscribeStudyLogs(
 
 /**
  * スタディログを Firestore に追加
+ * オプションで userProfile を渡すとランキング用プロフィールも更新
  */
 export async function addStudyLogToFirestore(
   userUid: string,
-  log: Omit<StudyLog, "id" | "createdAt">
+  log: Omit<StudyLog, "id" | "createdAt">,
+  userProfile?: { name: string; avatar: string }
 ): Promise<string> {
   const docRef = await addDoc(collection(db, LOGS_COLLECTION), {
     userUid,
     ...log,
     createdAt: serverTimestamp(),
   });
+
+  // ランキング用プロフィールも保存
+  if (userProfile) {
+    setDoc(
+      doc(db, "userProfiles", userUid),
+      { uid: userUid, name: userProfile.name, avatar: userProfile.avatar, updatedAt: new Date() },
+      { merge: true }
+    ).catch(() => {});
+  }
+
   return docRef.id;
 }
 

@@ -1,60 +1,49 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  getDoc,
+  Timestamp,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 /**
  * GET /api/ranking
  *
- * Returns the ranking of users by total study time.
  * Query params:
- *   - userId: current user's id (to compute their rank)
- *   - period: "today" | "week" | "month" | "all" (default "all")
- *   - limit:  number of top users to return (default 20)
+ *   userId  – current user UID (to compute their rank)
+ *   period  – "today" | "week" | "month" | "all" (default "all")
+ *   limit   – page size (default 100, max 500)
+ *   offset  – pagination offset (default 0)
  *
  * Response:
  * {
- *   ranking: [{ userId, name, image, totalDuration, rank }],
- *   myRank: number,
- *   myTotal: number,
- *   totalUsers: number,
+ *   ranking: [{ userId, name, avatar, totalDuration, totalPoints, sessions, rank }],
+ *   myRank, myTotal, totalUsers,
  * }
- *
- * Ranking algorithm:
- *   SELECT userId, SUM(duration) AS totalDuration
- *   FROM StudyLog
- *   WHERE createdAt >= <periodStart>
- *   GROUP BY userId
- *   ORDER BY totalDuration DESC
- *
- *   User rank = COUNT of users with totalDuration > myTotal + 1
  */
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId") || "";
     const period = searchParams.get("period") || "all";
-    const limit = Math.min(Number(searchParams.get("limit") || 20), 100);
+    const limit = Math.min(Number(searchParams.get("limit") || 100), 500);
+    const offset = Number(searchParams.get("offset") || 0);
 
-    // Determine period start date
+    /* ── Period start ──────────────────────────────── */
     const now = new Date();
     let periodStart: Date;
     switch (period) {
       case "today":
-        periodStart = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate()
-        );
+        periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         break;
       case "week": {
         const day = now.getDay();
-        const diff = day === 0 ? 6 : day - 1; // Monday-based week
-        periodStart = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate() - diff
-        );
+        const diff = day === 0 ? 6 : day - 1;
+        periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
         break;
       }
       case "month":
@@ -64,54 +53,84 @@ export async function GET(request: Request) {
         periodStart = new Date(0);
     }
 
-    // Aggregate study time per user within the period
-    const aggregated = await prisma.studyLog.groupBy({
-      by: ["userId"],
-      _sum: { duration: true },
-      where: { createdAt: { gte: periodStart } },
-      orderBy: { _sum: { duration: "desc" } },
-    });
+    /* ── Aggregate studyLogs from Firestore ────────── */
+    const logsRef = collection(db, "studyLogs");
+    const q =
+      period === "all"
+        ? query(logsRef)
+        : query(logsRef, where("createdAt", ">=", Timestamp.fromDate(periodStart)));
 
-    // Enrich top N with user info
-    const topUserIds = aggregated.slice(0, limit).map((a) => a.userId);
-    const users = await prisma.user.findMany({
-      where: { id: { in: topUserIds } },
-      select: { id: true, name: true, image: true },
-    });
-    const userMap = new Map(users.map((u) => [u.id, u]));
+    const snapshot = await getDocs(q);
 
-    const ranking = aggregated.slice(0, limit).map((a, i) => {
-      const user = userMap.get(a.userId);
-      return {
-        userId: a.userId,
-        name: user?.name || "匿名",
-        image: user?.image || null,
-        totalDuration: a._sum.duration || 0,
-        rank: i + 1,
+    const userMap = new Map<
+      string,
+      { totalDuration: number; totalPoints: number; sessions: number }
+    >();
+
+    for (const d of snapshot.docs) {
+      const data = d.data();
+      const uid: string | undefined = data.userUid;
+      if (!uid) continue;
+      const existing = userMap.get(uid) || {
+        totalDuration: 0,
+        totalPoints: 0,
+        sessions: 0,
       };
-    });
+      existing.totalDuration += data.duration || 0;
+      existing.totalPoints +=
+        data.points ?? Math.floor((data.duration || 0) / 60);
+      existing.sessions += 1;
+      userMap.set(uid, existing);
+    }
 
-    // Compute authenticated user's rank
+    const sorted = Array.from(userMap.entries())
+      .map(([uid, stats]) => ({ userId: uid, ...stats }))
+      .sort((a, b) => b.totalPoints - a.totalPoints);
+
+    const totalUsers = sorted.length;
+    const page = sorted.slice(offset, offset + limit);
+
+    /* ── Enrich with user profiles ─────────────────── */
+    const ranking = await Promise.all(
+      page.map(async (entry, i) => {
+        let name = "匿名";
+        let avatar = "👤";
+        try {
+          const snap = await getDoc(doc(db, "userProfiles", entry.userId));
+          if (snap.exists()) {
+            const d = snap.data();
+            name = d.name || "匿名";
+            avatar = d.avatar || "👤";
+          }
+        } catch {
+          /* skip */
+        }
+        return {
+          userId: entry.userId,
+          name,
+          avatar,
+          totalDuration: entry.totalDuration,
+          totalPoints: entry.totalPoints,
+          sessions: entry.sessions,
+          rank: offset + i + 1,
+        };
+      })
+    );
+
+    /* ── My rank ───────────────────────────────────── */
     let myRank = 0;
     let myTotal = 0;
     if (userId) {
-      const myEntry = aggregated.find((a) => a.userId === userId);
-      myTotal = myEntry?._sum.duration || 0;
-
-      // Rank = number of users with higher total + 1
-      myRank =
-        aggregated.filter((a) => (a._sum.duration || 0) > myTotal).length + 1;
-
-      // If user has no logs at all, rank is last+1
-      if (!myEntry) myRank = aggregated.length + 1;
+      const myIndex = sorted.findIndex((u) => u.userId === userId);
+      if (myIndex >= 0) {
+        myRank = myIndex + 1;
+        myTotal = sorted[myIndex].totalDuration;
+      } else {
+        myRank = totalUsers + 1;
+      }
     }
 
-    return NextResponse.json({
-      ranking,
-      myRank,
-      myTotal,
-      totalUsers: aggregated.length,
-    });
+    return NextResponse.json({ ranking, myRank, myTotal, totalUsers });
   } catch (error) {
     console.error("Ranking API error:", error);
     return NextResponse.json(
