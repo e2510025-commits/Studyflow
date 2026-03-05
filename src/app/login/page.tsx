@@ -1,16 +1,31 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { GraduationCap, Mail, Lock, User, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
+
+const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_ENABLED === "true";
 
 type AuthMode = "login" | "register";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [mode, setMode] = useState<AuthMode>("login");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // AUTH_ENABLED=false のときはトップへリダイレクト
+  useEffect(() => {
+    if (!AUTH_ENABLED) {
+      router.replace("/");
+    }
+  }, [router]);
+
+  if (!AUTH_ENABLED) {
+    return null;
+  }
 
   const [form, setForm] = useState({
     name: "",
@@ -114,7 +129,7 @@ export default function LoginPage() {
 
         {/* Card */}
         <div className="glass-card p-8">
-          {/* OAuth buttons */}
+          {/* OAuth buttons (Google/LINE credentialsが設定されている場合のみ表示) */}
           <div className="space-y-3 mb-6">
             <button
               onClick={() => handleOAuth("google")}

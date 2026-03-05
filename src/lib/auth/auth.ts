@@ -5,6 +5,43 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
+const googleProvider =
+  process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+    ? [
+        Google({
+          clientId: process.env.GOOGLE_CLIENT_ID,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        }),
+      ]
+    : [];
+
+const lineProvider =
+  process.env.LINE_CLIENT_ID && process.env.LINE_CLIENT_SECRET
+    ? [
+        {
+          id: "line",
+          name: "LINE",
+          type: "oauth" as const,
+          authorization: {
+            url: "https://access.line.me/oauth2/v2.1/authorize",
+            params: { scope: "profile openid email", bot_prompt: "normal" },
+          },
+          token: "https://api.line.me/oauth2/v2.1/token",
+          userinfo: "https://api.line.me/v2/profile",
+          checks: ["state"] as ["state"],
+          clientId: process.env.LINE_CLIENT_ID,
+          clientSecret: process.env.LINE_CLIENT_SECRET,
+          profile(profile: { userId: string; displayName: string; pictureUrl?: string }) {
+            return {
+              id: profile.userId,
+              name: profile.displayName,
+              image: profile.pictureUrl,
+            };
+          },
+        },
+      ]
+    : [];
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
@@ -12,32 +49,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn: "/login",
   },
   providers: [
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
-    // LINE Login – custom OAuth2 provider
-    {
-      id: "line",
-      name: "LINE",
-      type: "oauth",
-      authorization: {
-        url: "https://access.line.me/oauth2/v2.1/authorize",
-        params: { scope: "profile openid email", bot_prompt: "normal" },
-      },
-      token: "https://api.line.me/oauth2/v2.1/token",
-      userinfo: "https://api.line.me/v2/profile",
-      checks: ["state"] as ["state"],
-      clientId: process.env.LINE_CLIENT_ID!,
-      clientSecret: process.env.LINE_CLIENT_SECRET!,
-      profile(profile: { userId: string; displayName: string; pictureUrl?: string }) {
-        return {
-          id: profile.userId,
-          name: profile.displayName,
-          image: profile.pictureUrl,
-        };
-      },
-    },
+    ...googleProvider,
+    ...lineProvider,
     Credentials({
       name: "Email",
       credentials: {
@@ -79,3 +92,4 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
 });
+
