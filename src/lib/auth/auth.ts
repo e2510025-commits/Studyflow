@@ -1,8 +1,8 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
-import { PrismaAdapter } from "@auth/prisma-adapter";
-import { prisma } from "@/lib/prisma";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import bcrypt from "bcryptjs";
 
 const googleProvider =
@@ -43,7 +43,7 @@ const lineProvider =
     : [];
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(prisma),
+  // Prisma アダプターなし → JWT のみで動作（DB 不要）
   session: { strategy: "jwt" },
   pages: {
     signIn: "/login",
@@ -62,31 +62,45 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const email = credentials.email as string;
         const password = credentials.password as string;
 
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (!user || !user.password) return null;
+        // Firestore からユーザーを検索
+        const q = query(collection(db, "users"), where("email", "==", email));
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) return null;
 
-        const isValid = await bcrypt.compare(password, user.password);
+        const userDoc = snapshot.docs[0];
+        const userData = userDoc.data();
+        if (!userData.password) return null;
+
+        const isValid = await bcrypt.compare(password, userData.password);
         if (!isValid) return null;
 
         return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          image: user.image,
+          id: userDoc.id,
+          name: userData.name,
+          email: userData.email,
+          image: userData.image ?? null,
         };
       },
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, account, profile }) {
       if (user) {
         token.id = user.id;
+      }
+      if (account?.provider === "google" && profile) {
+        const p = profile as { sub?: string; name?: string; email?: string; picture?: string };
+        token.id = p.sub ?? token.id;
+        token.picture = p.picture;
       }
       return token;
     },
     async session({ session, token }) {
       if (token?.id) {
         session.user.id = token.id as string;
+      }
+      if (token?.picture) {
+        session.user.image = token.picture as string;
       }
       return session;
     },

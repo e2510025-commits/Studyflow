@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import bcrypt from "bcryptjs";
 
 export async function POST(req: Request) {
@@ -13,8 +14,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const exists = await prisma.user.findUnique({ where: { email } });
-    if (exists) {
+    // メールアドレス重複チェック
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("email", "==", email));
+    const existing = await getDocs(q);
+    if (!existing.empty) {
       return NextResponse.json(
         { error: "このメールアドレスは既に登録されています" },
         { status: 409 }
@@ -22,20 +26,20 @@ export async function POST(req: Request) {
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
-    const user = await prisma.user.create({
-      data: {
-        name: name || email.split("@")[0],
-        email,
-        password: hashedPassword,
-      },
+    const docRef = await addDoc(usersRef, {
+      name: name || email.split("@")[0],
+      email,
+      password: hashedPassword,
+      createdAt: serverTimestamp(),
     });
 
     return NextResponse.json({
-      id: user.id,
-      name: user.name,
-      email: user.email,
+      id: docRef.id,
+      name: name || email.split("@")[0],
+      email,
     });
-  } catch {
+  } catch (err) {
+    console.error("Register error:", err);
     return NextResponse.json(
       { error: "サーバーエラーが発生しました" },
       { status: 500 }
