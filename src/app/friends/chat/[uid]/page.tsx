@@ -7,70 +7,58 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   Send,
-  Image as ImageIcon,
-  Video,
   X,
   Paperclip,
   Trash2,
   Download,
   Play,
+  Loader2,
 } from "lucide-react";
+import {
+  subscribeChatMessages,
+  sendTextMessage,
+  sendMediaMessage,
+  deleteChatMessageFromFirestore,
+} from "@/lib/firestore/chat";
+import type { ChatMessage } from "@/types";
 
 /* ── Max file sizes ──────────────────────────────────── */
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50 MB
-
-/** Read file as data URL */
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 export default function ChatPage() {
   const params = useParams();
   const router = useRouter();
   const friendUid = params.uid as string;
 
-  const {
-    friends,
-    chatMessages,
-    sendChatMessage,
-    deleteChatMessage,
-    userProfile,
-  } = useStore();
-
+  const { friends, userProfile } = useStore();
   const friend = friends.find((f) => f.uid === friendUid);
 
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
   const [mediaPreview, setMediaPreview] = useState<{
     type: "image" | "video";
-    dataUrl: string;
-    fileName: string;
+    previewUrl: string;
+    file: File;
   } | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [lightboxType, setLightboxType] = useState<"image" | "video">("image");
+  const [sending, setSending] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  /* ── Messages for this conversation ────────────────── */
-  const messages = useMemo(() => {
-    return chatMessages
-      .filter(
-        (m) =>
-          (m.fromUid === userProfile.uid && m.toUid === friendUid) ||
-          (m.fromUid === friendUid && m.toUid === userProfile.uid)
-      )
-      .sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
-  }, [chatMessages, userProfile.uid, friendUid]);
+  /* ── Subscribe to Firestore messages ────────────────── */
+  useEffect(() => {
+    if (!userProfile.uid || !friendUid) return;
+    const unsubscribe = subscribeChatMessages(
+      userProfile.uid,
+      friendUid,
+      (msgs) => setMessages(msgs)
+    );
+    return () => unsubscribe();
+  }, [userProfile.uid, friendUid]);
 
   /* ── Auto-scroll to bottom ────────────────────────── */
   useEffect(() => {
@@ -78,22 +66,36 @@ export default function ChatPage() {
   }, [messages.length]);
 
   /* ── Send handler ──────────────────────────────────── */
-  const handleSend = useCallback(() => {
-    if (mediaPreview) {
-      sendChatMessage(
-        friendUid,
-        mediaPreview.type,
-        mediaPreview.dataUrl,
-        mediaPreview.fileName
-      );
-      setMediaPreview(null);
+  const handleSend = useCallback(async () => {
+    if (sending) return;
+    setSending(true);
+    try {
+      if (mediaPreview) {
+        await sendMediaMessage(userProfile.uid, friendUid, mediaPreview.type, mediaPreview.file);
+        URL.revokeObjectURL(mediaPreview.previewUrl);
+        setMediaPreview(null);
+      }
+      if (text.trim()) {
+        await sendTextMessage(userProfile.uid, friendUid, text.trim());
+        setText("");
+      }
+    } catch (err) {
+      console.error("送信エラー:", err);
+      alert("送信に失敗しました");
+    } finally {
+      setSending(false);
+      textareaRef.current?.focus();
     }
-    if (text.trim()) {
-      sendChatMessage(friendUid, "text", text.trim());
-      setText("");
+  }, [text, mediaPreview, friendUid, userProfile.uid, sending]);
+
+  /* ── Delete message ────────────────────────────────── */
+  const handleDelete = useCallback(async (msgId: string) => {
+    try {
+      await deleteChatMessageFromFirestore(msgId);
+    } catch (err) {
+      console.error("削除エラー:", err);
     }
-    textareaRef.current?.focus();
-  }, [text, mediaPreview, friendUid, sendChatMessage]);
+  }, []);
 
   /* ── File picker ───────────────────────────────────── */
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -117,16 +119,12 @@ export default function ChatPage() {
       return;
     }
 
-    try {
-      const dataUrl = await readFileAsDataUrl(file);
-      setMediaPreview({
-        type: isImage ? "image" : "video",
-        dataUrl,
-        fileName: file.name,
-      });
-    } catch {
-      alert("ファイルの読み込みに失敗しました");
-    }
+    const previewUrl = URL.createObjectURL(file);
+    setMediaPreview({
+      type: isImage ? "image" : "video",
+      previewUrl,
+      file,
+    });
   };
 
   /* ── Key handling ──────────────────────────────────── */
@@ -155,7 +153,7 @@ export default function ChatPage() {
 
   /* ── Group messages by date ────────────────────────── */
   const groupedMessages = useMemo(() => {
-    const groups: { date: string; msgs: typeof messages }[] = [];
+    const groups: { date: string; msgs: ChatMessage[] }[] = [];
     let currentDate = "";
     for (const msg of messages) {
       const date = formatMsgDate(msg.createdAt);
@@ -168,11 +166,12 @@ export default function ChatPage() {
     return groups;
   }, [messages]);
 
-  /* ── Download media ────────────────────────────────── */
-  const downloadMedia = (dataUrl: string, fileName?: string) => {
+  /* ── Download media (Firebase Storage URL) ─────────── */
+  const downloadMedia = async (url: string, fileName?: string) => {
     const a = document.createElement("a");
-    a.href = dataUrl;
+    a.href = url;
     a.download = fileName || "media";
+    a.target = "_blank";
     a.click();
   };
 
@@ -370,7 +369,7 @@ export default function ChatPage() {
                         )}
                         {isMine && (
                           <button
-                            onClick={() => deleteChatMessage(msg.id)}
+                            onClick={() => handleDelete(msg.id)}
                             className="p-0.5 rounded hover:text-red-500"
                             style={{ color: "var(--muted)" }}
                             title="削除"
@@ -405,13 +404,13 @@ export default function ChatPage() {
             <div className="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
               {mediaPreview.type === "image" ? (
                 <img
-                  src={mediaPreview.dataUrl}
+                  src={mediaPreview.previewUrl}
                   alt="preview"
                   className="w-full h-full object-cover"
                 />
               ) : (
                 <video
-                  src={mediaPreview.dataUrl}
+                  src={mediaPreview.previewUrl}
                   className="w-full h-full object-cover"
                   muted
                 />
@@ -428,7 +427,7 @@ export default function ChatPage() {
                 className="text-xs font-medium truncate"
                 style={{ color: "var(--foreground)" }}
               >
-                {mediaPreview.fileName}
+                {mediaPreview.file.name}
               </p>
               <p className="text-[10px]" style={{ color: "var(--muted)" }}>
                 {mediaPreview.type === "image" ? "画像" : "動画"}を送信
@@ -494,7 +493,7 @@ export default function ChatPage() {
         {/* Send button */}
         <motion.button
           onClick={handleSend}
-          disabled={!text.trim() && !mediaPreview}
+          disabled={sending || (!text.trim() && !mediaPreview)}
           className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white disabled:opacity-40"
           style={{
             background:
@@ -504,7 +503,7 @@ export default function ChatPage() {
           whileHover={text.trim() || mediaPreview ? { scale: 1.1 } : {}}
           whileTap={text.trim() || mediaPreview ? { scale: 0.9 } : {}}
         >
-          <Send size={18} />
+          {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
         </motion.button>
       </div>
 

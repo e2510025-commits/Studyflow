@@ -1,0 +1,117 @@
+import {
+  collection,
+  addDoc,
+  deleteDoc,
+  doc,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  serverTimestamp,
+  Timestamp,
+  or,
+  and,
+} from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { db, storage } from "@/lib/firebase";
+import type { ChatMessage, ChatMessageType } from "@/types";
+
+/** Firestoreのチャットメッセージコレクション */
+const CHAT_COLLECTION = "chatMessages";
+
+/**
+ * 2ユーザー間のメッセージをリアルタイム購読
+ * @returns unsubscribe 関数
+ */
+export function subscribeChatMessages(
+  myUid: string,
+  friendUid: string,
+  callback: (messages: ChatMessage[]) => void
+) {
+  const q = query(
+    collection(db, CHAT_COLLECTION),
+    or(
+      and(where("fromUid", "==", myUid), where("toUid", "==", friendUid)),
+      and(where("fromUid", "==", friendUid), where("toUid", "==", myUid))
+    ),
+    orderBy("createdAt", "asc")
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const messages: ChatMessage[] = snapshot.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        fromUid: data.fromUid,
+        toUid: data.toUid,
+        type: data.type as ChatMessageType,
+        content: data.content,
+        fileName: data.fileName,
+        createdAt:
+          data.createdAt instanceof Timestamp
+            ? data.createdAt.toDate().toISOString()
+            : data.createdAt,
+      };
+    });
+    callback(messages);
+  });
+}
+
+/**
+ * テキストメッセージを送信
+ */
+export async function sendTextMessage(
+  fromUid: string,
+  toUid: string,
+  text: string
+): Promise<void> {
+  await addDoc(collection(db, CHAT_COLLECTION), {
+    fromUid,
+    toUid,
+    type: "text",
+    content: text,
+    createdAt: serverTimestamp(),
+  });
+}
+
+/**
+ * 画像・動画ファイルを Storage にアップロードしてメッセージ送信
+ */
+export async function sendMediaMessage(
+  fromUid: string,
+  toUid: string,
+  type: "image" | "video",
+  file: File
+): Promise<void> {
+  const path = `chat/${fromUid}_${toUid}/${Date.now()}_${file.name}`;
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file);
+  const url = await getDownloadURL(storageRef);
+
+  await addDoc(collection(db, CHAT_COLLECTION), {
+    fromUid,
+    toUid,
+    type,
+    content: url,
+    fileName: file.name,
+    storagePath: path,
+    createdAt: serverTimestamp(),
+  });
+}
+
+/**
+ * メッセージを削除（Storage のファイルも削除）
+ */
+export async function deleteChatMessageFromFirestore(
+  messageId: string,
+  storagePath?: string
+): Promise<void> {
+  await deleteDoc(doc(db, CHAT_COLLECTION, messageId));
+  if (storagePath) {
+    try {
+      await deleteObject(ref(storage, storagePath));
+    } catch {
+      // ファイルが存在しない場合は無視
+    }
+  }
+}
