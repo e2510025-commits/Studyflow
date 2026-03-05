@@ -1,31 +1,22 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GraduationCap, Mail, Lock, User, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
-
-const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_ENABLED === "true";
 
 type AuthMode = "login" | "register";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [mode, setMode] = useState<AuthMode>("login");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // AUTH_ENABLED=false のときはトップへリダイレクト
-  useEffect(() => {
-    if (!AUTH_ENABLED) {
-      router.replace("/");
-    }
-  }, [router]);
-
-  if (!AUTH_ENABLED) {
-    return null;
-  }
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+  });
 
   const [form, setForm] = useState({
     name: "",
@@ -311,17 +302,6 @@ export default function LoginPage() {
                 : "すでにアカウントをお持ちの方 → ログイン"}
             </button>
           </div>
-        </div>
-
-        {/* Skip auth (dev mode) */}
-        <div className="mt-4 text-center">
-          <a
-            href="/"
-            className="text-xs font-medium transition-colors"
-            style={{ color: "var(--muted)" }}
-          >
-            ログインせずに使う →
-          </a>
         </div>
       </motion.div>
     </div>
