@@ -1,7 +1,7 @@
-import { initializeApp, getApps } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
-import { getAuth } from "firebase/auth";
+import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
+import { getFirestore, type Firestore } from "firebase/firestore";
+import { getStorage, type FirebaseStorage } from "firebase/storage";
+import { getAuth, type Auth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -12,9 +12,36 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase (avoid double init in Next.js dev hot reload)
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+// Lazy initialization to avoid crashing at build time when env vars are absent
+let app: FirebaseApp | undefined;
+let _db: Firestore | undefined;
+let _storage: FirebaseStorage | undefined;
+let _firebaseAuth: Auth | undefined;
 
-export const db = getFirestore(app);
-export const storage = getStorage(app);
-export const firebaseAuth = getAuth(app);
+function getApp(): FirebaseApp {
+  if (!app) {
+    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+  }
+  return app;
+}
+
+export const db: Firestore = new Proxy({} as Firestore, {
+  get(_, prop) {
+    if (!_db) _db = getFirestore(getApp());
+    return (_db as unknown as Record<string | symbol, unknown>)[prop];
+  },
+});
+
+export const storage: FirebaseStorage = new Proxy({} as FirebaseStorage, {
+  get(_, prop) {
+    if (!_storage) _storage = getStorage(getApp());
+    return (_storage as unknown as Record<string | symbol, unknown>)[prop];
+  },
+});
+
+export const firebaseAuth: Auth = new Proxy({} as Auth, {
+  get(_, prop) {
+    if (!_firebaseAuth) _firebaseAuth = getAuth(getApp());
+    return (_firebaseAuth as unknown as Record<string | symbol, unknown>)[prop];
+  },
+});
