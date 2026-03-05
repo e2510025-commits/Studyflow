@@ -18,12 +18,6 @@ export default function LoginPage() {
     password: "",
   });
 
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-  });
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
     setError("");
