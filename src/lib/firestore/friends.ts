@@ -14,6 +14,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Friend } from "@/types";
+import { sanitizeAvatar, sanitizeDisplayName, toAppUid } from "@/lib/identity";
 
 const FRIENDS_COLLECTION = "friends";
 
@@ -84,11 +85,38 @@ export async function searchUsersForFriend(
   const normalized = keyword.trim().toLowerCase();
   if (!normalized) return [];
 
+  const blocked = new Set([myUid, ...existingFriendUids]);
+  const resultMap = new Map<string, Omit<Friend, "addedAt">>();
+
+  const pushCandidate = (candidate: Omit<Friend, "addedAt">) => {
+    if (!candidate.uid) return;
+    if (blocked.has(candidate.uid)) return;
+    if (resultMap.has(candidate.uid)) return;
+    resultMap.set(candidate.uid, {
+      uid: candidate.uid,
+      name: sanitizeDisplayName(candidate.name),
+      avatar: sanitizeAvatar(candidate.avatar),
+    });
+  };
+
+  // Fast-path: direct UID lookup for 10-digit UID searches
+  if (/^\d{10}$/.test(normalized)) {
+    const direct = await getDoc(doc(db, "userProfiles", normalized));
+    if (direct.exists()) {
+      const data = direct.data();
+      pushCandidate({
+        uid: normalized,
+        name: data.name || "匿名",
+        avatar: data.avatar || "👤",
+      });
+    }
+  }
+
   const profileSnapshot = await getDocs(
-    query(collection(db, "userProfiles"), limit(200))
+    query(collection(db, "userProfiles"), limit(1000))
   );
 
-  return profileSnapshot.docs
+  profileSnapshot.docs
     .map((d) => {
       const data = d.data();
       return {
@@ -97,14 +125,30 @@ export async function searchUsersForFriend(
         avatar: data.avatar || "👤",
       };
     })
-    .filter((u) => {
-      if (u.uid === myUid) return false;
-      if (existingFriendUids.includes(u.uid)) return false;
-      return (
+    .forEach((u) => {
+      if (
         u.uid.toLowerCase().includes(normalized) ||
         u.name.toLowerCase().includes(normalized)
-      );
-    })
+      ) {
+        pushCandidate(u);
+      }
+    });
+
+  // Fallback source: users collection (helps users who haven't created userProfiles yet)
+  const usersSnapshot = await getDocs(query(collection(db, "users"), limit(1000)));
+  usersSnapshot.docs.forEach((d) => {
+    const data = d.data();
+    const appUid = toAppUid(d.id);
+    const name = sanitizeDisplayName(data.name || data.displayName || "匿名");
+    const avatar = sanitizeAvatar(data.image || data.avatar || "👤");
+
+    if (appUid.includes(normalized) || name.toLowerCase().includes(normalized)) {
+      pushCandidate({ uid: appUid, name, avatar });
+    }
+  });
+
+  return Array.from(resultMap.values())
+    .sort((a, b) => a.name.localeCompare(b.name, "ja"))
     .slice(0, 20);
 }
 
@@ -117,7 +161,7 @@ export async function getUserProfileByUid(
   const d = snap.data();
   return {
     uid,
-    name: d.name || "匿名",
-    avatar: d.avatar || "👤",
+    name: sanitizeDisplayName(d.name),
+    avatar: sanitizeAvatar(d.avatar),
   };
 }
