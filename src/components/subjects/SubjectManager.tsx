@@ -5,7 +5,11 @@ import { useStore } from "@/store/useStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Pencil, Trash2, X, Check } from "lucide-react";
 import { SubjectIcon } from "@/components/timer/SubjectSelector";
-import { SUBJECT_ICONS, SUBJECT_COLORS } from "@/lib/utils";
+import {
+  SUBJECT_ICONS,
+  SUBJECT_COLORS,
+  SUBJECT_SUGGESTION_MASTER,
+} from "@/lib/utils";
 import GlassCard from "@/components/ui/GlassCard";
 import EmptyState from "@/components/ui/EmptyState";
 import { fetchSubjectCatalog, upsertSubjectCatalog } from "@/lib/firestore/subjects";
@@ -30,11 +34,14 @@ export default function SubjectManager() {
   const suggestions = useMemo(() => {
     if (!normalizedInput) return [];
 
+    const fromMaster = SUBJECT_SUGGESTION_MASTER.filter((item) =>
+      item.aliases.some((alias) => alias.toLowerCase().includes(normalizedInput))
+    ).map((item) => item.label);
+
     const fromCatalog = catalogNames.filter((candidate) => {
       const normalizedCandidate = candidate.trim().toLowerCase();
       return (
-        normalizedCandidate.includes(normalizedInput) &&
-        normalizedCandidate !== normalizedInput
+        normalizedCandidate.includes(normalizedInput)
       );
     });
 
@@ -43,12 +50,11 @@ export default function SubjectManager() {
       .filter((candidate) => {
         const normalizedCandidate = candidate.trim().toLowerCase();
         return (
-          normalizedCandidate.includes(normalizedInput) &&
-          normalizedCandidate !== normalizedInput
+          normalizedCandidate.includes(normalizedInput)
         );
       });
 
-    return Array.from(new Set([...fromCatalog, ...fromLocal])).slice(0, 8);
+    return Array.from(new Set([...fromMaster, ...fromCatalog, ...fromLocal])).slice(0, 10);
   }, [catalogNames, normalizedInput, subjects]);
 
   useEffect(() => {
