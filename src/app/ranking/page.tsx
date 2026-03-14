@@ -14,6 +14,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { formatHoursMinutes } from "@/lib/utils";
+import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 import {
   fetchRankingData,
   saveUserProfile,
@@ -140,8 +141,8 @@ export default function RankingPage() {
   const visibleRanking = rawData.slice(0, visibleCount).map((u, i) => ({
     ...u,
     rank: i + 1,
-    name: profiles.get(u.userId)?.name || "匿名",
-    avatar: profiles.get(u.userId)?.avatar || "👤",
+    name: sanitizeDisplayName(profiles.get(u.userId)?.name || "匿名"),
+    avatar: sanitizeAvatar(profiles.get(u.userId)?.avatar || "👤"),
   }));
 
   const hasMore = visibleCount < rawData.length;

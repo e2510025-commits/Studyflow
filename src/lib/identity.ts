@@ -36,6 +36,10 @@ export function sanitizeAvatar(avatar: string | null | undefined): string {
     return value;
   }
 
+  if (/^[a-z0-9._-]+$/i.test(value)) {
+    return "👤";
+  }
+
   if (value.length <= 4) return value;
   return "👤";
 }
