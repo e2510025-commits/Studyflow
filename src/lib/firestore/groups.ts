@@ -3,7 +3,6 @@ import {
   collection,
   doc,
   onSnapshot,
-  orderBy,
   query,
   serverTimestamp,
   setDoc,
@@ -76,8 +75,7 @@ function toIso(value: unknown): string {
 export function subscribeMyGroups(userUid: string, callback: (groups: GroupChat[]) => void) {
   const q = query(
     collection(db, GROUPS_COLLECTION),
-    where("memberUids", "array-contains", userUid),
-    orderBy("createdAt", "desc")
+    where("memberUids", "array-contains", userUid)
   );
 
   return onSnapshot(q, (snapshot) => {
@@ -90,8 +88,10 @@ export function subscribeMyGroups(userUid: string, callback: (groups: GroupChat[
         memberUids: Array.isArray(data.memberUids) ? data.memberUids : [],
         createdAt: toIso(data.createdAt),
       } satisfies GroupChat;
-    });
+    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     callback(groups);
+  }, () => {
+    callback([]);
   });
 }
 
@@ -112,8 +112,7 @@ export async function createGroupChat(params: {
 export function subscribeGroupMessages(groupId: string, callback: (messages: GroupMessage[]) => void) {
   const q = query(
     collection(db, GROUP_MESSAGES_COLLECTION),
-    where("groupId", "==", groupId),
-    orderBy("createdAt", "asc")
+    where("groupId", "==", groupId)
   );
 
   return onSnapshot(q, (snapshot) => {
@@ -126,8 +125,10 @@ export function subscribeGroupMessages(groupId: string, callback: (messages: Gro
         content: data.content,
         createdAt: toIso(data.createdAt),
       } satisfies GroupMessage;
-    });
+    }).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     callback(messages);
+  }, () => {
+    callback([]);
   });
 }
 
@@ -146,8 +147,7 @@ export function subscribeGroupTaskBundles(
 ) {
   const q = query(
     collection(db, GROUP_BUNDLES_COLLECTION),
-    where("groupId", "==", groupId),
-    orderBy("createdAt", "desc")
+    where("groupId", "==", groupId)
   );
 
   return onSnapshot(q, (snapshot) => {
@@ -162,9 +162,11 @@ export function subscribeGroupTaskBundles(
         createdBy: data.createdBy,
         createdAt: toIso(data.createdAt),
       } satisfies GroupTaskBundle;
-    });
+    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     callback(bundles);
+  }, () => {
+    callback([]);
   });
 }
 
@@ -203,8 +205,7 @@ export async function deleteGroupTaskBundle(bundleId: string) {
 export function subscribeGroupTasks(groupId: string, callback: (tasks: GroupTask[]) => void) {
   const q = query(
     collection(db, GROUP_TASKS_COLLECTION),
-    where("groupId", "==", groupId),
-    orderBy("createdAt", "asc")
+    where("groupId", "==", groupId)
   );
 
   return onSnapshot(q, (snapshot) => {
@@ -220,9 +221,11 @@ export function subscribeGroupTasks(groupId: string, callback: (tasks: GroupTask
         createdBy: data.createdBy,
         createdAt: toIso(data.createdAt),
       } satisfies GroupTask;
-    });
+    }).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
     callback(tasks);
+  }, () => {
+    callback([]);
   });
 }
 
@@ -254,8 +257,7 @@ export function subscribeGroupTaskProgress(
 ) {
   const q = query(
     collection(db, GROUP_PROGRESS_COLLECTION),
-    where("groupId", "==", groupId),
-    orderBy("updatedAt", "desc")
+    where("groupId", "==", groupId)
   );
 
   return onSnapshot(q, (snapshot) => {
@@ -271,9 +273,11 @@ export function subscribeGroupTaskProgress(
         completedPages: typeof data.completedPages === "number" ? data.completedPages : 0,
         updatedAt: toIso(data.updatedAt),
       } satisfies GroupTaskProgress;
-    });
+    }).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
     callback(progressItems);
+  }, () => {
+    callback([]);
   });
 }
 

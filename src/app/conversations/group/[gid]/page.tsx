@@ -47,7 +47,8 @@ function computeMemberProgress(task: GroupTask, progress?: GroupTaskProgress): n
 }
 
 export default function GroupConversationPage() {
-  const { gid } = useParams<{ gid: string }>();
+  const params = useParams<{ gid?: string | string[] }>();
+  const gid = Array.isArray(params.gid) ? params.gid[0] : params.gid || "";
   const { userProfile } = useStore();
 
   const [groups, setGroups] = useState<GroupChat[]>([]);

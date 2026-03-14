@@ -27,6 +27,40 @@ type RankingPeriod = "today" | "week" | "month" | "all";
 const RANK_COLORS = ["#FFD700", "#C0C0C0", "#CD7F32"];
 const PAGE_SIZE = 100;
 
+function Avatar({
+  avatar,
+  size = 40,
+  background,
+}: {
+  avatar: string;
+  size?: number;
+  background: string;
+}) {
+  const isImage =
+    typeof avatar === "string" &&
+    (avatar.startsWith("http") || avatar.startsWith("data:"));
+
+  if (isImage) {
+    return (
+      <img
+        src={avatar}
+        alt="avatar"
+        className="rounded-full object-cover"
+        style={{ width: size, height: size, background }}
+      />
+    );
+  }
+
+  return (
+    <div
+      className="rounded-full flex items-center justify-center text-lg flex-shrink-0"
+      style={{ width: size, height: size, background }}
+    >
+      {avatar || "👤"}
+    </div>
+  );
+}
+
 export default function RankingPage() {
   const [period, setPeriod] = useState<RankingPeriod>("today");
   const { userProfile } = useStore();
@@ -350,16 +384,10 @@ export default function RankingPage() {
 
                     {/* Avatar + Name */}
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
-                        style={{
-                          background: isMe
-                            ? "var(--accent)"
-                            : "var(--muted-bg)",
-                        }}
-                      >
-                        {user.avatar}
-                      </div>
+                      <Avatar
+                        avatar={user.avatar}
+                        background={isMe ? "var(--accent)" : "var(--muted-bg)"}
+                      />
                       <div className="min-w-0">
                         <span
                           className="text-sm font-bold truncate block"
