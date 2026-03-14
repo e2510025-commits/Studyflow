@@ -7,11 +7,27 @@ import Sidebar from "./Sidebar";
 import ThemePicker from "./ThemePicker";
 import HeaderMenu from "./HeaderMenu";
 import RankingBadge from "@/components/ranking/RankingBadge";
+import { subscribeStudyLogs } from "@/lib/firestore/studyLogs";
+import { saveUserProfile } from "@/lib/firestore/ranking";
+import { subscribeFriends } from "@/lib/firestore/friends";
+import { fetchDisplayProfile } from "@/lib/firestore/profile";
+import {
+  ensureDefaultUserSubjects,
+  subscribeUserSubjects,
+} from "@/lib/firestore/userSubjects";
 
 const BARE_ROUTES = ["/login", "/register"];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  const { theme, customBgColor, initializeDefaults, immersiveMode } = useStore();
+  const {
+    theme,
+    customBgColor,
+    initializeDefaults,
+    immersiveMode,
+    setStudyLogs,
+    setFriends,
+    setSubjects,
+  } = useStore();
   const pathname = usePathname();
   const isBareRoute = BARE_ROUTES.includes(pathname);
   const isTimerPage = pathname === "/timer";
@@ -22,7 +38,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (e.clientX <= 12) setSidebarPeek(true);
   }, []);
   useEffect(() => {
-    if (!isTimerPage) { setSidebarPeek(false); return; }
+    if (!isTimerPage) return;
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, [isTimerPage, handleMouseMove]);
@@ -30,6 +46,75 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     initializeDefaults();
   }, [initializeDefaults]);
+
+  useEffect(() => {
+    let unsubscribeLogs: (() => void) | undefined;
+    let unsubscribeFriends: (() => void) | undefined;
+    let unsubscribeSubjects: (() => void) | undefined;
+    let cancelled = false;
+
+    async function syncAuthProfile() {
+      try {
+        const response = await fetch("/api/auth/session", { cache: "no-store" });
+        if (!response.ok) return;
+
+        const session = (await response.json()) as {
+          user?: { id?: string; name?: string | null; image?: string | null };
+        };
+
+        const accountUid = session.user?.id;
+        if (!accountUid || cancelled) return;
+
+        const storedProfile = await fetchDisplayProfile(accountUid).catch(() => null);
+        const resolvedName = storedProfile?.name || session.user?.name || "";
+        const resolvedAvatar = storedProfile?.avatar || session.user?.image || "🎓";
+
+        useStore.setState((state) => {
+          const switchedAccount = state.userProfile.uid !== accountUid;
+          return {
+            subjects: switchedAccount ? [] : state.subjects,
+            studyLogs: switchedAccount ? [] : state.studyLogs,
+            friends: switchedAccount ? [] : state.friends,
+            chatMessages: switchedAccount ? [] : state.chatMessages,
+            userProfile: {
+              ...state.userProfile,
+              uid: accountUid,
+              name: resolvedName,
+              avatar: resolvedAvatar,
+            },
+          };
+        });
+
+        await ensureDefaultUserSubjects(accountUid);
+
+        unsubscribeLogs = subscribeStudyLogs(accountUid, (logs) => {
+          setStudyLogs(logs);
+        });
+        unsubscribeFriends = subscribeFriends(accountUid, (friends) => {
+          setFriends(friends);
+        });
+        unsubscribeSubjects = subscribeUserSubjects(accountUid, (subjects) => {
+          setSubjects(subjects);
+        });
+
+        const current = useStore.getState().userProfile;
+        if (current.name) {
+          void saveUserProfile(accountUid, current.name, current.avatar).catch(() => {});
+        }
+      } catch {
+        // ignore session sync failures and keep local store state
+      }
+    }
+
+    void syncAuthProfile();
+
+    return () => {
+      cancelled = true;
+      if (unsubscribeLogs) unsubscribeLogs();
+      if (unsubscribeFriends) unsubscribeFriends();
+      if (unsubscribeSubjects) unsubscribeSubjects();
+    };
+  }, [setFriends, setStudyLogs, setSubjects]);
 
   // Apply theme class to <html>
   useEffect(() => {

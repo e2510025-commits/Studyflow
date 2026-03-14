@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef } from "react";
 import { useStore } from "@/store/useStore";
 import { motion } from "framer-motion";
 import {
@@ -12,6 +12,7 @@ import {
   X,
   ImageIcon,
 } from "lucide-react";
+import { saveDisplayProfile } from "@/lib/firestore/profile";
 
 const AVATAR_EMOJI_OPTIONS = [
   "🎓", "📚", "✏️", "🧠", "🔬", "🎯", "💡", "🚀",
@@ -25,18 +26,19 @@ export default function SettingsPage() {
     updateUserProfile,
   } = useStore();
 
-  const [name, setName] = useState(userProfile.name);
-  const [avatar, setAvatar] = useState(userProfile.avatar || "🎓");
+  const [name, setName] = useState(() => userProfile.name);
+  const [avatar, setAvatar] = useState(() => userProfile.avatar || "🎓");
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    setName(userProfile.name);
-    setAvatar(userProfile.avatar || "🎓");
-  }, [userProfile.name, userProfile.avatar]);
-
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!userProfile.uid) return;
+    await saveDisplayProfile({
+      uid: userProfile.uid,
+      name,
+      avatar,
+    });
     updateUserProfile({ name, avatar });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);

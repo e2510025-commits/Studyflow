@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/store/useStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Pencil, Trash2, X, Check } from "lucide-react";
@@ -8,16 +8,62 @@ import { SubjectIcon } from "@/components/timer/SubjectSelector";
 import { SUBJECT_ICONS, SUBJECT_COLORS } from "@/lib/utils";
 import GlassCard from "@/components/ui/GlassCard";
 import EmptyState from "@/components/ui/EmptyState";
+import { fetchSubjectCatalog, upsertSubjectCatalog } from "@/lib/firestore/subjects";
+import {
+  addUserSubject,
+  deleteUserSubject,
+  updateUserSubject,
+} from "@/lib/firestore/userSubjects";
 import type { Subject } from "@/types";
 
 export default function SubjectManager() {
-  const { subjects, addSubject, updateSubject, deleteSubject } = useStore();
+  const { subjects, userProfile } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [color, setColor] = useState(SUBJECT_COLORS[0]);
   const [icon, setIcon] = useState(SUBJECT_ICONS[0]);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [catalogNames, setCatalogNames] = useState<string[]>([]);
+
+  const normalizedInput = name.trim().toLowerCase();
+  const suggestions = useMemo(() => {
+    if (!normalizedInput) return [];
+
+    const fromCatalog = catalogNames.filter((candidate) => {
+      const normalizedCandidate = candidate.trim().toLowerCase();
+      return (
+        normalizedCandidate.includes(normalizedInput) &&
+        normalizedCandidate !== normalizedInput
+      );
+    });
+
+    const fromLocal = subjects
+      .map((s) => s.name)
+      .filter((candidate) => {
+        const normalizedCandidate = candidate.trim().toLowerCase();
+        return (
+          normalizedCandidate.includes(normalizedInput) &&
+          normalizedCandidate !== normalizedInput
+        );
+      });
+
+    return Array.from(new Set([...fromCatalog, ...fromLocal])).slice(0, 8);
+  }, [catalogNames, normalizedInput, subjects]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchSubjectCatalog()
+      .then((names) => {
+        if (!cancelled) {
+          setCatalogNames(names);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const resetForm = () => {
     setName("");
@@ -36,18 +82,32 @@ export default function SubjectManager() {
   };
 
   const handleSave = () => {
-    if (!name.trim()) return;
+    if (!name.trim() || !userProfile.uid) return;
+    const trimmedName = name.trim();
     if (editingId) {
-      updateSubject(editingId, name.trim(), color, icon);
+      void updateUserSubject(editingId, {
+        name: trimmedName,
+        color,
+        icon,
+      }).catch(() => {});
     } else {
-      addSubject(name.trim(), color, icon);
+      void addUserSubject(userProfile.uid, {
+        name: trimmedName,
+        color,
+        icon,
+      }).catch(() => {});
     }
+
+    void upsertSubjectCatalog(trimmedName).catch(() => {});
+    setCatalogNames((prev) =>
+      prev.includes(trimmedName) ? prev : [trimmedName, ...prev]
+    );
     resetForm();
   };
 
   const handleDelete = (id: string) => {
     if (deleteConfirm === id) {
-      deleteSubject(id);
+      void deleteUserSubject(id).catch(() => {});
       setDeleteConfirm(null);
     } else {
       setDeleteConfirm(id);
@@ -132,6 +192,34 @@ export default function SubjectManager() {
                       e.target.style.borderColor = `${color}40`;
                     }}
                   />
+
+                  {name.trim() && (
+                    <div className="mt-2 space-y-1">
+                      {suggestions.map((candidate) => (
+                        <button
+                          key={candidate}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setName(candidate);
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors"
+                          style={{
+                            background: "var(--muted-bg)",
+                            color: "var(--foreground)",
+                          }}
+                        >
+                          {candidate}
+                        </button>
+                      ))}
+
+                      {suggestions.length === 0 && (
+                        <p className="px-1 text-xs" style={{ color: "var(--muted)" }}>
+                          一致候補がないため、このまま新しい教科として追加できます
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Color picker */}

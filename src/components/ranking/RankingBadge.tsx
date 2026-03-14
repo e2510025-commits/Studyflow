@@ -1,58 +1,55 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useStore } from "@/store/useStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, TrendingUp } from "lucide-react";
 import RankingTrendModal from "./RankingTrendModal";
 
-/**
- * Simulates a global rank based on total study seconds.
- * In production this would be: SELECT COUNT(*)+1 FROM users WHERE total_study_time > $userTotal
- */
-function computeRank(totalSeconds: number): number {
-  const hours = totalSeconds / 3600;
-  // Exponential decay: more hours → lower (better) rank number
-  return Math.max(1, Math.round(10000 * Math.exp(-hours / 50)));
+interface RankingApiResponse {
+  myRank: number;
+  totalUsers: number;
 }
 
 export default function RankingBadge() {
-  const { studyLogs } = useStore();
+  const { userProfile } = useStore();
   const [showModal, setShowModal] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const [rank, setRank] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  const totalStudyTime = useMemo(
-    () => studyLogs.reduce((sum, log) => sum + log.duration, 0),
-    [studyLogs]
-  );
-
-  const rank = useMemo(() => computeRank(totalStudyTime), [totalStudyTime]);
-
-  // Build historical rank data from study logs
-  const rankHistory = useMemo(() => {
-    if (studyLogs.length === 0) return [];
-
-    const sorted = [...studyLogs].sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
-
-    const dailyMap = new Map<string, number>();
-    let cumulative = 0;
-
-    for (const log of sorted) {
-      const date = log.createdAt.split("T")[0];
-      cumulative += log.duration;
-      dailyMap.set(date, cumulative);
+  const loadRank = useCallback(async () => {
+    if (!userProfile.uid) {
+      setRank(0);
+      setLoading(false);
+      return;
     }
 
-    return Array.from(dailyMap.entries()).map(([date, total]) => ({
-      date,
-      rank: computeRank(total),
-      totalHours: Math.round(total / 36) / 100,
-    }));
-  }, [studyLogs]);
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `/api/ranking?userId=${encodeURIComponent(userProfile.uid)}&period=all&limit=1&offset=0`,
+        { cache: "no-store" }
+      );
+      if (!res.ok) throw new Error("failed to load rank");
+      const data = (await res.json()) as RankingApiResponse;
+      setRank(Math.max(data.myRank || 0, 1));
+    } catch {
+      setRank(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [userProfile.uid]);
 
-  const formattedRank = rank.toLocaleString();
+  useEffect(() => {
+    void loadRank();
+    const intervalId = setInterval(() => {
+      void loadRank();
+    }, 60000);
+    return () => clearInterval(intervalId);
+  }, [loadRank]);
+
+  const formattedRank = loading ? "--" : rank > 0 ? rank.toLocaleString() : "-";
 
   return (
     <>
@@ -128,7 +125,7 @@ export default function RankingBadge() {
         open={showModal}
         onClose={() => setShowModal(false)}
         currentRank={rank}
-        rankHistory={rankHistory}
+        rankHistory={[]}
       />
     </>
   );

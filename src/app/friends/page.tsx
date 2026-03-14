@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useStore } from "@/store/useStore";
 import { motion, AnimatePresence } from "framer-motion";
@@ -15,37 +15,49 @@ import {
   Check,
 } from "lucide-react";
 import type { Friend } from "@/types";
-
-/* ─── Demo searchable users (simulate server) ──────── */
-const DEMO_USERS: Omit<Friend, "addedAt">[] = [
-  { uid: "10000001", name: "はるか", avatar: "🧑‍🎓" },
-  { uid: "10000002", name: "けんた", avatar: "👨‍💻" },
-  { uid: "10000003", name: "さくら", avatar: "👩‍🔬" },
-  { uid: "10000004", name: "りょう", avatar: "📚" },
-  { uid: "10000005", name: "みなみ", avatar: "✍️" },
-  { uid: "10000006", name: "たいき", avatar: "🎯" },
-  { uid: "10000007", name: "あおい", avatar: "💡" },
-  { uid: "10000008", name: "こうき", avatar: "🔬" },
-  { uid: "10000009", name: "ゆうな", avatar: "📖" },
-  { uid: "10000010", name: "しょうた", avatar: "⚡" },
-];
+import {
+  addFriendToFirestore,
+  removeFriendFromFirestore,
+  searchUsersForFriend,
+} from "@/lib/firestore/friends";
 
 export default function FriendsPage() {
-  const { friends, addFriend, removeFriend, userProfile } = useStore();
+  const { friends, userProfile } = useStore();
   const [query, setQuery] = useState("");
   const [copiedUid, setCopiedUid] = useState(false);
+  const [searchResults, setSearchResults] = useState<Array<Omit<Friend, "addedAt">>>([]);
 
-  /* ── Search results ──────────────────────────────── */
-  const searchResults = useMemo(() => {
-    if (!query.trim()) return [];
-    const q = query.trim().toLowerCase();
-    return DEMO_USERS.filter(
-      (u) =>
-        u.uid !== userProfile.uid &&
-        !friends.some((f) => f.uid === u.uid) &&
-        (u.name.toLowerCase().includes(q) || u.uid.includes(q))
-    );
-  }, [query, friends, userProfile.uid]);
+  useEffect(() => {
+    let cancelled = false;
+    const keyword = query.trim();
+
+    if (!keyword || !userProfile.uid) {
+      return;
+    }
+
+    void searchUsersForFriend(
+      keyword,
+      userProfile.uid,
+      friends.map((f) => f.uid)
+    )
+      .then((results) => {
+        if (!cancelled) {
+          setSearchResults(results);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSearchResults([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [query, userProfile.uid, friends]);
+
+  const canSearch = useMemo(() => Boolean(query.trim() && userProfile.uid), [query, userProfile.uid]);
+  const visibleSearchResults = canSearch ? searchResults : [];
 
   const handleCopyUid = () => {
     navigator.clipboard.writeText(userProfile.uid);
@@ -152,14 +164,14 @@ export default function FriendsPage() {
 
         {/* Search results */}
         <AnimatePresence>
-          {searchResults.length > 0 && (
+          {visibleSearchResults.length > 0 && (
             <motion.div
               className="mt-3 space-y-2"
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
             >
-              {searchResults.map((user) => (
+              {visibleSearchResults.map((user) => (
                 <motion.div
                   key={user.uid}
                   className="flex items-center gap-3 px-4 py-3 rounded-xl"
@@ -188,8 +200,8 @@ export default function FriendsPage() {
                     </span>
                   </div>
                   <motion.button
-                    onClick={() => {
-                      addFriend(user);
+                    onClick={async () => {
+                      await addFriendToFirestore(userProfile.uid, user);
                       setQuery("");
                     }}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
@@ -204,7 +216,7 @@ export default function FriendsPage() {
               ))}
             </motion.div>
           )}
-          {query.trim() && searchResults.length === 0 && (
+          {canSearch && visibleSearchResults.length === 0 && (
             <motion.p
               className="mt-3 text-center text-sm py-4"
               style={{ color: "var(--muted)" }}
@@ -305,7 +317,9 @@ export default function FriendsPage() {
                     </motion.div>
                   </Link>
                   <motion.button
-                    onClick={() => removeFriend(friend.uid)}
+                    onClick={() =>
+                      removeFriendFromFirestore(userProfile.uid, friend.uid).catch(() => {})
+                    }
                     className="w-9 h-9 rounded-full flex items-center justify-center"
                     style={{
                       background: "var(--muted-bg)",

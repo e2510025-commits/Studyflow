@@ -26,6 +26,7 @@ function generateNumericUid(): string {
 interface AppState {
   // Subjects
   subjects: Subject[];
+  setSubjects: (subjects: Subject[]) => void;
   addSubject: (name: string, color: string, icon: string) => void;
   updateSubject: (id: string, name: string, color: string, icon: string) => void;
   deleteSubject: (id: string) => void;
@@ -39,6 +40,7 @@ interface AppState {
     focusRating?: number,
     focusBonus?: boolean
   ) => void;
+  setStudyLogs: (logs: StudyLog[]) => void;
   deleteStudyLog: (id: string) => void;
 
   // User Profile
@@ -48,6 +50,7 @@ interface AppState {
 
   // Friends
   friends: Friend[];
+  setFriends: (friends: Friend[]) => void;
   addFriend: (friend: Omit<Friend, "addedAt">) => void;
   removeFriend: (uid: string) => void;
 
@@ -101,6 +104,7 @@ export const useStore = create<AppState>()(
     (set, get) => ({
       // Subjects
       subjects: [],
+      setSubjects: (subjects) => set({ subjects }),
       addSubject: (name, color, icon) =>
         set((state) => ({
           subjects: [...state.subjects, { id: uuidv4(), name, color, icon }],
@@ -146,6 +150,17 @@ export const useStore = create<AppState>()(
             },
           };
         }),
+      setStudyLogs: (logs) =>
+        set((state) => ({
+          studyLogs: logs,
+          userProfile: {
+            ...state.userProfile,
+            totalPoints: logs.reduce(
+              (sum, log) => sum + (log.points ?? Math.floor(log.duration / 60)),
+              0
+            ),
+          },
+        })),
       deleteStudyLog: (id) =>
         set((state) => ({
           studyLogs: state.studyLogs.filter((l) => l.id !== id),
@@ -164,6 +179,7 @@ export const useStore = create<AppState>()(
 
       // Friends
       friends: [],
+      setFriends: (friends) => set({ friends }),
       addFriend: (friend) =>
         set((state) => {
           if (state.friends.some((f) => f.uid === friend.uid)) return state;
@@ -359,11 +375,6 @@ export const useStore = create<AppState>()(
     {
       name: "study-timer-storage",
       partialize: (state) => ({
-        subjects: state.subjects,
-        studyLogs: state.studyLogs,
-        userProfile: state.userProfile,
-        friends: state.friends,
-        chatMessages: state.chatMessages,
         theme: state.theme,
         customBgColor: state.customBgColor,
         pomodoroConfig: state.pomodoroConfig,

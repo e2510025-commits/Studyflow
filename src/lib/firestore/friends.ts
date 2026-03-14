@@ -8,6 +8,9 @@ import {
   onSnapshot,
   serverTimestamp,
   Timestamp,
+  getDoc,
+  getDocs,
+  limit,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Friend } from "@/types";
@@ -69,7 +72,52 @@ export async function removeFriendFromFirestore(
     where("ownerUid", "==", ownerUid),
     where("uid", "==", friendUid)
   );
-  const { getDocs } = await import("firebase/firestore");
   const snapshot = await getDocs(q);
   await Promise.all(snapshot.docs.map((d) => deleteDoc(doc(db, FRIENDS_COLLECTION, d.id))));
+}
+
+export async function searchUsersForFriend(
+  keyword: string,
+  myUid: string,
+  existingFriendUids: string[]
+): Promise<Array<Omit<Friend, "addedAt">>> {
+  const normalized = keyword.trim().toLowerCase();
+  if (!normalized) return [];
+
+  const profileSnapshot = await getDocs(
+    query(collection(db, "userProfiles"), limit(200))
+  );
+
+  return profileSnapshot.docs
+    .map((d) => {
+      const data = d.data();
+      return {
+        uid: d.id,
+        name: data.name || "匿名",
+        avatar: data.avatar || "👤",
+      };
+    })
+    .filter((u) => {
+      if (u.uid === myUid) return false;
+      if (existingFriendUids.includes(u.uid)) return false;
+      return (
+        u.uid.toLowerCase().includes(normalized) ||
+        u.name.toLowerCase().includes(normalized)
+      );
+    })
+    .slice(0, 20);
+}
+
+export async function getUserProfileByUid(
+  uid: string
+): Promise<Omit<Friend, "addedAt"> | null> {
+  const snap = await getDoc(doc(db, "userProfiles", uid));
+  if (!snap.exists()) return null;
+
+  const d = snap.data();
+  return {
+    uid,
+    name: d.name || "匿名",
+    avatar: d.avatar || "👤",
+  };
 }

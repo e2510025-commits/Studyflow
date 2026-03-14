@@ -20,6 +20,7 @@ import {
   sendMediaMessage,
   deleteChatMessageFromFirestore,
 } from "@/lib/firestore/chat";
+import { getUserProfileByUid } from "@/lib/firestore/friends";
 import type { ChatMessage } from "@/types";
 
 /* ── Max file sizes ──────────────────────────────────── */
@@ -32,7 +33,12 @@ export default function ChatPage() {
   const friendUid = params.uid as string;
 
   const { friends, userProfile } = useStore();
-  const friend = friends.find((f) => f.uid === friendUid);
+  const [friendFallback, setFriendFallback] = useState<{
+    uid: string;
+    name: string;
+    avatar: string;
+  } | null>(null);
+  const friend = friends.find((f) => f.uid === friendUid) || friendFallback;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
@@ -59,6 +65,21 @@ export default function ChatPage() {
     );
     return () => unsubscribe();
   }, [userProfile.uid, friendUid]);
+
+  useEffect(() => {
+    if (!friendUid || friends.some((f) => f.uid === friendUid)) {
+      setFriendFallback(null);
+      return;
+    }
+
+    void getUserProfileByUid(friendUid)
+      .then((profile) => {
+        setFriendFallback(profile);
+      })
+      .catch(() => {
+        setFriendFallback(null);
+      });
+  }, [friendUid, friends]);
 
   /* ── Auto-scroll to bottom ────────────────────────── */
   useEffect(() => {

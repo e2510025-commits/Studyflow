@@ -32,6 +32,9 @@ import SubjectSelector from "./SubjectSelector";
 import MemoDialog from "./MemoDialog";
 import FullscreenWave from "./FullscreenWave";
 import FocusRoom from "./FocusRoom";
+import { addStudyLogToFirestore } from "@/lib/firestore/studyLogs";
+import { upsertActiveStudySession } from "@/lib/firestore/focusRoom";
+import { upsertSubjectCatalog } from "@/lib/firestore/subjects";
 
 /* ─── Sound helper ────────────────────────────────────── */
 function playSound(type: "complete" | "break") {
@@ -81,7 +84,6 @@ export default function StudyTimer() {
     resumeTimer,
     resetTimer,
     tickTimer,
-    addStudyLog,
     pomodoroConfig,
     pomodoroState,
     setPomodoroConfig,
@@ -130,6 +132,46 @@ export default function StudyTimer() {
   const selectedSubject = subjects.find(
     (s) => s.id === timer.selectedSubjectId
   );
+
+  useEffect(() => {
+    const shouldBeActive = Boolean(
+      userProfile.uid && selectedSubject?.name && timer.status === "running"
+    );
+
+    if (!userProfile.uid || !selectedSubject?.name) {
+      return;
+    }
+
+    void upsertActiveStudySession({
+      userUid: userProfile.uid,
+      subjectName: selectedSubject.name,
+      isActive: shouldBeActive,
+    }).catch(() => {});
+
+    return () => {
+      void upsertActiveStudySession({
+        userUid: userProfile.uid,
+        subjectName: selectedSubject.name,
+        isActive: false,
+      }).catch(() => {});
+    };
+  }, [userProfile.uid, selectedSubject?.name, timer.status]);
+
+  useEffect(() => {
+    if (!userProfile.uid || !selectedSubject?.name || timer.status !== "running") {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      void upsertActiveStudySession({
+        userUid: userProfile.uid,
+        subjectName: selectedSubject.name,
+        isActive: true,
+      }).catch(() => {});
+    }, 60000);
+
+    return () => clearInterval(intervalId);
+  }, [userProfile.uid, selectedSubject?.name, timer.status]);
 
   /* ── Today's stats ─────────────────────────────────── */
   const todayLogs = useMemo(() => getTodayLogs(studyLogs), [studyLogs]);
@@ -249,8 +291,27 @@ export default function StudyTimer() {
 
   const handleSaveMemo = useCallback(
     (memo: string, focusRating?: number) => {
-      if (timer.selectedSubjectId && finishedDuration > 0) {
-        addStudyLog(timer.selectedSubjectId, finishedDuration, memo, focusRating, focusBonusActive);
+      if (timer.selectedSubjectId && finishedDuration > 0 && selectedSubject && userProfile.uid) {
+        const basePoints = Math.floor(finishedDuration / 60);
+        const points = focusBonusActive ? Math.floor(basePoints * 1.2) : basePoints;
+
+        void addStudyLogToFirestore(
+          userProfile.uid,
+          {
+            subjectId: timer.selectedSubjectId,
+            duration: finishedDuration,
+            memo,
+            focusRating,
+            focusBonus: focusBonusActive,
+            points,
+          },
+          {
+            name: userProfile.name,
+            avatar: userProfile.avatar,
+          }
+        ).catch(() => {});
+
+        void upsertSubjectCatalog(selectedSubject.name).catch(() => {});
       }
       setShowMemo(false);
       if (timer.mode === "pomodoro") {
@@ -259,12 +320,42 @@ export default function StudyTimer() {
         resetTimer();
       }
     },
-    [timer.selectedSubjectId, timer.mode, finishedDuration, addStudyLog, resetTimer, pomodoroNextPhase, focusBonusActive]
+    [
+      timer.selectedSubjectId,
+      timer.mode,
+      finishedDuration,
+      selectedSubject,
+      userProfile.uid,
+      userProfile.name,
+      userProfile.avatar,
+      resetTimer,
+      pomodoroNextPhase,
+      focusBonusActive,
+    ]
   );
 
   const handleSkipMemo = useCallback(() => {
-    if (timer.selectedSubjectId && finishedDuration > 0) {
-      addStudyLog(timer.selectedSubjectId, finishedDuration, "", undefined, focusBonusActive);
+    if (timer.selectedSubjectId && finishedDuration > 0 && selectedSubject && userProfile.uid) {
+      const basePoints = Math.floor(finishedDuration / 60);
+      const points = focusBonusActive ? Math.floor(basePoints * 1.2) : basePoints;
+
+      void addStudyLogToFirestore(
+        userProfile.uid,
+        {
+          subjectId: timer.selectedSubjectId,
+          duration: finishedDuration,
+          memo: "",
+          focusRating: undefined,
+          focusBonus: focusBonusActive,
+          points,
+        },
+        {
+          name: userProfile.name,
+          avatar: userProfile.avatar,
+        }
+      ).catch(() => {});
+
+      void upsertSubjectCatalog(selectedSubject.name).catch(() => {});
     }
     setShowMemo(false);
     if (timer.mode === "pomodoro") {
@@ -272,7 +363,18 @@ export default function StudyTimer() {
     } else {
       resetTimer();
     }
-  }, [timer.selectedSubjectId, timer.mode, finishedDuration, addStudyLog, resetTimer, pomodoroNextPhase, focusBonusActive]);
+  }, [
+    timer.selectedSubjectId,
+    timer.mode,
+    finishedDuration,
+    selectedSubject,
+    userProfile.uid,
+    userProfile.name,
+    userProfile.avatar,
+    resetTimer,
+    pomodoroNextPhase,
+    focusBonusActive,
+  ]);
 
   const handleFullReset = useCallback(() => {
     resetTimer();

@@ -286,18 +286,6 @@ export default function RankingTrendModal({
                 </div>
               </div>
 
-              {/* DB integration note */}
-              <div
-                className="mt-4 px-4 py-3 rounded-xl text-[11px] leading-relaxed"
-                style={{
-                  background: "var(--accent-light)",
-                  border: "1px solid var(--card-border)",
-                  color: "var(--muted)",
-                }}
-              >
-                💡 本番環境では NextAuth + Supabase/PostgreSQL で全ユーザーの
-                total_study_time を集計し、リアルタイム順位を算出します。
-              </div>
             </div>
           </motion.div>
         </>

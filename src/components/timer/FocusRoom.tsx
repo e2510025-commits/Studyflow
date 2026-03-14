@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Users } from "lucide-react";
+import { subscribeActiveSubjectCount } from "@/lib/firestore/focusRoom";
 
 interface FocusRoomProps {
   subjectName: string;
@@ -16,47 +17,26 @@ const AVATARS = [
   "📚", "🎓", "👩‍🏫", "👨‍🏫", "🧑‍🎓",
 ];
 
-function seededRandom(seed: number) {
-  let x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
-}
-
 export default function FocusRoom({ subjectName, subjectColor }: FocusRoomProps) {
   const [count, setCount] = useState(0);
   const [visibleAvatars, setVisibleAvatars] = useState<string[]>([]);
 
-  // Generate a pseudo-stable base count from subject name
-  const baseCount = useMemo(() => {
-    let hash = 0;
-    for (let i = 0; i < subjectName.length; i++) {
-      hash = (hash * 31 + subjectName.charCodeAt(i)) | 0;
-    }
-    return 8 + Math.abs(hash % 45); // 8-52 range
-  }, [subjectName]);
-
-  // Slowly fluctuate count to simulate others joining/leaving
   useEffect(() => {
-    setCount(baseCount);
-    const interval = setInterval(() => {
-      setCount((prev) => {
-        const delta = Math.random() < 0.5 ? -1 : 1;
-        const next = prev + delta;
-        return Math.max(5, Math.min(next, baseCount + 15));
-      });
-    }, 8000 + Math.random() * 4000);
-    return () => clearInterval(interval);
-  }, [baseCount]);
+    return subscribeActiveSubjectCount(subjectName, (nextCount) => {
+      setCount(nextCount);
+    });
+  }, [subjectName]);
 
   // Pick random avatars to show (max 8)
   useEffect(() => {
     const shown = Math.min(count, 8);
     const picked: string[] = [];
     for (let i = 0; i < shown; i++) {
-      const idx = Math.floor(seededRandom(baseCount + i * 7) * AVATARS.length);
+      const idx = (subjectName.length + i * 7) % AVATARS.length;
       picked.push(AVATARS[idx]);
     }
     setVisibleAvatars(picked);
-  }, [count, baseCount]);
+  }, [count, subjectName]);
 
   return (
     <motion.div
