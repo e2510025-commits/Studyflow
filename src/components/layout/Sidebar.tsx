@@ -11,6 +11,7 @@ import {
   BookMarked,
   Trophy,
   Users,
+  MessageSquare,
   Settings,
   Sliders,
   X,
@@ -23,6 +24,7 @@ const navItems = [
   { href: "/subjects", label: "教科管理", icon: BookMarked },
   { href: "/ranking", label: "ランキング", icon: Trophy },
   { href: "/friends", label: "フレンド", icon: Users },
+  { href: "/conversations", label: "会話", icon: MessageSquare },
   { href: "/settings", label: "アカウント設定", icon: Settings },
   { href: "/preferences", label: "アプリ設定", icon: Sliders },
 ];
@@ -99,7 +101,9 @@ export default function Sidebar() {
         {/* Navigation */}
         <nav className="flex-1 px-4 py-6 space-y-2">
           {navItems.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive =
+              pathname === item.href ||
+              (item.href !== "/" && pathname.startsWith(`${item.href}/`));
             const Icon = item.icon;
             return (
               <Link
