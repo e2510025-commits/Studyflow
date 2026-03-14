@@ -5,11 +5,7 @@ import { useStore } from "@/store/useStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, TrendingUp } from "lucide-react";
 import RankingTrendModal from "./RankingTrendModal";
-
-interface RankingApiResponse {
-  myRank: number;
-  totalUsers: number;
-}
+import { fetchRankingData } from "@/lib/firestore/ranking";
 
 export default function RankingBadge() {
   const { userProfile } = useStore();
@@ -27,13 +23,9 @@ export default function RankingBadge() {
 
     setLoading(true);
     try {
-      const res = await fetch(
-        `/api/ranking?userId=${encodeURIComponent(userProfile.uid)}&period=all&limit=1&offset=0`,
-        { cache: "no-store" }
-      );
-      if (!res.ok) throw new Error("failed to load rank");
-      const data = (await res.json()) as RankingApiResponse;
-      setRank(Math.max(data.myRank || 0, 1));
+      const rows = await fetchRankingData("all");
+      const myIndex = rows.findIndex((r) => r.userId === userProfile.uid);
+      setRank(myIndex >= 0 ? myIndex + 1 : 0);
     } catch {
       setRank(0);
     } finally {
