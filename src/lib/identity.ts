@@ -1,10 +1,10 @@
 export function toAppUid(rawId: string): string {
   if (/^\d{10}$/.test(rawId)) return rawId;
 
-  const MOD = 10000000000n;
-  let hash = 0n;
+  const MOD = 10000000000;
+  let hash = 0;
   for (const ch of rawId) {
-    hash = (hash * 131n + BigInt(ch.charCodeAt(0))) % MOD;
+    hash = (hash * 131 + ch.charCodeAt(0)) % MOD;
   }
 
   const uid = hash.toString().padStart(10, "0");
