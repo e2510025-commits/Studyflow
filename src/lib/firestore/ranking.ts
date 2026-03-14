@@ -9,6 +9,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 
 /* ─── Types ──────────────────────────────────────── */
 
@@ -35,9 +36,11 @@ export async function saveUserProfile(
   name: string,
   avatar: string
 ) {
+  const safeName = sanitizeDisplayName(name);
+  const safeAvatar = sanitizeAvatar(avatar);
   await setDoc(
     doc(db, PROFILES, uid),
-    { uid, name, avatar, updatedAt: new Date() },
+    { uid, name: safeName, avatar: safeAvatar, updatedAt: new Date() },
     { merge: true }
   );
 }
@@ -57,8 +60,8 @@ export async function getProfilesBatch(
         if (snap.exists()) {
           const d = snap.data();
           map.set(uid, {
-            name: d.name || "匿名",
-            avatar: d.avatar || "👤",
+            name: sanitizeDisplayName(d.name),
+            avatar: sanitizeAvatar(d.avatar),
           });
         }
       } catch {

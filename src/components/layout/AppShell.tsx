@@ -11,6 +11,7 @@ import { subscribeStudyLogs } from "@/lib/firestore/studyLogs";
 import { saveUserProfile } from "@/lib/firestore/ranking";
 import { subscribeFriends } from "@/lib/firestore/friends";
 import { fetchDisplayProfile } from "@/lib/firestore/profile";
+import { sanitizeAvatar, sanitizeDisplayName, toAppUid } from "@/lib/identity";
 import {
   ensureDefaultUserSubjects,
   subscribeUserSubjects,
@@ -64,13 +65,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         const accountUid = session.user?.id;
         if (!accountUid || cancelled) return;
+        const appUid = toAppUid(accountUid);
 
-        const storedProfile = await fetchDisplayProfile(accountUid).catch(() => null);
-        const resolvedName = storedProfile?.name || session.user?.name || "";
-        const resolvedAvatar = storedProfile?.avatar || session.user?.image || "🎓";
+        const storedProfile =
+          (await fetchDisplayProfile(appUid).catch(() => null)) ||
+          (await fetchDisplayProfile(accountUid).catch(() => null));
+        const resolvedName = sanitizeDisplayName(storedProfile?.name || session.user?.name || "匿名");
+        const resolvedAvatar = sanitizeAvatar(storedProfile?.avatar || session.user?.image || "👤");
 
         useStore.setState((state) => {
-          const switchedAccount = state.userProfile.uid !== accountUid;
+          const switchedAccount = state.userProfile.uid !== appUid;
           return {
             subjects: switchedAccount ? [] : state.subjects,
             studyLogs: switchedAccount ? [] : state.studyLogs,
@@ -78,28 +82,28 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             chatMessages: switchedAccount ? [] : state.chatMessages,
             userProfile: {
               ...state.userProfile,
-              uid: accountUid,
+              uid: appUid,
               name: resolvedName,
               avatar: resolvedAvatar,
             },
           };
         });
 
-        await ensureDefaultUserSubjects(accountUid);
+        await ensureDefaultUserSubjects(appUid);
 
-        unsubscribeLogs = subscribeStudyLogs(accountUid, (logs) => {
+        unsubscribeLogs = subscribeStudyLogs(appUid, (logs) => {
           setStudyLogs(logs);
         });
-        unsubscribeFriends = subscribeFriends(accountUid, (friends) => {
+        unsubscribeFriends = subscribeFriends(appUid, (friends) => {
           setFriends(friends);
         });
-        unsubscribeSubjects = subscribeUserSubjects(accountUid, (subjects) => {
+        unsubscribeSubjects = subscribeUserSubjects(appUid, (subjects) => {
           setSubjects(subjects);
         });
 
         const current = useStore.getState().userProfile;
         if (current.name) {
-          void saveUserProfile(accountUid, current.name, current.avatar).catch(() => {});
+          void saveUserProfile(appUid, current.name, current.avatar).catch(() => {});
         }
       } catch {
         // ignore session sync failures and keep local store state

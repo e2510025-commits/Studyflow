@@ -16,10 +16,10 @@ import type {
 } from "@/types";
 import { DEFAULT_SUBJECTS } from "@/lib/utils";
 
-/** Generate an 8-digit numeric UID */
+/** Generate a 10-digit numeric UID */
 function generateNumericUid(): string {
-  const min = 10000000;
-  const max = 99999999;
+  const min = 1000000000;
+  const max = 9999999999;
   return String(Math.floor(Math.random() * (max - min + 1)) + min);
 }
 
