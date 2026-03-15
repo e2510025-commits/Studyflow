@@ -25,6 +25,7 @@ import {
   subscribeOutgoingFriendRequests,
   respondFriendRequest,
 } from "@/lib/firestore/friends";
+import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 
 export default function FriendsPage() {
   const { friends, userProfile } = useStore();
@@ -250,6 +251,10 @@ export default function FriendsPage() {
               exit={{ opacity: 0, height: 0 }}
             >
               {visibleSearchResults.map((user) => (
+                (() => {
+                  const safeName = sanitizeDisplayName(user.name);
+                  const safeAvatar = sanitizeAvatar(user.avatar);
+                  return (
                 <motion.div
                   key={user.uid}
                   className="flex items-center gap-3 px-4 py-3 rounded-xl"
@@ -262,11 +267,11 @@ export default function FriendsPage() {
                     className="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
                     style={{ background: "var(--accent-light)" }}
                   >
-                    {user.avatar}
+                    {safeAvatar}
                   </Link>
                   <Link href={`/profile/${user.uid}`} className="flex-1 min-w-0">
                     <span className="text-sm font-bold block truncate" style={{ color: "var(--foreground)" }}>
-                      {user.name}
+                      {safeName}
                     </span>
                     <span className="text-xs font-mono" style={{ color: "var(--muted)" }}>
                       UID: {user.uid}
@@ -292,6 +297,8 @@ export default function FriendsPage() {
                     {outgoingTargets.has(user.uid) ? "申請中" : "申請"}
                   </motion.button>
                 </motion.div>
+                  );
+                })()
               ))}
             </motion.div>
           )}
@@ -354,6 +361,10 @@ export default function FriendsPage() {
             style={{ borderColor: "var(--card-border)" }}
           >
             {friends.map((friend, i) => (
+              (() => {
+                const safeName = sanitizeDisplayName(friend.name);
+                const safeAvatar = sanitizeAvatar(friend.avatar);
+                return (
               <motion.div
                 key={friend.uid}
                 className="flex items-center gap-4 px-5 py-4"
@@ -366,11 +377,11 @@ export default function FriendsPage() {
                   className="w-11 h-11 rounded-full flex items-center justify-center text-lg flex-shrink-0"
                   style={{ background: "var(--muted-bg)" }}
                 >
-                  {friend.avatar}
+                  {safeAvatar}
                 </Link>
                 <Link href={`/profile/${friend.uid}`} className="flex-1 min-w-0">
                   <span className="text-sm font-bold block truncate" style={{ color: "var(--foreground)" }}>
-                    {friend.name}
+                    {safeName}
                   </span>
                   <span className="text-xs font-mono" style={{ color: "var(--muted)" }}>
                     UID: {friend.uid}
@@ -406,6 +417,8 @@ export default function FriendsPage() {
                   </motion.button>
                 </div>
               </motion.div>
+                );
+              })()
             ))}
           </div>
         )}

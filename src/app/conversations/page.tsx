@@ -6,6 +6,7 @@ import { useStore } from "@/store/useStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquare, Users, Plus, X, Check } from "lucide-react";
 import { createGroupChat, subscribeMyGroups, type GroupChat } from "@/lib/firestore/groups";
+import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 
 export default function ConversationsPage() {
   const { userProfile, friends } = useStore();
@@ -81,7 +82,10 @@ export default function ConversationsPage() {
             </p>
           ) : (
             <div className="space-y-2">
-              {friends.map((friend) => (
+              {friends.map((friend) => {
+                const safeName = sanitizeDisplayName(friend.name);
+                const safeAvatar = sanitizeAvatar(friend.avatar);
+                return (
                 <Link
                   key={friend.uid}
                   href={`/friends/chat/${friend.uid}`}
@@ -89,18 +93,19 @@ export default function ConversationsPage() {
                   style={{ background: "var(--muted-bg)" }}
                 >
                   <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: "var(--accent-light)" }}>
-                    {friend.avatar}
+                    {safeAvatar}
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-bold truncate" style={{ color: "var(--foreground)" }}>
-                      {friend.name}
+                      {safeName}
                     </p>
                     <p className="text-[11px] font-mono" style={{ color: "var(--muted)" }}>
                       UID: {friend.uid}
                     </p>
                   </div>
                 </Link>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

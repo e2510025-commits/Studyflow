@@ -73,12 +73,6 @@ export default function Sidebar() {
         <div className="flex items-center justify-between px-6 py-6 border-b"
           style={{ borderColor: "var(--card-border)" }}>
           <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden"
-              style={{ background: "var(--accent)" }}
-            >
-              <img src="/logo.png" alt="StudyFlow" className="w-full h-full object-cover" />
-            </div>
             <div>
               <h1 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
                 StudyFlow

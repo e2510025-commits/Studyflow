@@ -25,6 +25,7 @@ import {
   markChatMessagesAsRead,
 } from "@/lib/firestore/chat";
 import { getUserProfileByUid } from "@/lib/firestore/friends";
+import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 import type { ChatMessage } from "@/types";
 
 /* ── Max file sizes ──────────────────────────────────── */
@@ -51,6 +52,8 @@ export default function ChatPage() {
     avatar: string;
   } | null>(null);
   const friend = friends.find((f) => f.uid === friendUid) || friendFallback;
+  const safeFriendName = sanitizeDisplayName(friend?.name || "匿名");
+  const safeFriendAvatar = sanitizeAvatar(friend?.avatar || "👤");
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
@@ -295,14 +298,14 @@ export default function ChatPage() {
           className="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
           style={{ background: "var(--accent-light)" }}
         >
-          {friend.avatar}
+          {safeFriendAvatar}
         </div>
         <div className="flex-1 min-w-0">
           <span
             className="text-sm font-bold block truncate"
             style={{ color: "var(--foreground)" }}
           >
-            <Link href={`/profile/${friend.uid}`}>{friend.name}</Link>
+            <Link href={`/profile/${friend.uid}`}>{safeFriendName}</Link>
           </span>
           <span className="text-xs font-mono" style={{ color: "var(--muted)" }}>
             UID: {friend.uid}
