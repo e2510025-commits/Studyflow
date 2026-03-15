@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useStore } from "@/store/useStore";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Menu,
   Settings,
   LogOut,
   Sliders,
@@ -78,14 +77,14 @@ export default function HeaderMenu() {
 
   return (
     <div ref={menuRef} className="fixed top-4 right-4 z-50">
-      {/* Hamburger button */}
+      {/* Profile button */}
       <button
         onClick={() => setOpen(!open)}
-        className="w-10 h-10 rounded-xl flex items-center justify-center glass-card transition-all hover:scale-105 active:scale-95"
+        className="w-10 h-10 rounded-full flex items-center justify-center glass-card transition-all hover:scale-105 active:scale-95 overflow-hidden"
         style={{ padding: 0 }}
         aria-label="メニューを開く"
       >
-        <Menu size={20} style={{ color: "var(--foreground)" }} />
+        <AvatarDisplay avatar={userProfile.avatar} size={34} />
       </button>
 
       {/* Dropdown */}
