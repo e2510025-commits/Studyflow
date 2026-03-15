@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useStore } from "@/store/useStore";
 import { motion } from "framer-motion";
 import {
@@ -12,7 +12,8 @@ import {
   X,
   ImageIcon,
 } from "lucide-react";
-import { saveDisplayProfile } from "@/lib/firestore/profile";
+import { fetchPublicProfile, saveDisplayProfile } from "@/lib/firestore/profile";
+import type { ProfileVisibility } from "@/types";
 
 const AVATAR_EMOJI_OPTIONS = [
   "🎓", "📚", "✏️", "🧠", "🔬", "🎯", "💡", "🚀",
@@ -30,7 +31,20 @@ export default function SettingsPage() {
   const [avatar, setAvatar] = useState(() => userProfile.avatar || "🎓");
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [bio, setBio] = useState("");
+  const [visibility, setVisibility] = useState<ProfileVisibility>("public");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!userProfile.uid) return;
+    void fetchPublicProfile(userProfile.uid)
+      .then((profile) => {
+        if (!profile) return;
+        setBio(profile.bio || "");
+        setVisibility(profile.visibility || "public");
+      })
+      .catch(() => {});
+  }, [userProfile.uid]);
 
   const handleSave = async () => {
     if (!userProfile.uid) return;
@@ -38,6 +52,10 @@ export default function SettingsPage() {
       uid: userProfile.uid,
       name,
       avatar,
+      bio,
+      visibility,
+      dailyGoal: userProfile.dailyGoal,
+      totalPoints: userProfile.totalPoints,
     });
     updateUserProfile({ name, avatar });
     setSaved(true);
@@ -274,6 +292,49 @@ export default function SettingsPage() {
           onFocus={(e) => (e.target.style.borderColor = "var(--accent)")}
           onBlur={(e) => (e.target.style.borderColor = "transparent")}
         />
+      </motion.div>
+
+      <motion.div
+        className="glass-card p-5 space-y-3"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.18, duration: 0.4 }}
+      >
+        <h2 className="text-base font-bold" style={{ color: "var(--foreground)" }}>
+          自己紹介
+        </h2>
+        <textarea
+          value={bio}
+          onChange={(e) => setBio(e.target.value.slice(0, 280))}
+          rows={4}
+          placeholder="勉強中のこと、目標などを書けます（280文字まで）"
+          className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+          style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+        />
+        <p className="text-[11px]" style={{ color: "var(--muted)" }}>
+          {bio.length}/280
+        </p>
+      </motion.div>
+
+      <motion.div
+        className="glass-card p-5 space-y-3"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.19, duration: 0.4 }}
+      >
+        <h2 className="text-base font-bold" style={{ color: "var(--foreground)" }}>
+          公開範囲
+        </h2>
+        <select
+          value={visibility}
+          onChange={(e) => setVisibility(e.target.value as ProfileVisibility)}
+          className="w-full px-4 py-2.5 rounded-xl text-sm"
+          style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+        >
+          <option value="public">公開（誰でも表示）</option>
+          <option value="friends">フレンドのみ</option>
+          <option value="private">非公開（自分のみ）</option>
+        </select>
       </motion.div>
 
       {/* Save button */}

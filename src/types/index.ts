@@ -24,6 +24,18 @@ export interface UserProfile {
   totalPoints: number;
 }
 
+export type ProfileVisibility = "public" | "friends" | "private";
+
+export interface PublicProfile {
+  uid: string;
+  name: string;
+  avatar: string;
+  bio: string;
+  visibility: ProfileVisibility;
+  dailyGoal: number;
+  totalPoints: number;
+}
+
 /* ─── Friends ──────────────────────────────────────── */
 export interface Friend {
   uid: string;
@@ -33,7 +45,7 @@ export interface Friend {
 }
 
 /* ─── Chat ─────────────────────────────────────────── */
-export type ChatMessageType = "text" | "image" | "video";
+export type ChatMessageType = "text" | "image" | "video" | "task";
 
 export interface ChatMessage {
   id: string;
@@ -43,6 +55,21 @@ export interface ChatMessage {
   content: string; // text body, or data-url / blob-url for media
   fileName?: string; // original file name for media
   createdAt: string; // ISO string
+  readBy?: string[];
+  readAt?: string;
+}
+
+export type FriendRequestStatus = "pending" | "accepted" | "declined";
+
+export interface FriendRequest {
+  id: string;
+  fromUid: string;
+  fromName: string;
+  fromAvatar: string;
+  toUid: string;
+  status: FriendRequestStatus;
+  createdAt: string;
+  respondedAt?: string;
 }
 
 export type TimerMode = "stopwatch" | "countdown" | "pomodoro";

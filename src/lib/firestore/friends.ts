@@ -11,12 +11,15 @@ import {
   getDoc,
   getDocs,
   limit,
+  orderBy,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Friend } from "@/types";
-import { sanitizeAvatar, sanitizeDisplayName, toAppUid } from "@/lib/identity";
+import type { Friend, FriendRequest } from "@/types";
+import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 
 const FRIENDS_COLLECTION = "friends";
+const FRIEND_REQUESTS_COLLECTION = "friendRequests";
 
 /**
  * ユーザーのフレンドリストをリアルタイム購読
@@ -35,8 +38,8 @@ export function subscribeFriends(
       const data = d.data();
       return {
         uid: data.uid,
-        name: data.name,
-        avatar: data.avatar,
+        name: sanitizeDisplayName(data.name),
+        avatar: sanitizeAvatar(data.avatar),
         addedAt:
           data.addedAt instanceof Timestamp
             ? data.addedAt.toDate().toISOString()
@@ -75,6 +78,154 @@ export async function removeFriendFromFirestore(
   );
   const snapshot = await getDocs(q);
   await Promise.all(snapshot.docs.map((d) => deleteDoc(doc(db, FRIENDS_COLLECTION, d.id))));
+}
+
+export async function sendFriendRequest(params: {
+  fromUid: string;
+  fromName: string;
+  fromAvatar: string;
+  toUid: string;
+}): Promise<void> {
+  if (params.fromUid === params.toUid) return;
+
+  const alreadyFriends = await getDocs(
+    query(
+      collection(db, FRIENDS_COLLECTION),
+      where("ownerUid", "==", params.fromUid),
+      where("uid", "==", params.toUid),
+      limit(1)
+    )
+  );
+  if (!alreadyFriends.empty) return;
+
+  const existingReq = await getDocs(
+    query(
+      collection(db, FRIEND_REQUESTS_COLLECTION),
+      where("fromUid", "==", params.fromUid),
+      where("toUid", "==", params.toUid),
+      where("status", "==", "pending"),
+      limit(1)
+    )
+  );
+  if (!existingReq.empty) return;
+
+  await addDoc(collection(db, FRIEND_REQUESTS_COLLECTION), {
+    fromUid: params.fromUid,
+    fromName: sanitizeDisplayName(params.fromName),
+    fromAvatar: sanitizeAvatar(params.fromAvatar),
+    toUid: params.toUid,
+    status: "pending",
+    createdAt: serverTimestamp(),
+  });
+}
+
+export function subscribeIncomingFriendRequests(
+  myUid: string,
+  callback: (requests: FriendRequest[]) => void
+) {
+  const q = query(
+    collection(db, FRIEND_REQUESTS_COLLECTION),
+    where("toUid", "==", myUid),
+    where("status", "==", "pending"),
+    orderBy("createdAt", "desc")
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const requests = snapshot.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        fromUid: data.fromUid,
+        fromName: sanitizeDisplayName(data.fromName),
+        fromAvatar: sanitizeAvatar(data.fromAvatar),
+        toUid: data.toUid,
+        status: data.status,
+        createdAt:
+          data.createdAt instanceof Timestamp
+            ? data.createdAt.toDate().toISOString()
+            : data.createdAt,
+      } satisfies FriendRequest;
+    });
+    callback(requests);
+  });
+}
+
+export function subscribeOutgoingFriendRequests(
+  myUid: string,
+  callback: (requests: FriendRequest[]) => void
+) {
+  const q = query(
+    collection(db, FRIEND_REQUESTS_COLLECTION),
+    where("fromUid", "==", myUid),
+    where("status", "==", "pending"),
+    orderBy("createdAt", "desc")
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const requests = snapshot.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        fromUid: data.fromUid,
+        fromName: sanitizeDisplayName(data.fromName),
+        fromAvatar: sanitizeAvatar(data.fromAvatar),
+        toUid: data.toUid,
+        status: data.status,
+        createdAt:
+          data.createdAt instanceof Timestamp
+            ? data.createdAt.toDate().toISOString()
+            : data.createdAt,
+      } satisfies FriendRequest;
+    });
+    callback(requests);
+  });
+}
+
+export async function respondFriendRequest(
+  requestId: string,
+  action: "accept" | "decline"
+): Promise<void> {
+  const reqRef = doc(db, FRIEND_REQUESTS_COLLECTION, requestId);
+  const reqSnap = await getDoc(reqRef);
+  if (!reqSnap.exists()) return;
+
+  const data = reqSnap.data();
+  if (data.status !== "pending") return;
+
+  const batch = writeBatch(db);
+  batch.set(
+    reqRef,
+    {
+      status: action === "accept" ? "accepted" : "declined",
+      respondedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  if (action === "accept") {
+    const fromProfile = await getUserProfileByUid(data.fromUid);
+    const toProfile = await getUserProfileByUid(data.toUid);
+
+    const fromRef = doc(collection(db, FRIENDS_COLLECTION));
+    const toRef = doc(collection(db, FRIENDS_COLLECTION));
+
+    batch.set(fromRef, {
+      ownerUid: data.fromUid,
+      uid: data.toUid,
+      name: sanitizeDisplayName(toProfile?.name || "匿名"),
+      avatar: sanitizeAvatar(toProfile?.avatar || "👤"),
+      addedAt: serverTimestamp(),
+    });
+    batch.set(toRef, {
+      ownerUid: data.toUid,
+      uid: data.fromUid,
+      name: sanitizeDisplayName(fromProfile?.name || data.fromName || "匿名"),
+      avatar: sanitizeAvatar(fromProfile?.avatar || data.fromAvatar || "👤"),
+      addedAt: serverTimestamp(),
+    });
+  }
+
+  await batch.commit();
 }
 
 export async function searchUsersForFriend(
@@ -133,19 +284,6 @@ export async function searchUsersForFriend(
         pushCandidate(u);
       }
     });
-
-  // Fallback source: users collection (helps users who haven't created userProfiles yet)
-  const usersSnapshot = await getDocs(query(collection(db, "users"), limit(1000)));
-  usersSnapshot.docs.forEach((d) => {
-    const data = d.data();
-    const appUid = toAppUid(d.id);
-    const name = sanitizeDisplayName(data.name || data.displayName || "匿名");
-    const avatar = sanitizeAvatar(data.image || data.avatar || "👤");
-
-    if (appUid.includes(normalized) || name.toLowerCase().includes(normalized)) {
-      pushCandidate({ uid: appUid, name, avatar });
-    }
-  });
 
   return Array.from(resultMap.values())
     .sort((a, b) => a.name.localeCompare(b.name, "ja"))

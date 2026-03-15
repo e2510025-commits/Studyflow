@@ -11,6 +11,9 @@ import {
   Timestamp,
   or,
   and,
+  getDocs,
+  limit,
+  writeBatch,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
@@ -47,6 +50,11 @@ export function subscribeChatMessages(
         type: data.type as ChatMessageType,
         content: data.content,
         fileName: data.fileName,
+        readBy: Array.isArray(data.readBy) ? data.readBy : [],
+        readAt:
+          data.readAt instanceof Timestamp
+            ? data.readAt.toDate().toISOString()
+            : data.readAt,
         createdAt:
           data.createdAt instanceof Timestamp
             ? data.createdAt.toDate().toISOString()
@@ -70,6 +78,30 @@ export async function sendTextMessage(
     toUid,
     type: "text",
     content: text,
+    readBy: [fromUid],
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function sendTaskMessage(
+  fromUid: string,
+  toUid: string,
+  payload: {
+    title: string;
+    details?: string;
+    dueDate?: string;
+  }
+): Promise<void> {
+  await addDoc(collection(db, CHAT_COLLECTION), {
+    fromUid,
+    toUid,
+    type: "task",
+    content: JSON.stringify({
+      title: payload.title.trim(),
+      details: (payload.details || "").trim(),
+      dueDate: payload.dueDate || "",
+    }),
+    readBy: [fromUid],
     createdAt: serverTimestamp(),
   });
 }
@@ -85,7 +117,12 @@ export async function sendMediaMessage(
 ): Promise<void> {
   const path = `chat/${fromUid}_${toUid}/${Date.now()}_${file.name}`;
   const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file);
+  await Promise.race([
+    uploadBytes(storageRef, file),
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("UPLOAD_TIMEOUT")), 30000);
+    }),
+  ]);
   const url = await getDownloadURL(storageRef);
 
   await addDoc(collection(db, CHAT_COLLECTION), {
@@ -95,8 +132,40 @@ export async function sendMediaMessage(
     content: url,
     fileName: file.name,
     storagePath: path,
+    readBy: [fromUid],
     createdAt: serverTimestamp(),
   });
+}
+
+export async function markChatMessagesAsRead(
+  myUid: string,
+  friendUid: string
+): Promise<void> {
+  const q = query(
+    collection(db, CHAT_COLLECTION),
+    where("fromUid", "==", friendUid),
+    where("toUid", "==", myUid),
+    orderBy("createdAt", "desc"),
+    limit(100)
+  );
+  const snapshot = await getDocs(q);
+  const unread = snapshot.docs.filter((d) => {
+    const data = d.data();
+    const readBy = Array.isArray(data.readBy) ? data.readBy : [];
+    return !readBy.includes(myUid);
+  });
+
+  if (unread.length === 0) return;
+  const batch = writeBatch(db);
+  unread.forEach((d) => {
+    const data = d.data();
+    const readBy = Array.isArray(data.readBy) ? data.readBy : [];
+    batch.update(d.ref, {
+      readBy: Array.from(new Set([...readBy, myUid])),
+      readAt: serverTimestamp(),
+    });
+  });
+  await batch.commit();
 }
 
 /**

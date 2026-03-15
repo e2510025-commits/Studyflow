@@ -10,7 +10,7 @@ import RankingBadge from "@/components/ranking/RankingBadge";
 import { subscribeStudyLogs } from "@/lib/firestore/studyLogs";
 import { saveUserProfile } from "@/lib/firestore/ranking";
 import { subscribeFriends } from "@/lib/firestore/friends";
-import { fetchDisplayProfile } from "@/lib/firestore/profile";
+import { fetchDisplayProfile, saveDisplayProfile } from "@/lib/firestore/profile";
 import { sanitizeAvatar, sanitizeDisplayName, toAppUid } from "@/lib/identity";
 import {
   ensureDefaultUserSubjects,
@@ -104,6 +104,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         const current = useStore.getState().userProfile;
         if (current.name) {
           void saveUserProfile(appUid, current.name, current.avatar).catch(() => {});
+          void saveDisplayProfile({
+            uid: appUid,
+            name: current.name,
+            avatar: current.avatar,
+            dailyGoal: current.dailyGoal,
+            totalPoints: current.totalPoints,
+          }).catch(() => {});
         }
       } catch {
         // ignore session sync failures and keep local store state

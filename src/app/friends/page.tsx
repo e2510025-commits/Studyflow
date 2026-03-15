@@ -13,12 +13,17 @@ import {
   X,
   Copy,
   Check,
+  Bell,
+  BellDot,
 } from "lucide-react";
-import type { Friend } from "@/types";
+import type { Friend, FriendRequest } from "@/types";
 import {
-  addFriendToFirestore,
   removeFriendFromFirestore,
   searchUsersForFriend,
+  sendFriendRequest,
+  subscribeIncomingFriendRequests,
+  subscribeOutgoingFriendRequests,
+  respondFriendRequest,
 } from "@/lib/firestore/friends";
 
 export default function FriendsPage() {
@@ -26,6 +31,19 @@ export default function FriendsPage() {
   const [query, setQuery] = useState("");
   const [copiedUid, setCopiedUid] = useState(false);
   const [searchResults, setSearchResults] = useState<Array<Omit<Friend, "addedAt">>>([]);
+  const [incomingRequests, setIncomingRequests] = useState<FriendRequest[]>([]);
+  const [outgoingRequests, setOutgoingRequests] = useState<FriendRequest[]>([]);
+  const [openNotifications, setOpenNotifications] = useState(false);
+
+  useEffect(() => {
+    if (!userProfile.uid) return;
+    const unsubIncoming = subscribeIncomingFriendRequests(userProfile.uid, setIncomingRequests);
+    const unsubOutgoing = subscribeOutgoingFriendRequests(userProfile.uid, setOutgoingRequests);
+    return () => {
+      unsubIncoming();
+      unsubOutgoing();
+    };
+  }, [userProfile.uid]);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,6 +76,10 @@ export default function FriendsPage() {
 
   const canSearch = useMemo(() => Boolean(query.trim() && userProfile.uid), [query, userProfile.uid]);
   const visibleSearchResults = canSearch ? searchResults : [];
+  const outgoingTargets = useMemo(
+    () => new Set(outgoingRequests.map((r) => r.toUid)),
+    [outgoingRequests]
+  );
 
   const handleCopyUid = () => {
     navigator.clipboard.writeText(userProfile.uid);
@@ -73,7 +95,7 @@ export default function FriendsPage() {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <div className="flex items-center justify-center gap-3 mb-2">
+        <div className="flex items-center justify-center gap-3 mb-2 relative">
           <Users size={32} style={{ color: "var(--accent)" }} />
           <h1
             className="text-3xl sm:text-4xl font-black"
@@ -81,11 +103,67 @@ export default function FriendsPage() {
           >
             フレンド
           </h1>
+          <button
+            onClick={() => setOpenNotifications((v) => !v)}
+            className="absolute right-0 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center"
+            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+            title="申請通知"
+          >
+            {incomingRequests.length > 0 ? <BellDot size={18} /> : <Bell size={18} />}
+          </button>
         </div>
         <p className="text-sm" style={{ color: "var(--muted)" }}>
-          UIDで検索してフレンドを追加しよう
+          UIDで検索してフレンド申請を送ろう
         </p>
       </motion.div>
+
+      <AnimatePresence>
+        {openNotifications && (
+          <motion.div
+            className="glass-card p-4 space-y-3"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+          >
+            <h2 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
+              フレンド申請通知
+            </h2>
+            {incomingRequests.length === 0 ? (
+              <p className="text-sm" style={{ color: "var(--muted)" }}>未読通知はありません</p>
+            ) : (
+              incomingRequests.map((req) => (
+                <div key={req.id} className="rounded-xl p-3 flex items-center gap-3" style={{ background: "var(--muted-bg)" }}>
+                  <Link href={`/profile/${req.fromUid}`} className="w-10 h-10 rounded-full flex items-center justify-center text-lg" style={{ background: "var(--accent-light)" }}>
+                    {req.fromAvatar}
+                  </Link>
+                  <div className="flex-1 min-w-0">
+                    <Link href={`/profile/${req.fromUid}`} className="text-sm font-bold block truncate" style={{ color: "var(--foreground)" }}>
+                      {req.fromName}
+                    </Link>
+                    <p className="text-[11px]" style={{ color: "var(--muted)" }}>フレンド申請が届いています</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => respondFriendRequest(req.id, "accept")}
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-white"
+                      style={{ background: "#16a34a" }}
+                    >
+                      承認
+                    </button>
+                    <button
+                      onClick={() => respondFriendRequest(req.id, "decline")}
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold"
+                      style={{ background: "#ef444420", color: "#ef4444" }}
+                    >
+                      却下
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* My UID Card */}
       <motion.div
@@ -179,38 +257,39 @@ export default function FriendsPage() {
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                 >
-                  <div
+                  <Link
+                    href={`/profile/${user.uid}`}
                     className="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
                     style={{ background: "var(--accent-light)" }}
                   >
                     {user.avatar}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span
-                      className="text-sm font-bold block truncate"
-                      style={{ color: "var(--foreground)" }}
-                    >
+                  </Link>
+                  <Link href={`/profile/${user.uid}`} className="flex-1 min-w-0">
+                    <span className="text-sm font-bold block truncate" style={{ color: "var(--foreground)" }}>
                       {user.name}
                     </span>
-                    <span
-                      className="text-xs font-mono"
-                      style={{ color: "var(--muted)" }}
-                    >
+                    <span className="text-xs font-mono" style={{ color: "var(--muted)" }}>
                       UID: {user.uid}
                     </span>
-                  </div>
+                  </Link>
                   <motion.button
                     onClick={async () => {
-                      await addFriendToFirestore(userProfile.uid, user);
+                      await sendFriendRequest({
+                        fromUid: userProfile.uid,
+                        fromName: userProfile.name,
+                        fromAvatar: userProfile.avatar,
+                        toUid: user.uid,
+                      });
                       setQuery("");
                     }}
+                    disabled={outgoingTargets.has(user.uid)}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
-                    style={{ background: "var(--accent)" }}
+                    style={{ background: outgoingTargets.has(user.uid) ? "var(--muted)" : "var(--accent)" }}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
                     <UserPlus size={14} />
-                    追加
+                    {outgoingTargets.has(user.uid) ? "申請中" : "申請"}
                   </motion.button>
                 </motion.div>
               ))}
@@ -282,26 +361,21 @@ export default function FriendsPage() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.03 }}
               >
-                <div
+                <Link
+                  href={`/profile/${friend.uid}`}
                   className="w-11 h-11 rounded-full flex items-center justify-center text-lg flex-shrink-0"
                   style={{ background: "var(--muted-bg)" }}
                 >
                   {friend.avatar}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span
-                    className="text-sm font-bold block truncate"
-                    style={{ color: "var(--foreground)" }}
-                  >
+                </Link>
+                <Link href={`/profile/${friend.uid}`} className="flex-1 min-w-0">
+                  <span className="text-sm font-bold block truncate" style={{ color: "var(--foreground)" }}>
                     {friend.name}
                   </span>
-                  <span
-                    className="text-xs font-mono"
-                    style={{ color: "var(--muted)" }}
-                  >
+                  <span className="text-xs font-mono" style={{ color: "var(--muted)" }}>
                     UID: {friend.uid}
                   </span>
-                </div>
+                </Link>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <Link href={`/friends/chat/${friend.uid}`}>
                     <motion.div

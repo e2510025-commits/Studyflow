@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { useStore } from "@/store/useStore";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -13,12 +14,15 @@ import {
   Download,
   Play,
   Loader2,
+  ListTodo,
 } from "lucide-react";
 import {
   subscribeChatMessages,
   sendTextMessage,
   sendMediaMessage,
+  sendTaskMessage,
   deleteChatMessageFromFirestore,
+  markChatMessagesAsRead,
 } from "@/lib/firestore/chat";
 import { getUserProfileByUid } from "@/lib/firestore/friends";
 import type { ChatMessage } from "@/types";
@@ -26,6 +30,14 @@ import type { ChatMessage } from "@/types";
 /* ── Max file sizes ──────────────────────────────────── */
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50 MB
+const MAX_ATTACHMENTS = 5;
+
+interface PendingMedia {
+  id: string;
+  type: "image" | "video";
+  previewUrl: string;
+  file: File;
+}
 
 export default function ChatPage() {
   const params = useParams();
@@ -42,14 +54,14 @@ export default function ChatPage() {
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
-  const [mediaPreview, setMediaPreview] = useState<{
-    type: "image" | "video";
-    previewUrl: string;
-    file: File;
-  } | null>(null);
+  const [mediaQueue, setMediaQueue] = useState<PendingMedia[]>([]);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [lightboxType, setLightboxType] = useState<"image" | "video">("image");
   const [sending, setSending] = useState(false);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDetails, setTaskDetails] = useState("");
+  const [taskDueDate, setTaskDueDate] = useState("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -63,7 +75,16 @@ export default function ChatPage() {
       friendUid,
       (msgs) => setMessages(msgs)
     );
-    return () => unsubscribe();
+
+    const timer = setInterval(() => {
+      void markChatMessagesAsRead(userProfile.uid, friendUid).catch(() => {});
+    }, 1500);
+
+    void markChatMessagesAsRead(userProfile.uid, friendUid).catch(() => {});
+    return () => {
+      unsubscribe();
+      clearInterval(timer);
+    };
   }, [userProfile.uid, friendUid]);
 
   useEffect(() => {
@@ -91,23 +112,44 @@ export default function ChatPage() {
     if (sending) return;
     setSending(true);
     try {
-      if (mediaPreview) {
-        await sendMediaMessage(userProfile.uid, friendUid, mediaPreview.type, mediaPreview.file);
-        URL.revokeObjectURL(mediaPreview.previewUrl);
-        setMediaPreview(null);
+      for (const media of mediaQueue) {
+        await sendMediaMessage(userProfile.uid, friendUid, media.type, media.file);
       }
       if (text.trim()) {
         await sendTextMessage(userProfile.uid, friendUid, text.trim());
         setText("");
       }
+      mediaQueue.forEach((m) => URL.revokeObjectURL(m.previewUrl));
+      setMediaQueue([]);
     } catch (err) {
       console.error("送信エラー:", err);
-      alert("送信に失敗しました");
+      alert("送信に失敗しました。時間を空けて再度お試しください。");
     } finally {
       setSending(false);
       textareaRef.current?.focus();
     }
-  }, [text, mediaPreview, friendUid, userProfile.uid, sending]);
+  }, [text, mediaQueue, friendUid, userProfile.uid, sending]);
+
+  const handleShareTask = useCallback(async () => {
+    if (!taskTitle.trim() || sending) return;
+    setSending(true);
+    try {
+      await sendTaskMessage(userProfile.uid, friendUid, {
+        title: taskTitle,
+        details: taskDetails,
+        dueDate: taskDueDate,
+      });
+      setTaskTitle("");
+      setTaskDetails("");
+      setTaskDueDate("");
+      setTaskDialogOpen(false);
+    } catch (err) {
+      console.error("課題共有エラー:", err);
+      alert("課題の共有に失敗しました");
+    } finally {
+      setSending(false);
+    }
+  }, [taskTitle, taskDetails, taskDueDate, sending, userProfile.uid, friendUid]);
 
   /* ── Delete message ────────────────────────────────── */
   const handleDelete = useCallback(async (msgId: string) => {
@@ -120,32 +162,33 @@ export default function ChatPage() {
 
   /* ── File picker ───────────────────────────────────── */
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
     e.target.value = "";
 
-    const isImage = file.type.startsWith("image/");
-    const isVideo = file.type.startsWith("video/");
+    const valid: PendingMedia[] = [];
+    for (const file of files) {
+      const isImage = file.type.startsWith("image/");
+      const isVideo = file.type.startsWith("video/");
 
-    if (!isImage && !isVideo) {
-      alert("画像または動画ファイルを選択してください");
-      return;
+      if (!isImage && !isVideo) continue;
+      if (isImage && file.size > MAX_IMAGE_SIZE) continue;
+      if (isVideo && file.size > MAX_VIDEO_SIZE) continue;
+
+      valid.push({
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        type: isImage ? "image" : "video",
+        previewUrl: URL.createObjectURL(file),
+        file,
+      });
     }
-    if (isImage && file.size > MAX_IMAGE_SIZE) {
-      alert("画像は10MB以下にしてください");
-      return;
-    }
-    if (isVideo && file.size > MAX_VIDEO_SIZE) {
-      alert("動画は50MB以下にしてください");
+
+    if (valid.length === 0) {
+      alert("有効な画像/動画がありません（画像10MB・動画50MBまで）");
       return;
     }
 
-    const previewUrl = URL.createObjectURL(file);
-    setMediaPreview({
-      type: isImage ? "image" : "video",
-      previewUrl,
-      file,
-    });
+    setMediaQueue((prev) => [...prev, ...valid].slice(0, MAX_ATTACHMENTS));
   };
 
   /* ── Key handling ──────────────────────────────────── */
@@ -159,10 +202,26 @@ export default function ChatPage() {
   /* ── Time format ───────────────────────────────────── */
   const formatMsgTime = (iso: string) => {
     const d = new Date(iso);
-    return `${d.getHours().toString().padStart(2, "0")}:${d
+    return `${(d.getMonth() + 1).toString().padStart(2, "0")}/${d
+      .getDate()
+      .toString()
+      .padStart(2, "0")} ${d.getHours().toString().padStart(2, "0")}:${d
       .getMinutes()
       .toString()
       .padStart(2, "0")}`;
+  };
+
+  const parseTaskPayload = (raw: string) => {
+    try {
+      const parsed = JSON.parse(raw) as { title?: string; details?: string; dueDate?: string };
+      return {
+        title: parsed.title || "課題",
+        details: parsed.details || "",
+        dueDate: parsed.dueDate || "",
+      };
+    } catch {
+      return { title: "課題", details: raw, dueDate: "" };
+    }
   };
 
   const formatMsgDate = (iso: string) => {
@@ -243,7 +302,7 @@ export default function ChatPage() {
             className="text-sm font-bold block truncate"
             style={{ color: "var(--foreground)" }}
           >
-            {friend.name}
+            <Link href={`/profile/${friend.uid}`}>{friend.name}</Link>
           </span>
           <span className="text-xs font-mono" style={{ color: "var(--muted)" }}>
             UID: {friend.uid}
@@ -330,6 +389,21 @@ export default function ChatPage() {
                         </div>
                       )}
 
+                      {/* Task message */}
+                      {msg.type === "task" && (() => {
+                        const task = parseTaskPayload(msg.content);
+                        return (
+                          <div className="rounded-lg p-2" style={{ background: "rgba(255,255,255,0.12)" }}>
+                            <p className="text-xs font-bold flex items-center gap-1 mb-1">
+                              <ListTodo size={12} /> 課題共有
+                            </p>
+                            <p className="text-sm font-semibold">{task.title}</p>
+                            {task.details && <p className="text-xs mt-1 opacity-90 whitespace-pre-wrap">{task.details}</p>}
+                            {task.dueDate && <p className="text-[10px] mt-1 opacity-80">期限: {task.dueDate}</p>}
+                          </div>
+                        );
+                      })()}
+
                       {/* Video message */}
                       {msg.type === "video" && (
                         <div className="space-y-1">
@@ -374,6 +448,11 @@ export default function ChatPage() {
                       >
                         {formatMsgTime(msg.createdAt)}
                       </span>
+                      {isMine && (
+                        <span className="text-[10px]" style={{ color: "var(--muted)" }}>
+                          {msg.readBy?.includes(friendUid) ? "既読" : "未読"}
+                        </span>
+                      )}
                       {/* Actions on hover */}
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
                         {(msg.type === "image" || msg.type === "video") && (
@@ -411,7 +490,7 @@ export default function ChatPage() {
 
       {/* ─── Media preview ────────────────────────────── */}
       <AnimatePresence>
-        {mediaPreview && (
+        {mediaQueue.length > 0 && (
           <motion.div
             className="px-4 py-2 border-t flex items-center gap-3"
             style={{
@@ -422,37 +501,28 @@ export default function ChatPage() {
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
           >
-            <div className="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
-              {mediaPreview.type === "image" ? (
-                <img
-                  src={mediaPreview.previewUrl}
-                  alt="preview"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <video
-                  src={mediaPreview.previewUrl}
-                  className="w-full h-full object-cover"
-                  muted
-                />
-              )}
-              <button
-                onClick={() => setMediaPreview(null)}
-                className="absolute top-0 right-0 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center"
-              >
-                <X size={10} className="text-white" />
-              </button>
-            </div>
-            <div className="min-w-0 flex-1">
-              <p
-                className="text-xs font-medium truncate"
-                style={{ color: "var(--foreground)" }}
-              >
-                {mediaPreview.file.name}
-              </p>
-              <p className="text-[10px]" style={{ color: "var(--muted)" }}>
-                {mediaPreview.type === "image" ? "画像" : "動画"}を送信
-              </p>
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 w-full">
+              {mediaQueue.map((item) => (
+                <div key={item.id} className="relative w-full aspect-square rounded-lg overflow-hidden">
+                  {item.type === "image" ? (
+                    <img src={item.previewUrl} alt={item.file.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <video src={item.previewUrl} className="w-full h-full object-cover" muted />
+                  )}
+                  <button
+                    onClick={() => {
+                      setMediaQueue((prev) => {
+                        const found = prev.find((m) => m.id === item.id);
+                        if (found) URL.revokeObjectURL(found.previewUrl);
+                        return prev.filter((m) => m.id !== item.id);
+                      });
+                    }}
+                    className="absolute top-0 right-0 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center"
+                  >
+                    <X size={10} className="text-white" />
+                  </button>
+                </div>
+              ))}
             </div>
           </motion.div>
         )}
@@ -471,6 +541,7 @@ export default function ChatPage() {
           ref={fileInputRef}
           type="file"
           accept="image/*,video/*"
+          multiple
           className="hidden"
           onChange={handleFileChange}
         />
@@ -483,6 +554,17 @@ export default function ChatPage() {
           title="画像・動画をアップロード"
         >
           <Paperclip size={18} />
+        </motion.button>
+
+        <motion.button
+          onClick={() => setTaskDialogOpen(true)}
+          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+          style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          title="課題を共有"
+        >
+          <ListTodo size={18} />
         </motion.button>
 
         {/* Text input */}
@@ -514,15 +596,15 @@ export default function ChatPage() {
         {/* Send button */}
         <motion.button
           onClick={handleSend}
-          disabled={sending || (!text.trim() && !mediaPreview)}
+          disabled={sending || (!text.trim() && mediaQueue.length === 0)}
           className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white disabled:opacity-40"
           style={{
             background:
-              text.trim() || mediaPreview ? "var(--accent)" : "var(--muted-bg)",
-            color: text.trim() || mediaPreview ? "#fff" : "var(--muted)",
+              text.trim() || mediaQueue.length > 0 ? "var(--accent)" : "var(--muted-bg)",
+            color: text.trim() || mediaQueue.length > 0 ? "#fff" : "var(--muted)",
           }}
-          whileHover={text.trim() || mediaPreview ? { scale: 1.1 } : {}}
-          whileTap={text.trim() || mediaPreview ? { scale: 0.9 } : {}}
+          whileHover={text.trim() || mediaQueue.length > 0 ? { scale: 1.1 } : {}}
+          whileTap={text.trim() || mediaQueue.length > 0 ? { scale: 0.9 } : {}}
         >
           {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
         </motion.button>
@@ -572,6 +654,71 @@ export default function ChatPage() {
                 >
                   <Download size={12} />
                   保存
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {taskDialogOpen && (
+          <motion.div
+            className="fixed inset-0 z-[120] flex items-center justify-center p-4"
+            style={{ background: "rgba(0,0,0,0.5)" }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setTaskDialogOpen(false)}
+          >
+            <motion.div
+              className="w-full max-w-md rounded-2xl p-4"
+              style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}
+              initial={{ scale: 0.95, y: 10 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 10 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-base font-bold mb-3" style={{ color: "var(--foreground)" }}>課題を共有</h3>
+              <div className="space-y-2">
+                <input
+                  value={taskTitle}
+                  onChange={(e) => setTaskTitle(e.target.value)}
+                  placeholder="課題タイトル"
+                  className="w-full px-3 py-2 rounded-xl text-sm"
+                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                />
+                <textarea
+                  value={taskDetails}
+                  onChange={(e) => setTaskDetails(e.target.value)}
+                  placeholder="課題詳細（任意）"
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-xl text-sm"
+                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                />
+                <input
+                  type="date"
+                  value={taskDueDate}
+                  onChange={(e) => setTaskDueDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl text-sm"
+                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                />
+              </div>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  onClick={() => setTaskDialogOpen(false)}
+                  className="px-3 py-2 rounded-xl text-sm"
+                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                >
+                  キャンセル
+                </button>
+                <button
+                  onClick={handleShareTask}
+                  disabled={!taskTitle.trim() || sending}
+                  className="px-3 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
+                  style={{ background: "var(--accent)" }}
+                >
+                  共有する
                 </button>
               </div>
             </motion.div>
