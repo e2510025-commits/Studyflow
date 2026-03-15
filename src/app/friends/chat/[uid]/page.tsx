@@ -40,6 +40,21 @@ interface PendingMedia {
   file: File;
 }
 
+function AvatarPill({ avatar }: { avatar: string }) {
+  const isImage = avatar.startsWith("http") || avatar.startsWith("data:");
+  if (isImage) {
+    return <img src={avatar} alt="avatar" className="w-10 h-10 rounded-full object-cover" />;
+  }
+  return (
+    <div
+      className="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
+      style={{ background: "var(--accent-light)" }}
+    >
+      {avatar}
+    </div>
+  );
+}
+
 export default function ChatPage() {
   const params = useParams();
   const router = useRouter();
@@ -294,12 +309,7 @@ export default function ChatPage() {
         >
           <ArrowLeft size={18} />
         </motion.button>
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
-          style={{ background: "var(--accent-light)" }}
-        >
-          {safeFriendAvatar}
-        </div>
+        <AvatarPill avatar={safeFriendAvatar} />
         <div className="flex-1 min-w-0">
           <span
             className="text-sm font-bold block truncate"

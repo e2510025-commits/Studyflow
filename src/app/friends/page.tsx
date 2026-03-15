@@ -27,6 +27,21 @@ import {
 } from "@/lib/firestore/friends";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 
+function AvatarPill({ avatar, size = 40 }: { avatar: string; size?: number }) {
+  const isImage = avatar.startsWith("http") || avatar.startsWith("data:");
+  if (isImage) {
+    return <img src={avatar} alt="avatar" className="rounded-full object-cover" style={{ width: size, height: size }} />;
+  }
+  return (
+    <div
+      className="rounded-full flex items-center justify-center text-lg"
+      style={{ width: size, height: size, background: "var(--accent-light)" }}
+    >
+      {avatar}
+    </div>
+  );
+}
+
 export default function FriendsPage() {
   const { friends, userProfile } = useStore();
   const [query, setQuery] = useState("");
@@ -134,8 +149,8 @@ export default function FriendsPage() {
             ) : (
               incomingRequests.map((req) => (
                 <div key={req.id} className="rounded-xl p-3 flex items-center gap-3" style={{ background: "var(--muted-bg)" }}>
-                  <Link href={`/profile/${req.fromUid}`} className="w-10 h-10 rounded-full flex items-center justify-center text-lg" style={{ background: "var(--accent-light)" }}>
-                    {req.fromAvatar}
+                  <Link href={`/profile/${req.fromUid}`} className="flex-shrink-0">
+                    <AvatarPill avatar={sanitizeAvatar(req.fromAvatar)} size={40} />
                   </Link>
                   <div className="flex-1 min-w-0">
                     <Link href={`/profile/${req.fromUid}`} className="text-sm font-bold block truncate" style={{ color: "var(--foreground)" }}>
@@ -264,10 +279,9 @@ export default function FriendsPage() {
                 >
                   <Link
                     href={`/profile/${user.uid}`}
-                    className="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
-                    style={{ background: "var(--accent-light)" }}
+                    className="flex-shrink-0"
                   >
-                    {safeAvatar}
+                    <AvatarPill avatar={safeAvatar} size={40} />
                   </Link>
                   <Link href={`/profile/${user.uid}`} className="flex-1 min-w-0">
                     <span className="text-sm font-bold block truncate" style={{ color: "var(--foreground)" }}>
@@ -374,10 +388,9 @@ export default function FriendsPage() {
               >
                 <Link
                   href={`/profile/${friend.uid}`}
-                  className="w-11 h-11 rounded-full flex items-center justify-center text-lg flex-shrink-0"
-                  style={{ background: "var(--muted-bg)" }}
+                  className="flex-shrink-0"
                 >
-                  {safeAvatar}
+                  <AvatarPill avatar={safeAvatar} size={44} />
                 </Link>
                 <Link href={`/profile/${friend.uid}`} className="flex-1 min-w-0">
                   <span className="text-sm font-bold block truncate" style={{ color: "var(--foreground)" }}>

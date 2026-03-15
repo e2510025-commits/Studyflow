@@ -32,6 +32,7 @@ import {
   ChevronUp,
   Check,
 } from "lucide-react";
+import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 
 interface MemberProfile {
   name: string;
@@ -44,6 +45,19 @@ function computeMemberProgress(task: GroupTask, progress?: GroupTaskProgress): n
     return Math.min(1, progress.completedPages / task.totalPages);
   }
   return progress.completed ? 1 : 0;
+}
+
+function InlineAvatar({ avatar }: { avatar: string }) {
+  const safeAvatar = sanitizeAvatar(avatar);
+  const isImage = safeAvatar.startsWith("http") || safeAvatar.startsWith("data:");
+  if (isImage) {
+    return <img src={safeAvatar} alt="avatar" className="w-5 h-5 rounded-full object-cover" />;
+  }
+  return (
+    <span className="w-5 h-5 rounded-full inline-flex items-center justify-center text-[11px]" style={{ background: "var(--accent-light)" }}>
+      {safeAvatar}
+    </span>
+  );
 }
 
 export default function GroupConversationPage() {
@@ -336,7 +350,10 @@ export default function GroupConversationPage() {
                                         <div key={row.uid} className="rounded-md p-2" style={{ background: "var(--muted-bg)" }}>
                                           <div className="flex items-center justify-between gap-2">
                                             <span className="text-xs" style={{ color: "var(--foreground)" }}>
-                                              {row.avatar} {row.name}
+                                              <span className="inline-flex items-center gap-1.5">
+                                                <InlineAvatar avatar={row.avatar} />
+                                                {sanitizeDisplayName(row.name)}
+                                              </span>
                                             </span>
                                             <span className="text-[11px]" style={{ color: "var(--muted)" }}>
                                               {Math.round(row.progress * 100)}%
@@ -530,7 +547,10 @@ export default function GroupConversationPage() {
                   >
                     {!me && (
                       <p className="text-[10px] mb-1" style={{ color: "rgba(255,255,255,0.8)" }}>
-                        {(profile?.avatar || "👤") + " " + (profile?.name || msg.fromUid)}
+                        <span className="inline-flex items-center gap-1.5">
+                          <InlineAvatar avatar={profile?.avatar || "👤"} />
+                          {sanitizeDisplayName(profile?.name || msg.fromUid)}
+                        </span>
                       </p>
                     )}
                     <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
@@ -582,7 +602,10 @@ export default function GroupConversationPage() {
                 return (
                   <div key={uid} className="rounded-lg p-2" style={{ background: "var(--muted-bg)" }}>
                     <p className="text-xs" style={{ color: "var(--foreground)" }}>
-                      {(member?.avatar || "👤") + " " + (member?.name || uid)}
+                      <span className="inline-flex items-center gap-1.5">
+                        <InlineAvatar avatar={member?.avatar || "👤"} />
+                        {sanitizeDisplayName(member?.name || uid)}
+                      </span>
                     </p>
                     <p className="text-sm font-bold" style={{ color: "var(--accent)" }}>
                       {summary}%

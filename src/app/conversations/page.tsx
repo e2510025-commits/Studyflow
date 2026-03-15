@@ -8,6 +8,18 @@ import { MessageSquare, Users, Plus, X, Check } from "lucide-react";
 import { createGroupChat, subscribeMyGroups, type GroupChat } from "@/lib/firestore/groups";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 
+function AvatarPill({ avatar }: { avatar: string }) {
+  const isImage = avatar.startsWith("http") || avatar.startsWith("data:");
+  if (isImage) {
+    return <img src={avatar} alt="avatar" className="w-9 h-9 rounded-full object-cover" />;
+  }
+  return (
+    <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: "var(--accent-light)" }}>
+      {avatar}
+    </div>
+  );
+}
+
 export default function ConversationsPage() {
   const { userProfile, friends } = useStore();
   const [groups, setGroups] = useState<GroupChat[]>([]);
@@ -92,9 +104,7 @@ export default function ConversationsPage() {
                   className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors"
                   style={{ background: "var(--muted-bg)" }}
                 >
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: "var(--accent-light)" }}>
-                    {safeAvatar}
-                  </div>
+                  <AvatarPill avatar={safeAvatar} />
                   <div className="min-w-0">
                     <p className="text-sm font-bold truncate" style={{ color: "var(--foreground)" }}>
                       {safeName}
@@ -136,6 +146,9 @@ export default function ConversationsPage() {
                   </p>
                   <p className="text-[11px]" style={{ color: "var(--muted)" }}>
                     メンバー {group.memberUids.length} 人
+                  </p>
+                  <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>
+                    課題カテゴリ・固定表示・進捗共有に対応
                   </p>
                 </Link>
               ))}
