@@ -14,8 +14,6 @@ import {
   ClipboardList,
   Users,
   MessageSquare,
-  Settings,
-  Sliders,
   Shield,
   X,
   Menu,
@@ -29,8 +27,6 @@ const baseNavItems = [
   { href: "/missions", label: "ミッション", icon: ClipboardList },
   { href: "/friends", label: "フレンド", icon: Users },
   { href: "/conversations", label: "会話", icon: MessageSquare },
-  { href: "/settings", label: "アカウント設定", icon: Settings },
-  { href: "/preferences", label: "アプリ設定", icon: Sliders },
 ];
 
 export default function Sidebar() {

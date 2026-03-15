@@ -28,6 +28,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     customBgColor,
     initializeDefaults,
     immersiveMode,
+    timer,
+    tickTimer,
     setStudyLogs,
     setFriends,
     setSubjects,
@@ -51,6 +53,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     initializeDefaults();
   }, [initializeDefaults]);
+
+  // Keep timer ticking globally so it continues even when leaving /timer.
+  useEffect(() => {
+    if (timer.status !== "running") return;
+    const intervalId = setInterval(() => {
+      tickTimer();
+    }, 1000);
+    return () => clearInterval(intervalId);
+  }, [timer.status, tickTimer]);
 
   useEffect(() => {
     let unsubscribeLogs: (() => void) | undefined;

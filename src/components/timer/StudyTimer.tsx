@@ -83,7 +83,6 @@ export default function StudyTimer() {
     pauseTimer,
     resumeTimer,
     resetTimer,
-    tickTimer,
     pomodoroConfig,
     pomodoroState,
     setPomodoroConfig,
@@ -95,7 +94,6 @@ export default function StudyTimer() {
     setImmersiveMode,
   } = useStore();
 
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [showMemo, setShowMemo] = useState(false);
   const [finishedDuration, setFinishedDuration] = useState(0);
   const [showPomSettings, setShowPomSettings] = useState(false);
@@ -187,21 +185,6 @@ export default function StudyTimer() {
     todayTotal / (userProfile.dailyGoal || 1),
     1
   );
-
-  /* ── Timer tick ────────────────────────────────────── */
-  useEffect(() => {
-    if (timer.status === "running") {
-      intervalRef.current = setInterval(() => {
-        tickTimer();
-      }, 1000);
-    } else if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [timer.status, tickTimer]);
 
   /* ── Current phase total ───────────────────────────── */
   const currentPhaseTotal = useMemo(() => {
