@@ -3,23 +3,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useStore } from "@/store/useStore";
 import { motion } from "framer-motion";
-import {
-  User,
-  Copy,
-  Check,
-  Save,
-  Upload,
-  X,
-  ImageIcon,
-} from "lucide-react";
+import { User, Copy, Check, Save, Upload, X, ImageIcon } from "lucide-react";
 import { fetchPublicProfile, saveDisplayProfile } from "@/lib/firestore/profile";
 import type { ProfileVisibility } from "@/types";
-
-const AVATAR_EMOJI_OPTIONS = [
-  "🎓", "📚", "✏️", "🧠", "🔬", "🎯", "💡", "🚀",
-  "🌟", "🎨", "🎵", "🌸", "🐱", "🐶", "🦊", "🐼",
-  "👤", "👩‍🎓", "👨‍💻", "🧑‍🔬", "🦉", "🌙", "⚡", "🔥",
-];
 
 export default function SettingsPage() {
   const {
@@ -28,7 +14,7 @@ export default function SettingsPage() {
   } = useStore();
 
   const [name, setName] = useState(() => userProfile.name);
-  const [avatar, setAvatar] = useState(() => userProfile.avatar || "🎓");
+  const [avatar, setAvatar] = useState(() => userProfile.avatar || "👤");
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
   const [bio, setBio] = useState("");
@@ -206,7 +192,7 @@ export default function SettingsPage() {
             )}
             {isImageAvatar && (
               <button
-                onClick={() => setAvatar("🎓")}
+                onClick={() => setAvatar("👤")}
                 className="absolute -top-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-white"
                 style={{ background: "#ef4444", fontSize: 12 }}
                 title="画像を削除"
@@ -240,27 +226,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Emoji alternatives */}
-        <div>
-          <p className="text-xs font-medium mb-2" style={{ color: "var(--muted)" }}>
-            または絵文字から選択
-          </p>
-          <div className="grid grid-cols-8 gap-2">
-            {AVATAR_EMOJI_OPTIONS.map((emoji) => (
-              <button
-                key={emoji}
-                onClick={() => setAvatar(emoji)}
-                className="w-10 h-10 rounded-xl flex items-center justify-center text-xl transition-all hover:scale-110 active:scale-95"
-                style={{
-                  background: avatar === emoji ? "var(--accent-light)" : "var(--muted-bg)",
-                  border: avatar === emoji ? "2px solid var(--accent)" : "2px solid transparent",
-                }}
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
-        </div>
       </motion.div>
 
       {/* Name Card */}

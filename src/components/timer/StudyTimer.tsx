@@ -144,6 +144,8 @@ export default function StudyTimer() {
 
     void upsertActiveStudySession({
       userUid: userProfile.uid,
+      userName: userProfile.name,
+      userAvatar: userProfile.avatar,
       subjectName: selectedSubject.name,
       isActive: shouldBeActive,
     }).catch(() => {});
@@ -151,11 +153,13 @@ export default function StudyTimer() {
     return () => {
       void upsertActiveStudySession({
         userUid: userProfile.uid,
+        userName: userProfile.name,
+        userAvatar: userProfile.avatar,
         subjectName: selectedSubject.name,
         isActive: false,
       }).catch(() => {});
     };
-  }, [userProfile.uid, selectedSubject?.name, timer.status]);
+  }, [userProfile.uid, userProfile.name, userProfile.avatar, selectedSubject?.name, timer.status]);
 
   useEffect(() => {
     if (!userProfile.uid || !selectedSubject?.name || timer.status !== "running") {
@@ -165,13 +169,15 @@ export default function StudyTimer() {
     const intervalId = setInterval(() => {
       void upsertActiveStudySession({
         userUid: userProfile.uid,
+        userName: userProfile.name,
+        userAvatar: userProfile.avatar,
         subjectName: selectedSubject.name,
         isActive: true,
       }).catch(() => {});
     }, 60000);
 
     return () => clearInterval(intervalId);
-  }, [userProfile.uid, selectedSubject?.name, timer.status]);
+  }, [userProfile.uid, userProfile.name, userProfile.avatar, selectedSubject?.name, timer.status]);
 
   /* ── Today's stats ─────────────────────────────────── */
   const todayLogs = useMemo(() => getTodayLogs(studyLogs), [studyLogs]);

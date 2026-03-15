@@ -3,10 +3,11 @@ import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, setDoc
 import { db } from "@/lib/firebase";
 import bcrypt from "bcryptjs";
 import { toAppUid } from "@/lib/identity";
+import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 
 export async function POST(req: Request) {
   try {
-    const { name, email, password } = await req.json();
+    const { name, email, password, bio, avatar } = await req.json();
 
     if (!email || !password) {
       return NextResponse.json(
@@ -26,11 +27,16 @@ export async function POST(req: Request) {
       );
     }
 
+    const safeName = sanitizeDisplayName(name || email.split("@")[0]);
+    const safeAvatar = sanitizeAvatar(avatar || "👤");
+    const safeBio = typeof bio === "string" ? bio.trim().slice(0, 280) : "";
+
     const hashedPassword = await bcrypt.hash(password, 12);
     const docRef = await addDoc(usersRef, {
-      name: name || email.split("@")[0],
+      name: safeName,
       email,
       password: hashedPassword,
+      image: safeAvatar,
       createdAt: serverTimestamp(),
     });
 
@@ -39,8 +45,13 @@ export async function POST(req: Request) {
       doc(db, "userProfiles", appUid),
       {
         uid: appUid,
-        name: name || email.split("@")[0],
-        avatar: "👤",
+        name: safeName,
+        avatar: safeAvatar,
+        bio: safeBio,
+        visibility: "public",
+        dailyGoal: 7200,
+        totalPoints: 0,
+        bonusPoints: 0,
         updatedAt: serverTimestamp(),
       },
       { merge: true }
@@ -48,7 +59,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       id: appUid,
-      name: name || email.split("@")[0],
+      name: safeName,
       email,
     });
   } catch (err) {

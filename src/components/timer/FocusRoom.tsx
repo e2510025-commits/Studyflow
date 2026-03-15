@@ -3,40 +3,28 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Users } from "lucide-react";
-import { subscribeActiveSubjectCount } from "@/lib/firestore/focusRoom";
+import {
+  type ActiveStudyUser,
+  subscribeActiveSubjectRoom,
+} from "@/lib/firestore/focusRoom";
 
 interface FocusRoomProps {
   subjectName: string;
   subjectColor: string;
 }
 
-// Virtual avatars for the room
-const AVATARS = [
-  "👩‍🎓", "👨‍🎓", "🧑‍💻", "👩‍💻", "👨‍💻",
-  "📖", "✏️", "🎯", "🧠", "💡",
-  "📚", "🎓", "👩‍🏫", "👨‍🏫", "🧑‍🎓",
-];
-
 export default function FocusRoom({ subjectName, subjectColor }: FocusRoomProps) {
   const [count, setCount] = useState(0);
-  const [visibleAvatars, setVisibleAvatars] = useState<string[]>([]);
+  const [activeUsers, setActiveUsers] = useState<ActiveStudyUser[]>([]);
 
   useEffect(() => {
-    return subscribeActiveSubjectCount(subjectName, (nextCount) => {
-      setCount(nextCount);
+    return subscribeActiveSubjectRoom(subjectName, (payload) => {
+      setCount(payload.count);
+      setActiveUsers(payload.users);
     });
   }, [subjectName]);
 
-  // Pick random avatars to show (max 8)
-  useEffect(() => {
-    const shown = Math.min(count, 8);
-    const picked: string[] = [];
-    for (let i = 0; i < shown; i++) {
-      const idx = (subjectName.length + i * 7) % AVATARS.length;
-      picked.push(AVATARS[idx]);
-    }
-    setVisibleAvatars(picked);
-  }, [count, subjectName]);
+  const visibleUsers = useMemo(() => activeUsers.slice(0, 8), [activeUsers]);
 
   return (
     <motion.div
@@ -48,17 +36,24 @@ export default function FocusRoom({ subjectName, subjectColor }: FocusRoomProps)
       {/* Avatar row */}
       <div className="flex items-center -space-x-2">
         <AnimatePresence mode="popLayout">
-          {visibleAvatars.map((avatar, i) => (
+          {visibleUsers.map((user, i) => (
             <motion.div
-              key={`${avatar}-${i}`}
+              key={`${user.userUid}-${i}`}
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0, opacity: 0 }}
               transition={{ duration: 0.3, delay: i * 0.05 }}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-sm border-2 border-[var(--card-bg)]"
+              className="w-8 h-8 rounded-full overflow-hidden border-2 border-[var(--card-bg)]"
               style={{ backgroundColor: subjectColor + "30" }}
+              title={user.userName}
             >
-              {avatar}
+              {user.userAvatar.startsWith("http") || user.userAvatar.startsWith("data:") ? (
+                <img src={user.userAvatar} alt={user.userName} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-[10px] font-bold" style={{ color: "var(--text-primary)" }}>
+                  {user.userName.slice(0, 1).toUpperCase()}
+                </div>
+              )}
             </motion.div>
           ))}
         </AnimatePresence>
