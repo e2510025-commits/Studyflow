@@ -48,8 +48,8 @@ export async function saveUserProfile(
 /** Batch-fetch profiles by UID list */
 export async function getProfilesBatch(
   uids: string[]
-): Promise<Map<string, { name: string; avatar: string }>> {
-  const map = new Map<string, { name: string; avatar: string }>();
+): Promise<Map<string, { name: string; avatar: string; isOfficial?: boolean }>> {
+  const map = new Map<string, { name: string; avatar: string; isOfficial?: boolean }>();
   if (uids.length === 0) return map;
 
   // Parallel individual reads (Firestore has no native "get multiple by id" in client SDK)
@@ -62,6 +62,7 @@ export async function getProfilesBatch(
           map.set(uid, {
             name: sanitizeDisplayName(d.name),
             avatar: sanitizeAvatar(d.avatar),
+            isOfficial: Boolean(d.isOfficial),
           });
         }
       } catch {

@@ -72,6 +72,7 @@ export async function fetchPublicProfile(uid: string): Promise<PublicProfile | n
     name: sanitizeDisplayName(data.name),
     avatar: sanitizeAvatar(data.avatar),
     bio: typeof data.bio === "string" ? data.bio : "",
+    isOfficial: Boolean(data.isOfficial),
     visibility: (["public", "friends", "private"].includes(data.visibility)
       ? data.visibility
       : "public") as ProfileVisibility,

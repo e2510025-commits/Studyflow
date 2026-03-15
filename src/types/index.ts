@@ -34,6 +34,7 @@ export interface PublicProfile {
   visibility: ProfileVisibility;
   dailyGoal: number;
   totalPoints: number;
+  isOfficial?: boolean;
 }
 
 /* ─── Friends ──────────────────────────────────────── */
@@ -70,6 +71,32 @@ export interface FriendRequest {
   status: FriendRequestStatus;
   createdAt: string;
   respondedAt?: string;
+}
+
+export type AppNotificationType =
+  | "friend_request"
+  | "announcement"
+  | "warning"
+  | "ban"
+  | "suspend";
+
+export interface AppNotification {
+  id: string;
+  type: AppNotificationType;
+  title: string;
+  body: string;
+  toUid: string;
+  link?: string;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  body: string;
+  createdBy: string;
+  createdAt: string;
 }
 
 export type TimerMode = "stopwatch" | "countdown" | "pomodoro";

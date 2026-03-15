@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useStore } from "@/store/useStore";
 import { fetchPublicProfile, canViewProfile, fetchUserStudyStats } from "@/lib/firestore/profile";
 import { formatHoursMinutes } from "@/lib/utils";
+import { BadgeCheck } from "lucide-react";
 
 export default function PublicProfilePage() {
   const params = useParams<{ uid?: string | string[] }>();
@@ -78,7 +79,10 @@ export default function PublicProfilePage() {
             </div>
           )}
           <div>
-            <h1 className="text-2xl font-black" style={{ color: "var(--foreground)" }}>{profile.name}</h1>
+            <h1 className="text-2xl font-black flex items-center gap-1" style={{ color: "var(--foreground)" }}>
+              {profile.name}
+              {profile.isOfficial ? <BadgeCheck size={18} style={{ color: "#38bdf8" }} /> : null}
+            </h1>
             <p className="text-xs font-mono" style={{ color: "var(--muted)" }}>UID: {profile.uid}</p>
           </div>
         </div>

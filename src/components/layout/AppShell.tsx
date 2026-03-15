@@ -7,7 +7,7 @@ import Sidebar from "./Sidebar";
 import ThemePicker from "./ThemePicker";
 import HeaderMenu from "./HeaderMenu";
 import RankingBadge from "@/components/ranking/RankingBadge";
-import FriendRequestBell from "./FriendRequestBell";
+import NotificationBell from "./NotificationBell";
 import { subscribeStudyLogs } from "@/lib/firestore/studyLogs";
 import { saveUserProfile } from "@/lib/firestore/ranking";
 import { subscribeFriends } from "@/lib/firestore/friends";
@@ -17,6 +17,8 @@ import {
   ensureDefaultUserSubjects,
   subscribeUserSubjects,
 } from "@/lib/firestore/userSubjects";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 const BARE_ROUTES = ["/login", "/register"];
 
@@ -67,6 +69,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         const accountUid = session.user?.id;
         if (!accountUid || cancelled) return;
         const appUid = toAppUid(accountUid);
+
+        const moderationSnap = await getDoc(doc(db, "userModeration", appUid)).catch(() => null);
+        const moderation = moderationSnap?.exists() ? moderationSnap.data() : null;
+        const suspendedUntil = moderation?.suspendedUntil
+          ? new Date(moderation.suspendedUntil).getTime()
+          : 0;
+        const now = Date.now();
+        const isBanned = Boolean(moderation?.banned);
+        const isSuspended = suspendedUntil > now;
+
+        if (isBanned || isSuspended) {
+          alert(isBanned ? "このアカウントは利用停止されています。" : "このアカウントは一時利用停止中です。");
+          window.location.href = "/announcements";
+          return;
+        }
 
         const storedProfile =
           (await fetchDisplayProfile(appUid).catch(() => null)) ||
@@ -207,7 +224,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {!immersiveMode && (
         <>
           <HeaderMenu />
-          <FriendRequestBell />
+          <NotificationBell />
           <RankingBadge />
         </>
       )}

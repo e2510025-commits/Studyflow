@@ -14,6 +14,8 @@ import {
   MessageSquare,
   Settings,
   Sliders,
+  Megaphone,
+  Shield,
   X,
   Menu,
 } from "lucide-react";
@@ -25,6 +27,8 @@ const navItems = [
   { href: "/ranking", label: "ランキング", icon: Trophy },
   { href: "/friends", label: "フレンド", icon: Users },
   { href: "/conversations", label: "会話", icon: MessageSquare },
+  { href: "/announcements", label: "お知らせ", icon: Megaphone },
+  { href: "/admin", label: "管理者", icon: Shield },
   { href: "/settings", label: "アカウント設定", icon: Settings },
   { href: "/preferences", label: "アプリ設定", icon: Sliders },
 ];

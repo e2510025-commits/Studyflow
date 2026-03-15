@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
+import { isAdminUid } from "@/lib/admin";
+import { toAppUid } from "@/lib/identity";
 
 /**
  * Auth middleware – redirects unauthenticated users to /login.
  * Checks for the NextAuth session cookie directly (no Prisma import)
  * so it works on the Edge runtime.
  */
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const sessionToken =
     req.cookies.get("__Secure-authjs.session-token")?.value ||
     req.cookies.get("authjs.session-token")?.value;
@@ -15,11 +18,25 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
+  const pathname = req.nextUrl.pathname;
+  const isAdminPath = pathname.startsWith("/admin") || pathname.startsWith("/api/admin");
+
+  if (isAdminPath) {
+    const token = await getToken({ req, secret: process.env.AUTH_SECRET });
+    const uid = toAppUid((token?.id as string | undefined) || "");
+    if (!isAdminUid(uid)) {
+      if (pathname.startsWith("/api/admin")) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+  }
+
   return NextResponse.next();
 }
 
 export const config = {
   matcher: [
-    "/((?!login|api/auth|_next|favicon\\.ico|robots\\.txt|ranking).*)",
+    "/((?!login|api/auth|_next|favicon\\.ico|robots\\.txt).*)",
   ],
 };

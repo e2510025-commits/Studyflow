@@ -12,6 +12,7 @@ import {
   Users,
   ChevronDown,
   Loader2,
+  BadgeCheck,
 } from "lucide-react";
 import { formatHoursMinutes } from "@/lib/utils";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
@@ -69,7 +70,7 @@ export default function RankingPage() {
   /* ── State ─────────────────────────────────────── */
   const [rawData, setRawData] = useState<AggregatedUser[]>([]);
   const [profiles, setProfiles] = useState<
-    Map<string, { name: string; avatar: string }>
+    Map<string, { name: string; avatar: string; isOfficial?: boolean }>
   >(new Map());
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [loading, setLoading] = useState(true);
@@ -155,6 +156,7 @@ export default function RankingPage() {
       ? rawData[myIndex]
       : { totalDuration: 0, totalPoints: 0, sessions: 0 };
   const myAvatar = sanitizeAvatar(userProfile.avatar || "👤");
+  const myOfficial = Boolean(profiles.get(userProfile.uid)?.isOfficial);
 
   /* ── Period tabs ───────────────────────────────── */
   const periods: { key: RankingPeriod; label: string }[] = [
@@ -391,18 +393,10 @@ export default function RankingPage() {
                         background={isMe ? "var(--accent)" : "var(--muted-bg)"}
                       />
                       <div className="min-w-0">
-                        <span
-                          className="text-sm font-bold truncate block"
-                          style={{
-                            color: isMe
-                              ? "var(--accent)"
-                              : "var(--foreground)",
-                          }}
-                        >
-                          {isMe
-                            ? `${user.name} (あなた)`
-                            : user.name}
-                        </span>
+                          <span className="text-sm font-bold truncate flex items-center gap-1" style={{ color: isMe ? "var(--accent)" : "var(--foreground)" }}>
+                            {isMe ? `${user.name} (あなた)` : user.name}
+                            {profiles.get(user.userId)?.isOfficial ? <BadgeCheck size={14} style={{ color: "#38bdf8" }} /> : null}
+                          </span>
                         <span
                           className="text-xs"
                           style={{ color: "var(--muted)" }}
@@ -500,6 +494,7 @@ export default function RankingPage() {
                 >
                   {userProfile.name || "あなた"}
                 </span>
+                {myOfficial ? <BadgeCheck size={14} style={{ color: "#38bdf8" }} /> : null}
               </div>
               <div
                 className="flex items-center gap-4 text-xs"

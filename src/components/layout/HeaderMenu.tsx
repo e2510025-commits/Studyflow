@@ -10,6 +10,7 @@ import {
   LogOut,
   Sliders,
   User,
+  Megaphone,
 } from "lucide-react";
 
 function AvatarDisplay({ avatar, size = 40 }: { avatar: string; size?: number }) {
@@ -36,6 +37,7 @@ function AvatarDisplay({ avatar, size = 40 }: { avatar: string; size?: number })
 
 const menuItems = [
   { href: "/my-profile", label: "マイプロフィール", icon: User },
+  { href: "/announcements", label: "お知らせ", icon: Megaphone },
   { href: "/settings", label: "アカウント設定", icon: Settings },
   { href: "/preferences", label: "アプリ設定", icon: Sliders },
 ];
