@@ -113,7 +113,8 @@ export type AppNotificationType =
   | "announcement"
   | "warning"
   | "ban"
-  | "suspend";
+  | "suspend"
+  | "support_reply";
 
 export interface AppNotification {
   id: string;

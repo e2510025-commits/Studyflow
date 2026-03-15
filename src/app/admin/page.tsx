@@ -3,6 +3,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import MissionManager from "@/components/admin/MissionManager";
+import SupportManager from "@/components/admin/SupportManager";
+
+type AdminSection = "overview" | "support" | "announcements" | "missions" | "users";
 
 interface AdminOverview {
   users: number;
@@ -39,6 +42,7 @@ export default function AdminPage() {
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementBody, setAnnouncementBody] = useState("");
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [section, setSection] = useState<AdminSection>("overview");
 
   const verifyAdmin = useCallback(async () => {
     setChecking(true);
@@ -151,47 +155,76 @@ export default function AdminPage() {
         </p>
       </div>
 
-      <section className="glass-card p-4">
-        <h2 className="text-base font-bold mb-3" style={{ color: "var(--foreground)" }}>全体統計</h2>
-        <div className="grid sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {cards.map(([label, value]) => (
-            <div key={label} className="rounded-xl p-3" style={{ background: "var(--muted-bg)" }}>
-              <p className="text-xs" style={{ color: "var(--muted)" }}>{label}</p>
-              <p className="text-xl font-black" style={{ color: "var(--accent)" }}>{value}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <div className="glass-card p-2 grid grid-cols-2 sm:grid-cols-5 gap-2">
+        {[
+          ["overview", "全体統計"],
+          ["support", "お問い合わせ"],
+          ["announcements", "お知らせ"],
+          ["missions", "ミッション"],
+          ["users", "ユーザー管理"],
+        ].map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setSection(key as AdminSection)}
+            className="px-3 py-2 rounded-xl text-sm font-bold"
+            style={{
+              background: section === key ? "var(--accent-light)" : "var(--muted-bg)",
+              color: section === key ? "var(--accent)" : "var(--muted)",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-      <section className="glass-card p-4 space-y-3">
-        <h2 className="text-base font-bold" style={{ color: "var(--foreground)" }}>お知らせ配信</h2>
-        <input
-          value={announcementTitle}
-          onChange={(e) => setAnnouncementTitle(e.target.value)}
-          placeholder="お知らせタイトル"
-          className="w-full px-3 py-2 rounded-xl text-sm"
-          style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-        />
-        <textarea
-          value={announcementBody}
-          onChange={(e) => setAnnouncementBody(e.target.value)}
-          rows={3}
-          placeholder="本文"
-          className="w-full px-3 py-2 rounded-xl text-sm"
-          style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-        />
-        <button
-          onClick={publishAnnouncement}
-          className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
-          style={{ background: "var(--accent)" }}
-        >
-          お知らせを投稿
-        </button>
-      </section>
+      {section === "overview" && (
+        <section className="glass-card p-4">
+          <h2 className="text-base font-bold mb-3" style={{ color: "var(--foreground)" }}>全体統計</h2>
+          <div className="grid sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {cards.map(([label, value]) => (
+              <div key={label} className="rounded-xl p-3" style={{ background: "var(--muted-bg)" }}>
+                <p className="text-xs" style={{ color: "var(--muted)" }}>{label}</p>
+                <p className="text-xl font-black" style={{ color: "var(--accent)" }}>{value}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
-      <MissionManager />
+      {section === "support" && <SupportManager />}
 
-      <section className="glass-card p-4 space-y-3">
+      {section === "announcements" && (
+        <section className="glass-card p-4 space-y-3">
+          <h2 className="text-base font-bold" style={{ color: "var(--foreground)" }}>お知らせ配信</h2>
+          <input
+            value={announcementTitle}
+            onChange={(e) => setAnnouncementTitle(e.target.value)}
+            placeholder="お知らせタイトル"
+            className="w-full px-3 py-2 rounded-xl text-sm"
+            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+          />
+          <textarea
+            value={announcementBody}
+            onChange={(e) => setAnnouncementBody(e.target.value)}
+            rows={3}
+            placeholder="本文"
+            className="w-full px-3 py-2 rounded-xl text-sm"
+            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+          />
+          <button
+            onClick={publishAnnouncement}
+            className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
+            style={{ background: "var(--accent)" }}
+          >
+            お知らせを投稿
+          </button>
+        </section>
+      )}
+
+      {section === "missions" && <MissionManager />}
+
+      {section === "users" && (
+        <section className="glass-card p-4 space-y-3">
         <div className="flex items-center gap-2">
           <h2 className="text-base font-bold" style={{ color: "var(--foreground)" }}>ユーザー管理</h2>
           <input
@@ -250,7 +283,8 @@ export default function AdminPage() {
             ))}
           </div>
         )}
-      </section>
+        </section>
+      )}
     </div>
   );
 }
