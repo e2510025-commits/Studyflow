@@ -12,6 +12,10 @@ import { subscribeStudyLogs } from "@/lib/firestore/studyLogs";
 import { saveUserProfile } from "@/lib/firestore/ranking";
 import { subscribeFriends } from "@/lib/firestore/friends";
 import { fetchPublicProfile, saveDisplayProfile } from "@/lib/firestore/profile";
+import {
+  markNotificationAsRead,
+  subscribeUserNotifications,
+} from "@/lib/firestore/notifications";
 import { sanitizeAvatar, sanitizeDisplayName, toAppUid } from "@/lib/identity";
 import {
   ensureDefaultUserSubjects,
@@ -19,6 +23,7 @@ import {
 } from "@/lib/firestore/userSubjects";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import type { AppNotification } from "@/types";
 
 const BARE_ROUTES = ["/login", "/register"];
 
@@ -34,6 +39,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     setFriends,
     setSubjects,
     setBonusPoints,
+    userProfile,
   } = useStore();
   const pathname = usePathname();
   const isBareRoute = BARE_ROUTES.includes(pathname);
@@ -41,6 +47,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   // Sidebar hover-reveal on timer page
   const [sidebarPeek, setSidebarPeek] = useState(false);
+  const [criticalNotice, setCriticalNotice] = useState<AppNotification | null>(null);
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (e.clientX <= 12) setSidebarPeek(true);
   }, []);
@@ -172,6 +179,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [pathname, setBonusPoints, setFriends, setStudyLogs, setSubjects]);
 
+  useEffect(() => {
+    if (!userProfile.uid) return;
+    return subscribeUserNotifications(userProfile.uid, (rows) => {
+      const critical = rows.find(
+        (row) =>
+          !row.read &&
+          (row.type === "warning" || row.type === "ban" || row.type === "suspend")
+      );
+      setCriticalNotice(critical || null);
+    });
+  }, [userProfile.uid]);
+
   // Apply theme class to <html>
   useEffect(() => {
     const html = document.documentElement;
@@ -276,6 +295,69 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </main>
+
+      {criticalNotice && (
+        <div className="fixed inset-0 z-[140] flex items-center justify-center p-4" style={{ background: "rgba(0, 0, 0, 0.65)" }}>
+          <div
+            className="w-full max-w-xl rounded-3xl p-6 border-2"
+            style={{
+              background: "var(--card-bg)",
+              borderColor:
+                criticalNotice.type === "ban"
+                  ? "#ef4444"
+                  : criticalNotice.type === "suspend"
+                  ? "#f59e0b"
+                  : "#eab308",
+              boxShadow: "0 24px 48px rgba(0,0,0,0.35)",
+            }}
+          >
+            <p
+              className="text-xs font-black tracking-[0.16em]"
+              style={{
+                color:
+                  criticalNotice.type === "ban"
+                    ? "#ef4444"
+                    : criticalNotice.type === "suspend"
+                    ? "#f59e0b"
+                    : "#ca8a04",
+              }}
+            >
+              IMPORTANT NOTICE
+            </p>
+            <h2 className="text-2xl font-black mt-2" style={{ color: "var(--foreground)" }}>
+              {criticalNotice.title}
+            </h2>
+            <p className="text-sm mt-3 whitespace-pre-wrap leading-relaxed" style={{ color: "var(--foreground)" }}>
+              {criticalNotice.body}
+            </p>
+
+            <div className="mt-5 grid sm:grid-cols-2 gap-2">
+              <button
+                className="px-4 py-2.5 rounded-xl text-sm font-bold"
+                style={{ background: "var(--accent)", color: "white" }}
+                onClick={() => {
+                  void markNotificationAsRead(criticalNotice.id).finally(() => {
+                    window.location.href = criticalNotice.link || "/announcements";
+                  });
+                }}
+              >
+                お知らせを確認する
+              </button>
+              <button
+                className="px-4 py-2.5 rounded-xl text-sm font-bold"
+                style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                onClick={() => {
+                  void markNotificationAsRead(criticalNotice.id).finally(() => {
+                    setCriticalNotice(null);
+                  });
+                }}
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {!immersiveMode && <ThemePicker />}
     </div>
   );

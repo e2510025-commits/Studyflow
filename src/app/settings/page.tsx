@@ -19,6 +19,7 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [bio, setBio] = useState("");
   const [visibility, setVisibility] = useState<ProfileVisibility>("public");
+  const [nameError, setNameError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -34,9 +35,16 @@ export default function SettingsPage() {
 
   const handleSave = async () => {
     if (!userProfile.uid) return;
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setNameError("表示名は必須です");
+      return;
+    }
+    setNameError("");
+
     await saveDisplayProfile({
       uid: userProfile.uid,
-      name,
+      name: trimmedName,
       avatar,
       bio,
       visibility,
@@ -45,7 +53,7 @@ export default function SettingsPage() {
       bonusPoints: userProfile.bonusPoints || 0,
       profileSetupDone: true,
     });
-    updateUserProfile({ name, avatar });
+    updateUserProfile({ name: trimmedName, avatar });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -116,6 +124,25 @@ export default function SettingsPage() {
         <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
           プロフィールやアカウント情報を管理します
         </p>
+      </motion.div>
+
+      <motion.div
+        className="glass-card p-5"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.02, duration: 0.4 }}
+      >
+        <h2 className="text-base font-bold" style={{ color: "var(--foreground)" }}>
+          設定ガイド
+        </h2>
+        <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
+          まず「表示名」と「アイコン」を設定して保存すると、他ユーザーから識別されやすくなります。
+        </p>
+        <div className="mt-3 grid sm:grid-cols-3 gap-2 text-xs">
+          <div className="rounded-lg px-3 py-2" style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}>1. 表示名を入力</div>
+          <div className="rounded-lg px-3 py-2" style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}>2. アイコンを設定</div>
+          <div className="rounded-lg px-3 py-2" style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}>3. 保存ボタンを押す</div>
+        </div>
       </motion.div>
 
       {/* UID Card */}
@@ -248,7 +275,10 @@ export default function SettingsPage() {
         <input
           type="text"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value);
+            if (nameError && e.target.value.trim()) setNameError("");
+          }}
           placeholder="ユーザー名を入力"
           className="w-full px-4 py-2.5 rounded-xl text-sm font-medium outline-none transition-all"
           style={{
@@ -259,6 +289,14 @@ export default function SettingsPage() {
           onFocus={(e) => (e.target.style.borderColor = "var(--accent)")}
           onBlur={(e) => (e.target.style.borderColor = "transparent")}
         />
+        {nameError && (
+          <p className="text-xs mt-2" style={{ color: "#ef4444" }}>
+            {nameError}
+          </p>
+        )}
+        <p className="text-[11px] mt-2" style={{ color: "var(--muted)" }}>
+          2〜20文字程度がおすすめです。
+        </p>
       </motion.div>
 
       <motion.div
@@ -292,6 +330,9 @@ export default function SettingsPage() {
         <h2 className="text-base font-bold" style={{ color: "var(--foreground)" }}>
           公開範囲
         </h2>
+        <p className="text-xs" style={{ color: "var(--muted)" }}>
+          プロフィールを誰まで公開するかを選択できます。
+        </p>
         <select
           value={visibility}
           onChange={(e) => setVisibility(e.target.value as ProfileVisibility)}

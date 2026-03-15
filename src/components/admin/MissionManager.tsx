@@ -8,6 +8,7 @@ const scopes: MissionScope[] = ["daily", "weekly", "season"];
 const emptyConfig: MissionConfig = {
   seasonName: "Season 1",
   seasonStartAt: new Date().toISOString(),
+  seasonEndAt: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59).toISOString(),
   rotationMode: {
     daily: "random",
     weekly: "random",
@@ -72,6 +73,7 @@ export default function MissionManager() {
           action: "saveConfig",
           seasonName: config.seasonName,
           seasonStartAt: config.seasonStartAt,
+          seasonEndAt: config.seasonEndAt,
           rotationMode: config.rotationMode,
           fixedMissionIds: config.fixedMissionIds,
         }),
@@ -151,7 +153,7 @@ export default function MissionManager() {
 
       <div className="rounded-xl p-3 space-y-3" style={{ background: "var(--muted-bg)" }}>
         <h3 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>シーズン/出現設定</h3>
-        <div className="grid sm:grid-cols-2 gap-3">
+        <div className="grid sm:grid-cols-3 gap-3">
           <label className="text-xs" style={{ color: "var(--muted)" }}>
             シーズン名
             <input
@@ -170,6 +172,21 @@ export default function MissionManager() {
                 setConfig((prev) => ({
                   ...prev,
                   seasonStartAt: new Date(`${e.target.value}T00:00:00`).toISOString(),
+                }))
+              }
+              className="mt-1 w-full px-3 py-2 rounded-xl text-sm"
+              style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
+            />
+          </label>
+          <label className="text-xs" style={{ color: "var(--muted)" }}>
+            シーズン終了日
+            <input
+              type="date"
+              value={config.seasonEndAt.slice(0, 10)}
+              onChange={(e) =>
+                setConfig((prev) => ({
+                  ...prev,
+                  seasonEndAt: new Date(`${e.target.value}T23:59:59`).toISOString(),
                 }))
               }
               className="mt-1 w-full px-3 py-2 rounded-xl text-sm"

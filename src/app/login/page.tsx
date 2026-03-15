@@ -10,6 +10,12 @@ export default function LoginPage() {
   const [mode, setMode] = useState<AuthMode>("login");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [verifyingCode, setVerifyingCode] = useState(false);
+  const [codeVerified, setCodeVerified] = useState(false);
+  const [codeSentAt, setCodeSentAt] = useState(0);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [info, setInfo] = useState("");
   const [error, setError] = useState("");
 
   const [form, setForm] = useState({
@@ -20,6 +26,64 @@ export default function LoginPage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
     setError("");
+    setInfo("");
+    if (mode === "register" && e.target.name === "email") {
+      setCodeVerified(false);
+      setCodeSentAt(0);
+      setVerificationCode("");
+    }
+  };
+
+  const handleSendCode = async () => {
+    if (!form.email || sendingCode) return;
+    setSendingCode(true);
+    setError("");
+    setInfo("");
+
+    try {
+      const res = await fetch("/api/auth/register/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(data.error || "認証コードの送信に失敗しました");
+        return;
+      }
+      setCodeSentAt(Date.now());
+      setInfo("認証コードを送信しました。メールを確認してください。");
+    } catch {
+      setError("認証コード送信中にエラーが発生しました");
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (!form.email || !verificationCode || verifyingCode) return;
+    setVerifyingCode(true);
+    setError("");
+    setInfo("");
+    try {
+      const res = await fetch("/api/auth/register/verify-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email, code: verificationCode }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setCodeVerified(false);
+        setError(data.error || "認証コードの確認に失敗しました");
+        return;
+      }
+      setCodeVerified(true);
+      setInfo("メール認証が完了しました。続けてアカウント作成できます。");
+    } catch {
+      setError("認証コード確認中にエラーが発生しました");
+    } finally {
+      setVerifyingCode(false);
+    }
   };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
@@ -29,6 +93,11 @@ export default function LoginPage() {
 
     try {
       if (mode === "register") {
+        if (!codeVerified) {
+          setError("先にメール認証コードを確認してください");
+          setLoading(false);
+          return;
+        }
         const res = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -192,6 +261,57 @@ export default function LoginPage() {
               />
             </div>
 
+            {mode === "register" && (
+              <div className="rounded-xl p-3 space-y-2" style={{ background: "var(--muted-bg)" }}>
+                <p className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>
+                  1. 認証コードをメールで受け取る
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSendCode}
+                    disabled={sendingCode || !form.email}
+                    className="px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-50"
+                    style={{ background: "var(--accent)", color: "#fff" }}
+                  >
+                    {sendingCode ? "送信中..." : "認証コードを送信"}
+                  </button>
+                  {codeSentAt > 0 && (
+                    <span className="text-[11px]" style={{ color: "var(--muted)" }}>
+                      送信済み: {new Date(codeSentAt).toLocaleTimeString("ja-JP")}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs font-semibold mt-2" style={{ color: "var(--foreground)" }}>
+                  2. 受け取った6桁コードを入力して確認
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={verificationCode}
+                    onChange={(e) => {
+                      setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                      setCodeVerified(false);
+                      setError("");
+                      setInfo("");
+                    }}
+                    placeholder="6桁コード"
+                    className="flex-1 px-3 py-2 rounded-lg text-sm"
+                    style={{ background: "var(--background)", color: "var(--foreground)" }}
+                    inputMode="numeric"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleVerifyCode}
+                    disabled={verifyingCode || verificationCode.length !== 6}
+                    className="px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-50"
+                    style={{ background: codeVerified ? "#22c55e" : "var(--accent)", color: "#fff" }}
+                  >
+                    {verifyingCode ? "確認中..." : codeVerified ? "確認済み" : "コード確認"}
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="relative">
               <Lock
                 size={18}
@@ -240,10 +360,24 @@ export default function LoginPage() {
               )}
             </AnimatePresence>
 
+            <AnimatePresence>
+              {info && !error && (
+                <motion.div
+                  className="text-sm font-medium px-3 py-2 rounded-lg"
+                  style={{ background: "rgba(34,197,94,0.12)", color: "#16a34a" }}
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                >
+                  {info}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Submit */}
             <motion.button
               type="submit"
-              disabled={loading}
+              disabled={loading || (mode === "register" && !codeVerified)}
               className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl font-bold text-sm text-white transition-all disabled:opacity-50"
               style={{ background: "var(--accent)" }}
               whileHover={{ scale: 1.02 }}
@@ -266,6 +400,10 @@ export default function LoginPage() {
               onClick={() => {
                 setMode(mode === "login" ? "register" : "login");
                 setError("");
+                setInfo("");
+                setCodeVerified(false);
+                setCodeSentAt(0);
+                setVerificationCode("");
               }}
               className="text-sm font-medium transition-colors"
               style={{ color: "var(--accent)" }}

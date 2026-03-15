@@ -170,9 +170,9 @@ export default function ChatPage() {
   }, [taskTitle, taskDetails, taskDueDate, sending, userProfile.uid, friendUid]);
 
   /* ── Delete message ────────────────────────────────── */
-  const handleDelete = useCallback(async (msgId: string) => {
+  const handleDelete = useCallback(async (msgId: string, storagePath?: string) => {
     try {
-      await deleteChatMessageFromFirestore(msgId);
+      await deleteChatMessageFromFirestore(msgId, storagePath);
     } catch (err) {
       console.error("削除エラー:", err);
     }
@@ -482,7 +482,7 @@ export default function ChatPage() {
                         )}
                         {isMine && (
                           <button
-                            onClick={() => handleDelete(msg.id)}
+                            onClick={() => handleDelete(msg.id, msg.storagePath)}
                             className="p-0.5 rounded hover:text-red-500"
                             style={{ color: "var(--muted)" }}
                             title="削除"

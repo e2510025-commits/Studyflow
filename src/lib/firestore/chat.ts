@@ -22,6 +22,19 @@ function getConversationId(a: string, b: string): string {
   return [a, b].sort().join("__");
 }
 
+function sanitizeFileName(name: string): string {
+  return name.replace(/[\\/#?%*:|"<>]/g, "_");
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("FILE_READ_FAILED"));
+    reader.readAsDataURL(file);
+  });
+}
+
 /**
  * 2ユーザー間のメッセージをリアルタイム購読
  * @returns unsubscribe 関数
@@ -54,6 +67,7 @@ export function subscribeChatMessages(
         type: data.type as ChatMessageType,
         content: data.content,
         fileName: data.fileName,
+        storagePath: data.storagePath,
         readBy: Array.isArray(data.readBy) ? data.readBy : [],
         readAt:
           data.readAt instanceof Timestamp
@@ -123,28 +137,58 @@ export async function sendMediaMessage(
   file: File
 ): Promise<void> {
   const now = Date.now();
-  const path = `chat/${fromUid}_${toUid}/${Date.now()}_${file.name}`;
+  const conversationId = getConversationId(fromUid, toUid);
+  const path = `chat/${conversationId}/${Date.now()}_${sanitizeFileName(file.name)}`;
   const storageRef = ref(storage, path);
-  await Promise.race([
-    uploadBytes(storageRef, file),
-    new Promise((_, reject) => {
-      setTimeout(() => reject(new Error("UPLOAD_TIMEOUT")), 30000);
-    }),
-  ]);
-  const url = await getDownloadURL(storageRef);
 
-  await addDoc(collection(db, CHAT_COLLECTION), {
-    conversationId: getConversationId(fromUid, toUid),
-    fromUid,
-    toUid,
-    type,
-    content: url,
-    fileName: file.name,
-    storagePath: path,
-    readBy: [fromUid],
-    createdAtMs: now,
-    createdAt: serverTimestamp(),
-  });
+  const sendAsDataUrl = async () => {
+    const dataUrl = await fileToDataUrl(file);
+    await addDoc(collection(db, CHAT_COLLECTION), {
+      conversationId,
+      fromUid,
+      toUid,
+      type,
+      content: dataUrl,
+      fileName: file.name,
+      readBy: [fromUid],
+      createdAtMs: now,
+      createdAt: serverTimestamp(),
+    });
+  };
+
+  if (type === "image" && !process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET) {
+    await sendAsDataUrl();
+    return;
+  }
+
+  try {
+    await Promise.race([
+      uploadBytes(storageRef, file),
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("UPLOAD_TIMEOUT")), 30000);
+      }),
+    ]);
+    const url = await getDownloadURL(storageRef);
+
+    await addDoc(collection(db, CHAT_COLLECTION), {
+      conversationId,
+      fromUid,
+      toUid,
+      type,
+      content: url,
+      fileName: file.name,
+      storagePath: path,
+      readBy: [fromUid],
+      createdAtMs: now,
+      createdAt: serverTimestamp(),
+    });
+  } catch (error) {
+    if (type === "image") {
+      await sendAsDataUrl();
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function markChatMessagesAsRead(

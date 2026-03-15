@@ -9,6 +9,8 @@ import {
   limit,
   addDoc,
   serverTimestamp,
+  updateDoc,
+  doc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Announcement, AppNotification } from "@/types";
@@ -84,6 +86,12 @@ export async function sendUserNotification(params: {
     link: params.link || "",
     read: false,
     createdAt: serverTimestamp(),
+  });
+}
+
+export async function markNotificationAsRead(notificationId: string) {
+  await updateDoc(doc(db, NOTIFICATIONS_COLLECTION, notificationId), {
+    read: true,
   });
 }
 

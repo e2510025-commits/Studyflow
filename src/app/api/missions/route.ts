@@ -52,6 +52,7 @@ export async function GET() {
         uid,
         mission,
         startAt: entry.period.startAt,
+        endAt: entry.period.endAt,
       });
 
       const completed = progressValue >= mission.goalValue;
@@ -73,6 +74,8 @@ export async function GET() {
 
   return NextResponse.json({
     seasonName: config.seasonName,
+    seasonStartAt: config.seasonStartAt,
+    seasonEndAt: config.seasonEndAt,
     missions,
   });
 }
@@ -107,6 +110,7 @@ export async function POST(request: Request) {
     uid,
     mission,
     startAt: target.period.startAt,
+    endAt: target.period.endAt,
   });
   if (progressValue < mission.goalValue) {
     return toError("not completed", 400);

@@ -26,6 +26,7 @@ const SCOPES: MissionScope[] = ["daily", "weekly", "season"];
 const DEFAULT_CONFIG: MissionConfig = {
   seasonName: "Season 1",
   seasonStartAt: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString(),
+  seasonEndAt: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString(),
   rotationMode: {
     daily: "random",
     weekly: "random",
@@ -39,6 +40,7 @@ type PeriodInfo = {
   key: string;
   label: string;
   startAt: Date;
+  endAt?: Date;
 };
 
 function ensureMode(value: unknown): MissionRotationMode {
@@ -67,33 +69,49 @@ function getPeriodInfo(scope: MissionScope, config: MissionConfig): PeriodInfo {
 
   if (scope === "daily") {
     const startAt = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endAt = new Date(startAt);
+    endAt.setDate(endAt.getDate() + 1);
+    endAt.setMilliseconds(endAt.getMilliseconds() - 1);
     return {
       scope,
       key: dateKey(startAt),
       label: "デイリー",
       startAt,
+      endAt,
     };
   }
 
   if (scope === "weekly") {
     const startAt = getWeekStart(now);
+    const endAt = new Date(startAt);
+    endAt.setDate(endAt.getDate() + 7);
+    endAt.setMilliseconds(endAt.getMilliseconds() - 1);
     return {
       scope,
       key: `week-${dateKey(startAt)}`,
       label: "ウィークリー",
       startAt,
+      endAt,
     };
   }
 
-  const parsed = new Date(config.seasonStartAt || "");
-  const startAt = Number.isNaN(parsed.getTime())
+  const parsedStart = new Date(config.seasonStartAt || "");
+  const parsedEnd = new Date(config.seasonEndAt || "");
+  const startAt = Number.isNaN(parsedStart.getTime())
     ? new Date(now.getFullYear(), now.getMonth(), 1)
-    : parsed;
+    : parsedStart;
+  const defaultEnd = new Date(startAt);
+  defaultEnd.setMonth(defaultEnd.getMonth() + 1);
+  defaultEnd.setDate(defaultEnd.getDate() - 1);
+  defaultEnd.setHours(23, 59, 59, 999);
+  const endAt = Number.isNaN(parsedEnd.getTime()) ? defaultEnd : parsedEnd;
+  const seasonLabel = `${config.seasonName || "シーズン"} (${dateKey(startAt)} - ${dateKey(endAt)})`;
   return {
     scope,
-    key: `season-${config.seasonName}-${dateKey(startAt)}`,
-    label: config.seasonName || "シーズン",
+    key: `season-${config.seasonName}-${dateKey(startAt)}-${dateKey(endAt)}`,
+    label: seasonLabel,
     startAt,
+    endAt,
   };
 }
 
@@ -122,6 +140,10 @@ export async function getMissionConfig(): Promise<MissionConfig> {
       typeof data.seasonStartAt === "string" && data.seasonStartAt
         ? data.seasonStartAt
         : DEFAULT_CONFIG.seasonStartAt,
+    seasonEndAt:
+      typeof data.seasonEndAt === "string" && data.seasonEndAt
+        ? data.seasonEndAt
+        : DEFAULT_CONFIG.seasonEndAt,
     rotationMode: {
       daily: ensureMode(data.rotationMode?.daily),
       weekly: ensureMode(data.rotationMode?.weekly),
@@ -227,14 +249,16 @@ export async function readMissionProgress(params: {
   uid: string;
   mission: MissionTemplate;
   startAt: Date;
+  endAt?: Date;
 }): Promise<number> {
-  const snap = await getDocs(
-    query(
-      collection(db, "studyLogs"),
-      where("userUid", "==", params.uid),
-      where("createdAt", ">=", Timestamp.fromDate(params.startAt))
-    )
-  );
+  const filters = [
+    where("userUid", "==", params.uid),
+    where("createdAt", ">=", Timestamp.fromDate(params.startAt)),
+  ];
+  if (params.endAt) {
+    filters.push(where("createdAt", "<=", Timestamp.fromDate(params.endAt)));
+  }
+  const snap = await getDocs(query(collection(db, "studyLogs"), ...filters));
 
   if (params.mission.goalType === "study_sessions") {
     return snap.docs.reduce((count, d) => {

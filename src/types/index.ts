@@ -59,6 +59,7 @@ export interface MissionTemplate {
 export interface MissionConfig {
   seasonName: string;
   seasonStartAt: string;
+  seasonEndAt: string;
   rotationMode: Record<MissionScope, MissionRotationMode>;
   fixedMissionIds: Partial<Record<MissionScope, string>>;
 }
@@ -92,6 +93,7 @@ export interface ChatMessage {
   type: ChatMessageType;
   content: string; // text body, or data-url / blob-url for media
   fileName?: string; // original file name for media
+  storagePath?: string;
   createdAt: string; // ISO string
   readBy?: string[];
   readAt?: string;

@@ -1,5 +1,16 @@
 import { NextResponse } from "next/server";
-import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, setDoc } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  serverTimestamp,
+  doc,
+  setDoc,
+  getDoc,
+  deleteDoc,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import bcrypt from "bcryptjs";
 import { toAppUid } from "@/lib/identity";
@@ -16,9 +27,31 @@ export async function POST(req: Request) {
       );
     }
 
+    const normalizedEmail = String(email).trim().toLowerCase();
+
+    // メール認証コードの検証済みチェック
+    const verifyRef = doc(db, "emailVerificationCodes", normalizedEmail);
+    const verifySnap = await getDoc(verifyRef);
+    if (!verifySnap.exists()) {
+      return NextResponse.json(
+        { error: "メール認証が完了していません" },
+        { status: 400 }
+      );
+    }
+    const verifyData = verifySnap.data();
+    const verifiedAtMs = Number(verifyData.verifiedAtMs || 0);
+    const verified = Boolean(verifyData.verified);
+    const maxAgeMs = 30 * 60 * 1000;
+    if (!verified || Date.now() - verifiedAtMs > maxAgeMs) {
+      return NextResponse.json(
+        { error: "認証コードの有効期限が切れています。再度認証してください" },
+        { status: 400 }
+      );
+    }
+
     // メールアドレス重複チェック
     const usersRef = collection(db, "users");
-    const q = query(usersRef, where("email", "==", email));
+    const q = query(usersRef, where("email", "==", normalizedEmail));
     const existing = await getDocs(q);
     if (!existing.empty) {
       return NextResponse.json(
@@ -27,14 +60,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const safeName = sanitizeDisplayName(email.split("@")[0]);
+    const safeName = sanitizeDisplayName(normalizedEmail.split("@")[0]);
 
     const hashedPassword = await bcrypt.hash(password, 12);
     const docRef = await addDoc(usersRef, {
       name: safeName,
-      email,
+      email: normalizedEmail,
       password: hashedPassword,
       image: "👤",
+      emailVerified: true,
       createdAt: serverTimestamp(),
     });
 
@@ -56,10 +90,12 @@ export async function POST(req: Request) {
       { merge: true }
     );
 
+    await deleteDoc(verifyRef);
+
     return NextResponse.json({
       id: appUid,
       name: safeName,
-      email,
+      email: normalizedEmail,
     });
   } catch (err) {
     console.error("Register error:", err);

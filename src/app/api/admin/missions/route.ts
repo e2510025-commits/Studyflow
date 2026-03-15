@@ -26,6 +26,7 @@ export async function POST(request: Request) {
         action: "saveConfig";
         seasonName?: string;
         seasonStartAt?: string;
+        seasonEndAt?: string;
         rotationMode?: Partial<Record<MissionScope, "random" | "fixed">>;
         fixedMissionIds?: Partial<Record<MissionScope, string>>;
       }
@@ -53,12 +54,23 @@ export async function POST(request: Request) {
       typeof body.seasonStartAt === "string" && body.seasonStartAt
         ? body.seasonStartAt
         : new Date().toISOString();
+    const seasonEndAt =
+      typeof body.seasonEndAt === "string" && body.seasonEndAt
+        ? body.seasonEndAt
+        : seasonStartAt;
+    const startMs = new Date(seasonStartAt).getTime();
+    const endMs = new Date(seasonEndAt).getTime();
+    const normalizedStart = Number.isNaN(startMs) ? new Date().toISOString() : new Date(startMs).toISOString();
+    const normalizedEnd = Number.isNaN(endMs)
+      ? normalizedStart
+      : new Date(Math.max(endMs, startMs)).toISOString();
 
     await setDoc(
       doc(db, "missionConfig", "main"),
       {
         seasonName,
-        seasonStartAt,
+        seasonStartAt: normalizedStart,
+        seasonEndAt: normalizedEnd,
         rotationMode: {
           daily: body.rotationMode?.daily === "fixed" ? "fixed" : "random",
           weekly: body.rotationMode?.weekly === "fixed" ? "fixed" : "random",
