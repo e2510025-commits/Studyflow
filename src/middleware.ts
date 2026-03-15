@@ -23,7 +23,11 @@ export async function middleware(req: NextRequest) {
 
   if (isAdminPath) {
     const token = await getToken({ req, secret: process.env.AUTH_SECRET });
-    const uid = toAppUid((token?.id as string | undefined) || "");
+    const rawUid =
+      (token?.id as string | undefined) ||
+      (token?.sub as string | undefined) ||
+      "";
+    const uid = toAppUid(rawUid);
     if (!isAdminUid(uid)) {
       if (pathname.startsWith("/api/admin")) {
         return NextResponse.json({ error: "forbidden" }, { status: 403 });

@@ -16,7 +16,6 @@ import {
   MessageSquare,
   Settings,
   Sliders,
-  Megaphone,
   Shield,
   X,
   Menu,
@@ -30,7 +29,6 @@ const baseNavItems = [
   { href: "/missions", label: "ミッション", icon: ClipboardList },
   { href: "/friends", label: "フレンド", icon: Users },
   { href: "/conversations", label: "会話", icon: MessageSquare },
-  { href: "/announcements", label: "お知らせ", icon: Megaphone },
   { href: "/settings", label: "アカウント設定", icon: Settings },
   { href: "/preferences", label: "アプリ設定", icon: Sliders },
 ];
