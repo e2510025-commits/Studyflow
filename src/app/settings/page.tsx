@@ -56,6 +56,7 @@ export default function SettingsPage() {
       visibility,
       dailyGoal: userProfile.dailyGoal,
       totalPoints: userProfile.totalPoints,
+      bonusPoints: userProfile.bonusPoints || 0,
     });
     updateUserProfile({ name, avatar });
     setSaved(true);

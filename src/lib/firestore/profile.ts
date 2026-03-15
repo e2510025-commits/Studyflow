@@ -20,6 +20,7 @@ export async function saveDisplayProfile(params: {
   visibility?: ProfileVisibility;
   dailyGoal?: number;
   totalPoints?: number;
+  bonusPoints?: number;
 }) {
   const safeName = sanitizeDisplayName(params.name);
   const safeAvatar = sanitizeAvatar(params.avatar);
@@ -33,6 +34,7 @@ export async function saveDisplayProfile(params: {
       visibility: params.visibility || "public",
       dailyGoal: typeof params.dailyGoal === "number" ? params.dailyGoal : 0,
       totalPoints: typeof params.totalPoints === "number" ? params.totalPoints : 0,
+      bonusPoints: typeof params.bonusPoints === "number" ? params.bonusPoints : 0,
       updatedAt: serverTimestamp(),
     },
     { merge: true }
@@ -78,6 +80,7 @@ export async function fetchPublicProfile(uid: string): Promise<PublicProfile | n
       : "public") as ProfileVisibility,
     dailyGoal: typeof data.dailyGoal === "number" ? data.dailyGoal : 0,
     totalPoints: typeof data.totalPoints === "number" ? data.totalPoints : 0,
+    bonusPoints: typeof data.bonusPoints === "number" ? data.bonusPoints : 0,
   };
 }
 

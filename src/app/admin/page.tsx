@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import MissionManager from "@/components/admin/MissionManager";
 
 interface AdminOverview {
   users: number;
@@ -187,6 +188,8 @@ export default function AdminPage() {
           お知らせを投稿
         </button>
       </section>
+
+      <MissionManager />
 
       <section className="glass-card p-4 space-y-3">
         <div className="flex items-center gap-2">

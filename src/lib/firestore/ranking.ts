@@ -109,6 +109,7 @@ export async function fetchRankingData(
   const periodStart = getPeriodStart(period);
 
   const logsRef = collection(db, "studyLogs");
+  const rewardsRef = collection(db, "missionRewards");
   const q =
     period === "all"
       ? query(logsRef)
@@ -116,8 +117,15 @@ export async function fetchRankingData(
           logsRef,
           where("createdAt", ">=", Timestamp.fromDate(periodStart))
         );
+  const rewardsQuery =
+    period === "all"
+      ? query(rewardsRef)
+      : query(
+          rewardsRef,
+          where("createdAt", ">=", Timestamp.fromDate(periodStart))
+        );
 
-  const snapshot = await getDocs(q);
+  const [snapshot, rewardSnapshot] = await Promise.all([getDocs(q), getDocs(rewardsQuery)]);
 
   // Aggregate
   const userMap = new Map<
@@ -139,6 +147,20 @@ export async function fetchRankingData(
     existing.totalPoints +=
       data.points ?? Math.floor((data.duration || 0) / 60);
     existing.sessions += 1;
+    userMap.set(uid, existing);
+  }
+
+  for (const d of rewardSnapshot.docs) {
+    const data = d.data();
+    const uid: string | undefined = data.uid;
+    if (!uid) continue;
+
+    const existing = userMap.get(uid) || {
+      totalDuration: 0,
+      totalPoints: 0,
+      sessions: 0,
+    };
+    existing.totalPoints += Number(data.points || 0);
     userMap.set(uid, existing);
   }
 

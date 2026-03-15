@@ -11,7 +11,7 @@ import NotificationBell from "./NotificationBell";
 import { subscribeStudyLogs } from "@/lib/firestore/studyLogs";
 import { saveUserProfile } from "@/lib/firestore/ranking";
 import { subscribeFriends } from "@/lib/firestore/friends";
-import { fetchDisplayProfile, saveDisplayProfile } from "@/lib/firestore/profile";
+import { fetchPublicProfile, saveDisplayProfile } from "@/lib/firestore/profile";
 import { sanitizeAvatar, sanitizeDisplayName, toAppUid } from "@/lib/identity";
 import {
   ensureDefaultUserSubjects,
@@ -31,6 +31,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     setStudyLogs,
     setFriends,
     setSubjects,
+    setBonusPoints,
   } = useStore();
   const pathname = usePathname();
   const isBareRoute = BARE_ROUTES.includes(pathname);
@@ -86,10 +87,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         }
 
         const storedProfile =
-          (await fetchDisplayProfile(appUid).catch(() => null)) ||
-          (await fetchDisplayProfile(accountUid).catch(() => null));
+          (await fetchPublicProfile(appUid).catch(() => null)) ||
+          (await fetchPublicProfile(accountUid).catch(() => null));
         const resolvedName = sanitizeDisplayName(storedProfile?.name || session.user?.name || "匿名");
         const resolvedAvatar = sanitizeAvatar(storedProfile?.avatar || session.user?.image || "👤");
+        const resolvedBonusPoints = Math.max(0, Math.floor(storedProfile?.bonusPoints || 0));
 
         useStore.setState((state) => {
           const switchedAccount = state.userProfile.uid !== appUid;
@@ -103,9 +105,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               uid: appUid,
               name: resolvedName,
               avatar: resolvedAvatar,
+              bonusPoints: resolvedBonusPoints,
+              totalPoints:
+                typeof storedProfile?.totalPoints === "number"
+                  ? storedProfile.totalPoints
+                  : state.userProfile.totalPoints,
             },
           };
         });
+        setBonusPoints(resolvedBonusPoints);
 
         await ensureDefaultUserSubjects(appUid);
 
@@ -128,6 +136,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             avatar: current.avatar,
             dailyGoal: current.dailyGoal,
             totalPoints: current.totalPoints,
+            bonusPoints: current.bonusPoints || 0,
           }).catch(() => {});
         }
       } catch {
@@ -143,7 +152,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       if (unsubscribeFriends) unsubscribeFriends();
       if (unsubscribeSubjects) unsubscribeSubjects();
     };
-  }, [setFriends, setStudyLogs, setSubjects]);
+  }, [setBonusPoints, setFriends, setStudyLogs, setSubjects]);
 
   // Apply theme class to <html>
   useEffect(() => {

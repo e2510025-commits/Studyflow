@@ -22,6 +22,7 @@ export interface UserProfile {
   avatar: string; // emoji or data:image URL
   dailyGoal: number; // seconds
   totalPoints: number;
+  bonusPoints?: number;
 }
 
 export type ProfileVisibility = "public" | "friends" | "private";
@@ -34,7 +35,41 @@ export interface PublicProfile {
   visibility: ProfileVisibility;
   dailyGoal: number;
   totalPoints: number;
+  bonusPoints?: number;
   isOfficial?: boolean;
+}
+
+export type MissionScope = "daily" | "weekly" | "season";
+export type MissionGoalType = "study_seconds" | "study_sessions";
+export type MissionRotationMode = "random" | "fixed";
+
+export interface MissionTemplate {
+  id: string;
+  scope: MissionScope;
+  title: string;
+  description: string;
+  goalType: MissionGoalType;
+  goalValue: number;
+  rewardPoints: number;
+  active: boolean;
+}
+
+export interface MissionConfig {
+  seasonName: string;
+  seasonStartAt: string;
+  rotationMode: Record<MissionScope, MissionRotationMode>;
+  fixedMissionIds: Partial<Record<MissionScope, string>>;
+}
+
+export interface MissionStatus {
+  scope: MissionScope;
+  periodKey: string;
+  periodLabel: string;
+  mission: MissionTemplate | null;
+  progressValue: number;
+  progressRate: number;
+  completed: boolean;
+  claimed: boolean;
 }
 
 /* ─── Friends ──────────────────────────────────────── */

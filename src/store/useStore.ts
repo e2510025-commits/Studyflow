@@ -47,6 +47,7 @@ interface AppState {
   userProfile: UserProfile;
   updateDailyGoal: (goal: number) => void;
   updateUserProfile: (updates: Partial<UserProfile>) => void;
+  setBonusPoints: (points: number) => void;
 
   // Friends
   friends: Friend[];
@@ -155,10 +156,11 @@ export const useStore = create<AppState>()(
           studyLogs: logs,
           userProfile: {
             ...state.userProfile,
-            totalPoints: logs.reduce(
+            totalPoints:
+              logs.reduce(
               (sum, log) => sum + (log.points ?? Math.floor(log.duration / 60)),
               0
-            ),
+              ) + (state.userProfile.bonusPoints || 0),
           },
         })),
       deleteStudyLog: (id) =>
@@ -167,7 +169,14 @@ export const useStore = create<AppState>()(
         })),
 
       // User Profile
-      userProfile: { uid: generateNumericUid(), name: "", avatar: "🎓", dailyGoal: 7200, totalPoints: 0 },
+      userProfile: {
+        uid: generateNumericUid(),
+        name: "",
+        avatar: "🎓",
+        dailyGoal: 7200,
+        totalPoints: 0,
+        bonusPoints: 0,
+      },
       updateDailyGoal: (goal) =>
         set((state) => ({
           userProfile: { ...state.userProfile, dailyGoal: goal },
@@ -176,6 +185,21 @@ export const useStore = create<AppState>()(
         set((state) => ({
           userProfile: { ...state.userProfile, ...updates },
         })),
+      setBonusPoints: (points) =>
+        set((state) => {
+          const basePoints = state.studyLogs.reduce(
+            (sum, log) => sum + (log.points ?? Math.floor(log.duration / 60)),
+            0
+          );
+          const safePoints = Math.max(0, Math.floor(points || 0));
+          return {
+            userProfile: {
+              ...state.userProfile,
+              bonusPoints: safePoints,
+              totalPoints: basePoints + safePoints,
+            },
+          };
+        }),
 
       // Friends
       friends: [],

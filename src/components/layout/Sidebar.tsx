@@ -4,12 +4,14 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useStore } from "@/store/useStore";
+import { isAdminUid } from "@/lib/admin";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
   Timer,
   BookMarked,
   Trophy,
+  ClipboardList,
   Users,
   MessageSquare,
   Settings,
@@ -20,15 +22,15 @@ import {
   Menu,
 } from "lucide-react";
 
-const navItems = [
+const baseNavItems = [
   { href: "/", label: "ダッシュボード", icon: LayoutDashboard },
   { href: "/timer", label: "学習タイマー", icon: Timer },
   { href: "/subjects", label: "教科管理", icon: BookMarked },
   { href: "/ranking", label: "ランキング", icon: Trophy },
+  { href: "/missions", label: "ミッション", icon: ClipboardList },
   { href: "/friends", label: "フレンド", icon: Users },
   { href: "/conversations", label: "会話", icon: MessageSquare },
   { href: "/announcements", label: "お知らせ", icon: Megaphone },
-  { href: "/admin", label: "管理者", icon: Shield },
   { href: "/settings", label: "アカウント設定", icon: Settings },
   { href: "/preferences", label: "アプリ設定", icon: Sliders },
 ];
@@ -36,6 +38,9 @@ const navItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const { sidebarOpen, setSidebarOpen, userProfile } = useStore();
+  const navItems = isAdminUid(userProfile.uid)
+    ? [...baseNavItems, { href: "/admin", label: "管理者", icon: Shield }]
+    : baseNavItems;
 
   return (
     <>
