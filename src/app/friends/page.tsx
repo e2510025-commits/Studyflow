@@ -13,17 +13,13 @@ import {
   X,
   Copy,
   Check,
-  Bell,
-  BellDot,
 } from "lucide-react";
 import type { Friend, FriendRequest } from "@/types";
 import {
   removeFriendFromFirestore,
   searchUsersForFriend,
   sendFriendRequest,
-  subscribeIncomingFriendRequests,
   subscribeOutgoingFriendRequests,
-  respondFriendRequest,
 } from "@/lib/firestore/friends";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 
@@ -47,16 +43,12 @@ export default function FriendsPage() {
   const [query, setQuery] = useState("");
   const [copiedUid, setCopiedUid] = useState(false);
   const [searchResults, setSearchResults] = useState<Array<Omit<Friend, "addedAt">>>([]);
-  const [incomingRequests, setIncomingRequests] = useState<FriendRequest[]>([]);
   const [outgoingRequests, setOutgoingRequests] = useState<FriendRequest[]>([]);
-  const [openNotifications, setOpenNotifications] = useState(false);
 
   useEffect(() => {
     if (!userProfile.uid) return;
-    const unsubIncoming = subscribeIncomingFriendRequests(userProfile.uid, setIncomingRequests);
     const unsubOutgoing = subscribeOutgoingFriendRequests(userProfile.uid, setOutgoingRequests);
     return () => {
-      unsubIncoming();
       unsubOutgoing();
     };
   }, [userProfile.uid]);
@@ -119,67 +111,11 @@ export default function FriendsPage() {
           >
             フレンド
           </h1>
-          <button
-            onClick={() => setOpenNotifications((v) => !v)}
-            className="absolute right-0 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center"
-            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-            title="申請通知"
-          >
-            {incomingRequests.length > 0 ? <BellDot size={18} /> : <Bell size={18} />}
-          </button>
         </div>
         <p className="text-sm" style={{ color: "var(--muted)" }}>
           UIDで検索してフレンド申請を送ろう
         </p>
       </motion.div>
-
-      <AnimatePresence>
-        {openNotifications && (
-          <motion.div
-            className="glass-card p-4 space-y-3"
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-          >
-            <h2 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
-              フレンド申請通知
-            </h2>
-            {incomingRequests.length === 0 ? (
-              <p className="text-sm" style={{ color: "var(--muted)" }}>未読通知はありません</p>
-            ) : (
-              incomingRequests.map((req) => (
-                <div key={req.id} className="rounded-xl p-3 flex items-center gap-3" style={{ background: "var(--muted-bg)" }}>
-                  <Link href={`/profile/${req.fromUid}`} className="flex-shrink-0">
-                    <AvatarPill avatar={sanitizeAvatar(req.fromAvatar)} size={40} />
-                  </Link>
-                  <div className="flex-1 min-w-0">
-                    <Link href={`/profile/${req.fromUid}`} className="text-sm font-bold block truncate" style={{ color: "var(--foreground)" }}>
-                      {req.fromName}
-                    </Link>
-                    <p className="text-[11px]" style={{ color: "var(--muted)" }}>フレンド申請が届いています</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => respondFriendRequest(req.id, "accept")}
-                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-white"
-                      style={{ background: "#16a34a" }}
-                    >
-                      承認
-                    </button>
-                    <button
-                      onClick={() => respondFriendRequest(req.id, "decline")}
-                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold"
-                      style={{ background: "#ef444420", color: "#ef4444" }}
-                    >
-                      却下
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* My UID Card */}
       <motion.div

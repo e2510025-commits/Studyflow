@@ -154,6 +154,7 @@ export default function RankingPage() {
     myIndex >= 0
       ? rawData[myIndex]
       : { totalDuration: 0, totalPoints: 0, sessions: 0 };
+  const myAvatar = sanitizeAvatar(userProfile.avatar || "👤");
 
   /* ── Period tabs ───────────────────────────────── */
   const periods: { key: RankingPeriod; label: string }[] = [
@@ -484,12 +485,7 @@ export default function RankingPage() {
           transition={{ delay: 0.35 }}
         >
           <div className="flex items-center gap-4">
-            <div
-              className="w-12 h-12 rounded-full flex items-center justify-center text-xl"
-              style={{ background: "var(--accent)", color: "#fff" }}
-            >
-              {userProfile.avatar || "🎓"}
-            </div>
+            <Avatar avatar={myAvatar} size={48} background="var(--accent)" />
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <span
