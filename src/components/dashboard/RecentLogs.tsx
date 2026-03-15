@@ -2,6 +2,7 @@
 
 import React, { useMemo } from "react";
 import { useStore } from "@/store/useStore";
+import { useLiveStudyLogs } from "@/components/dashboard/useLiveStudyLogs";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import GlassCard from "@/components/ui/GlassCard";
@@ -12,7 +13,8 @@ import { formatHoursMinutes } from "@/lib/utils";
 import { motion } from "framer-motion";
 
 export default function RecentLogs() {
-  const { studyLogs, subjects } = useStore();
+  const { subjects } = useStore();
+  const studyLogs = useLiveStudyLogs();
 
   const recentLogs = useMemo(() => {
     return [...studyLogs]

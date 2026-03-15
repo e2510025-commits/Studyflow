@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { useStore } from "@/store/useStore";
+import { useLiveStudyLogs } from "@/components/dashboard/useLiveStudyLogs";
 import {
   format,
   eachDayOfInterval,
@@ -19,7 +19,7 @@ const CELL_SIZE = 16;
 const GAP = 3;
 
 export default function HeatMap() {
-  const { studyLogs } = useStore();
+  const studyLogs = useLiveStudyLogs();
 
   const { grid, maxDuration, months } = useMemo(() => {
     const now = new Date();

@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useStore } from "@/store/useStore";
+import { useLiveStudyLogs } from "@/components/dashboard/useLiveStudyLogs";
 import {
   BarChart,
   Bar,
@@ -32,7 +33,8 @@ import { formatHoursMinutes } from "@/lib/utils";
 type Period = "week" | "month";
 
 export default function WeeklyBarChart() {
-  const { studyLogs, subjects } = useStore();
+  const { subjects } = useStore();
+  const studyLogs = useLiveStudyLogs();
   const [period, setPeriod] = useState<Period>("week");
 
   const data = useMemo(() => {

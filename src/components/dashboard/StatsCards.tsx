@@ -2,6 +2,7 @@
 
 import React, { useMemo } from "react";
 import { useStore } from "@/store/useStore";
+import { useLiveStudyLogs } from "@/components/dashboard/useLiveStudyLogs";
 import { motion } from "framer-motion";
 import { Clock, TrendingUp, Flame, Target } from "lucide-react";
 import {
@@ -19,7 +20,8 @@ import { ja } from "date-fns/locale";
 import { formatHoursMinutes, getTodayLogs, getTotalDuration } from "@/lib/utils";
 
 export default function StatsCards() {
-  const { studyLogs, userProfile } = useStore();
+  const { userProfile } = useStore();
+  const studyLogs = useLiveStudyLogs();
 
   const stats = useMemo(() => {
     const now = new Date();

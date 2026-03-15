@@ -2,6 +2,7 @@
 
 import React, { useMemo } from "react";
 import { useStore } from "@/store/useStore";
+import { useLiveStudyLogs } from "@/components/dashboard/useLiveStudyLogs";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { format, startOfDay } from "date-fns";
 import GlassCard from "@/components/ui/GlassCard";
@@ -10,7 +11,8 @@ import { PieChart as PieChartIcon } from "lucide-react";
 import { formatHoursMinutes } from "@/lib/utils";
 
 export default function DailyPieChart() {
-  const { studyLogs, subjects } = useStore();
+  const { subjects } = useStore();
+  const studyLogs = useLiveStudyLogs();
 
   const data = useMemo(() => {
     const todayStr = format(startOfDay(new Date()), "yyyy-MM-dd");
