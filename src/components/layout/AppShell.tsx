@@ -100,6 +100,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         const storedProfile =
           (await fetchPublicProfile(appUid).catch(() => null)) ||
           (await fetchPublicProfile(accountUid).catch(() => null));
+        const needsProfileSetup = storedProfile ? !storedProfile.profileSetupDone : true;
         const resolvedName = sanitizeDisplayName(storedProfile?.name || session.user?.name || "匿名");
         const resolvedAvatar = sanitizeAvatar(storedProfile?.avatar || session.user?.image || "👤");
         const resolvedBonusPoints = Math.max(0, Math.floor(storedProfile?.bonusPoints || 0));
@@ -148,7 +149,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             dailyGoal: current.dailyGoal,
             totalPoints: current.totalPoints,
             bonusPoints: current.bonusPoints || 0,
+            profileSetupDone: needsProfileSetup ? false : true,
           }).catch(() => {});
+        }
+
+        if (needsProfileSetup && pathname !== "/settings") {
+          window.location.href = "/settings";
+          return;
         }
       } catch {
         // ignore session sync failures and keep local store state
@@ -163,7 +170,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       if (unsubscribeFriends) unsubscribeFriends();
       if (unsubscribeSubjects) unsubscribeSubjects();
     };
-  }, [setBonusPoints, setFriends, setStudyLogs, setSubjects]);
+  }, [pathname, setBonusPoints, setFriends, setStudyLogs, setSubjects]);
 
   // Apply theme class to <html>
   useEffect(() => {

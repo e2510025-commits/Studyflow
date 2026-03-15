@@ -59,6 +59,7 @@ export async function POST(request: Request) {
     action: "warn" | "ban" | "unban" | "suspend" | "unsuspend" | "official" | "unofficial" | "dm";
     targetUid: string;
     message?: string;
+    reason?: string;
     days?: number;
   };
 
@@ -67,13 +68,17 @@ export async function POST(request: Request) {
   }
 
   const moderationRef = doc(db, "userModeration", body.targetUid);
+  const reasonText = (body.reason || body.message || "").trim();
 
   if (body.action === "warn") {
+    if (!reasonText) {
+      return NextResponse.json({ error: "警告理由を入力してください" }, { status: 400 });
+    }
     const snap = await getDoc(moderationRef);
     const current = snap.exists() ? snap.data() : {};
     const warnings = Array.isArray(current.warnings) ? current.warnings : [];
     const entry = {
-      message: (body.message || "運営からの注意").trim(),
+      message: reasonText,
       at: new Date().toISOString(),
       by: guard.appUid,
     };
@@ -97,12 +102,25 @@ export async function POST(request: Request) {
 
   if (body.action === "ban" || body.action === "unban") {
     const banned = body.action === "ban";
-    await setDoc(moderationRef, { banned, updatedAt: serverTimestamp() }, { merge: true });
+    if (banned && !reasonText) {
+      return NextResponse.json({ error: "BAN理由を入力してください" }, { status: 400 });
+    }
+    await setDoc(
+      moderationRef,
+      {
+        banned,
+        bannedReason: banned ? reasonText : "",
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
     await addDoc(collection(db, "notifications"), {
       toUid: body.targetUid,
       type: "ban",
       title: banned ? "利用停止のお知らせ" : "利用停止解除のお知らせ",
-      body: banned ? "アカウントが利用停止されました。" : "アカウントの利用停止が解除されました。",
+      body: banned
+        ? `アカウントが利用停止されました。理由: ${reasonText}`
+        : "アカウントの利用停止が解除されました。",
       read: false,
       link: "/announcements",
       createdAt: serverTimestamp(),
@@ -110,14 +128,25 @@ export async function POST(request: Request) {
   }
 
   if (body.action === "suspend") {
+    if (!reasonText) {
+      return NextResponse.json({ error: "停止理由を入力してください" }, { status: 400 });
+    }
     const days = Math.max(1, Number(body.days || 1));
     const until = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
-    await setDoc(moderationRef, { suspendedUntil: until, updatedAt: serverTimestamp() }, { merge: true });
+    await setDoc(
+      moderationRef,
+      {
+        suspendedUntil: until,
+        suspendReason: reasonText,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
     await addDoc(collection(db, "notifications"), {
       toUid: body.targetUid,
       type: "suspend",
       title: "一時利用停止のお知らせ",
-      body: `${days}日間の一時利用停止となりました。`,
+      body: `${days}日間の一時利用停止となりました。理由: ${reasonText}`,
       read: false,
       link: "/announcements",
       createdAt: serverTimestamp(),

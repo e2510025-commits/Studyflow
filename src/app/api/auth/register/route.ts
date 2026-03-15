@@ -3,11 +3,11 @@ import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, setDoc
 import { db } from "@/lib/firebase";
 import bcrypt from "bcryptjs";
 import { toAppUid } from "@/lib/identity";
-import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
+import { sanitizeDisplayName } from "@/lib/identity";
 
 export async function POST(req: Request) {
   try {
-    const { name, email, password, bio, avatar } = await req.json();
+    const { email, password } = await req.json();
 
     if (!email || !password) {
       return NextResponse.json(
@@ -27,16 +27,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const safeName = sanitizeDisplayName(name || email.split("@")[0]);
-    const safeAvatar = sanitizeAvatar(avatar || "👤");
-    const safeBio = typeof bio === "string" ? bio.trim().slice(0, 280) : "";
+    const safeName = sanitizeDisplayName(email.split("@")[0]);
 
     const hashedPassword = await bcrypt.hash(password, 12);
     const docRef = await addDoc(usersRef, {
       name: safeName,
       email,
       password: hashedPassword,
-      image: safeAvatar,
+      image: "👤",
       createdAt: serverTimestamp(),
     });
 
@@ -46,12 +44,13 @@ export async function POST(req: Request) {
       {
         uid: appUid,
         name: safeName,
-        avatar: safeAvatar,
-        bio: safeBio,
+        avatar: "👤",
+        bio: "",
         visibility: "public",
         dailyGoal: 7200,
         totalPoints: 0,
         bonusPoints: 0,
+        profileSetupDone: false,
         updatedAt: serverTimestamp(),
       },
       { merge: true }

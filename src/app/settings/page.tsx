@@ -43,6 +43,7 @@ export default function SettingsPage() {
       dailyGoal: userProfile.dailyGoal,
       totalPoints: userProfile.totalPoints,
       bonusPoints: userProfile.bonusPoints || 0,
+      profileSetupDone: true,
     });
     updateUserProfile({ name, avatar });
     setSaved(true);

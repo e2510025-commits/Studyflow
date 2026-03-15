@@ -21,22 +21,28 @@ export async function saveDisplayProfile(params: {
   dailyGoal?: number;
   totalPoints?: number;
   bonusPoints?: number;
+  profileSetupDone?: boolean;
 }) {
   const safeName = sanitizeDisplayName(params.name);
   const safeAvatar = sanitizeAvatar(params.avatar);
+  const payload: Record<string, unknown> = {
+    uid: params.uid,
+    name: safeName,
+    avatar: safeAvatar,
+    bio: (params.bio || "").trim().slice(0, 280),
+    visibility: params.visibility || "public",
+    dailyGoal: typeof params.dailyGoal === "number" ? params.dailyGoal : 0,
+    totalPoints: typeof params.totalPoints === "number" ? params.totalPoints : 0,
+    bonusPoints: typeof params.bonusPoints === "number" ? params.bonusPoints : 0,
+    updatedAt: serverTimestamp(),
+  };
+  if (typeof params.profileSetupDone === "boolean") {
+    payload.profileSetupDone = params.profileSetupDone;
+  }
+
   await setDoc(
     doc(db, "userProfiles", params.uid),
-    {
-      uid: params.uid,
-      name: safeName,
-      avatar: safeAvatar,
-      bio: (params.bio || "").trim().slice(0, 280),
-      visibility: params.visibility || "public",
-      dailyGoal: typeof params.dailyGoal === "number" ? params.dailyGoal : 0,
-      totalPoints: typeof params.totalPoints === "number" ? params.totalPoints : 0,
-      bonusPoints: typeof params.bonusPoints === "number" ? params.bonusPoints : 0,
-      updatedAt: serverTimestamp(),
-    },
+    payload,
     { merge: true }
   );
 
@@ -81,6 +87,7 @@ export async function fetchPublicProfile(uid: string): Promise<PublicProfile | n
     dailyGoal: typeof data.dailyGoal === "number" ? data.dailyGoal : 0,
     totalPoints: typeof data.totalPoints === "number" ? data.totalPoints : 0,
     bonusPoints: typeof data.bonusPoints === "number" ? data.bonusPoints : 0,
+    profileSetupDone: typeof data.profileSetupDone === "boolean" ? data.profileSetupDone : true,
   };
 }
 

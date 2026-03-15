@@ -30,6 +30,14 @@ interface AdminUser {
   warnings: Array<{ message: string; at: string; by: string }>;
 }
 
+interface AdminAnnouncement {
+  id: string;
+  title: string;
+  body: string;
+  createdBy: string;
+  createdAt: string;
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
@@ -37,10 +45,14 @@ export default function AdminPage() {
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [q, setQ] = useState("");
-  const [warnText, setWarnText] = useState("運営からの警告です。");
+  const [actionReason, setActionReason] = useState("");
   const [dmText, setDmText] = useState("運営からの連絡です。");
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementBody, setAnnouncementBody] = useState("");
+  const [announcements, setAnnouncements] = useState<AdminAnnouncement[]>([]);
+  const [editingAnnouncementId, setEditingAnnouncementId] = useState("");
+  const [editingTitle, setEditingTitle] = useState("");
+  const [editingBody, setEditingBody] = useState("");
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [section, setSection] = useState<AdminSection>("overview");
 
@@ -78,6 +90,13 @@ export default function AdminPage() {
     }
   }, [q]);
 
+  const loadAnnouncements = useCallback(async () => {
+    const res = await fetch("/api/admin/announcements", { cache: "no-store" });
+    if (!res.ok) return;
+    const json = (await res.json()) as { announcements: AdminAnnouncement[] };
+    setAnnouncements(json.announcements || []);
+  }, []);
+
   useEffect(() => {
     void verifyAdmin();
   }, [verifyAdmin]);
@@ -86,7 +105,8 @@ export default function AdminPage() {
     if (!allowed) return;
     void loadOverview();
     void loadUsers();
-  }, [allowed, loadOverview, loadUsers]);
+    void loadAnnouncements();
+  }, [allowed, loadAnnouncements, loadOverview, loadUsers]);
 
   const act = useCallback(
     async (targetUid: string, action: string, extras?: Record<string, unknown>) => {
@@ -96,7 +116,8 @@ export default function AdminPage() {
         body: JSON.stringify({ targetUid, action, ...extras }),
       });
       if (!res.ok) {
-        alert("操作に失敗しました");
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        alert(err.error || "操作に失敗しました");
         return;
       }
       await Promise.all([loadUsers(), loadOverview()]);
@@ -122,8 +143,54 @@ export default function AdminPage() {
 
     setAnnouncementTitle("");
     setAnnouncementBody("");
-    await loadOverview();
-  }, [announcementTitle, announcementBody, loadOverview]);
+    await Promise.all([loadOverview(), loadAnnouncements()]);
+  }, [announcementTitle, announcementBody, loadAnnouncements, loadOverview]);
+
+  const startEditAnnouncement = useCallback((row: AdminAnnouncement) => {
+    setEditingAnnouncementId(row.id);
+    setEditingTitle(row.title);
+    setEditingBody(row.body);
+  }, []);
+
+  const saveAnnouncementEdit = useCallback(async () => {
+    if (!editingAnnouncementId) return;
+    const title = editingTitle.trim();
+    const body = editingBody.trim();
+    if (!title || !body) return;
+
+    const res = await fetch("/api/admin/announcements", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: editingAnnouncementId, title, body }),
+    });
+    if (!res.ok) {
+      alert("お知らせ更新に失敗しました");
+      return;
+    }
+
+    setEditingAnnouncementId("");
+    setEditingTitle("");
+    setEditingBody("");
+    await loadAnnouncements();
+  }, [editingAnnouncementId, editingTitle, editingBody, loadAnnouncements]);
+
+  const deleteAnnouncement = useCallback(async (id: string) => {
+    const res = await fetch("/api/admin/announcements", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    if (!res.ok) {
+      alert("お知らせ削除に失敗しました");
+      return;
+    }
+    if (editingAnnouncementId === id) {
+      setEditingAnnouncementId("");
+      setEditingTitle("");
+      setEditingBody("");
+    }
+    await loadAnnouncements();
+  }, [editingAnnouncementId, loadAnnouncements]);
 
   const cards = useMemo(() => {
     if (!overview) return [];
@@ -218,6 +285,51 @@ export default function AdminPage() {
           >
             お知らせを投稿
           </button>
+
+          <div className="pt-3 border-t space-y-2" style={{ borderColor: "var(--card-border)" }}>
+            <h3 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>お知らせ履歴</h3>
+            {announcements.length === 0 ? (
+              <p className="text-sm" style={{ color: "var(--muted)" }}>履歴はまだありません。</p>
+            ) : (
+              announcements.map((row) => (
+                <div key={row.id} className="rounded-xl p-3" style={{ background: "var(--muted-bg)" }}>
+                  {editingAnnouncementId === row.id ? (
+                    <div className="space-y-2">
+                      <input
+                        value={editingTitle}
+                        onChange={(e) => setEditingTitle(e.target.value)}
+                        className="w-full px-3 py-2 rounded text-sm"
+                        style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
+                      />
+                      <textarea
+                        value={editingBody}
+                        onChange={(e) => setEditingBody(e.target.value)}
+                        rows={3}
+                        className="w-full px-3 py-2 rounded text-sm"
+                        style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
+                      />
+                      <div className="flex gap-2">
+                        <button onClick={() => void saveAnnouncementEdit()} className="px-3 py-1.5 rounded text-xs font-bold text-white" style={{ background: "var(--accent)" }}>保存</button>
+                        <button onClick={() => setEditingAnnouncementId("")} className="px-3 py-1.5 rounded text-xs font-bold" style={{ background: "#ffffff22", color: "var(--foreground)" }}>キャンセル</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>{row.title}</p>
+                      <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>{row.body}</p>
+                      <p className="text-[10px] mt-1" style={{ color: "var(--muted)" }}>
+                        {new Date(row.createdAt).toLocaleString("ja-JP")} / by {row.createdBy}
+                      </p>
+                      <div className="mt-2 flex gap-2">
+                        <button onClick={() => startEditAnnouncement(row)} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "var(--accent-light)", color: "var(--accent)" }}>編集</button>
+                        <button onClick={() => void deleteAnnouncement(row.id)} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "#ef444420", color: "#ef4444" }}>削除</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
         </section>
       )}
 
@@ -241,11 +353,11 @@ export default function AdminPage() {
 
         <div className="grid sm:grid-cols-2 gap-2">
           <input
-            value={warnText}
-            onChange={(e) => setWarnText(e.target.value)}
+            value={actionReason}
+            onChange={(e) => setActionReason(e.target.value)}
             className="px-3 py-2 rounded-xl text-sm"
             style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-            placeholder="警告メッセージ"
+            placeholder="警告/BAN/停止の理由（必須）"
           />
           <input
             value={dmText}
@@ -271,10 +383,10 @@ export default function AdminPage() {
                   {!!u.suspendedUntil && <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: "#f59e0b20", color: "#f59e0b" }}>停止中</span>}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <button onClick={() => void act(u.uid, "warn", { message: warnText })} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "#f59e0b20", color: "#f59e0b" }}>警告</button>
-                  <button onClick={() => void act(u.uid, "ban")} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "#ef444420", color: "#ef4444" }}>BAN</button>
+                  <button onClick={() => void act(u.uid, "warn", { reason: actionReason })} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "#f59e0b20", color: "#f59e0b" }}>警告</button>
+                  <button onClick={() => void act(u.uid, "ban", { reason: actionReason })} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "#ef444420", color: "#ef4444" }}>BAN</button>
                   <button onClick={() => void act(u.uid, "unban")} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "#16a34a20", color: "#16a34a" }}>BAN解除</button>
-                  <button onClick={() => void act(u.uid, "suspend", { days: 1 })} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "#f59e0b20", color: "#f59e0b" }}>1日停止</button>
+                  <button onClick={() => void act(u.uid, "suspend", { days: 1, reason: actionReason })} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "#f59e0b20", color: "#f59e0b" }}>1日停止</button>
                   <button onClick={() => void act(u.uid, "unsuspend")} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "#16a34a20", color: "#16a34a" }}>停止解除</button>
                   <button onClick={() => void act(u.uid, u.isOfficial ? "unofficial" : "official")} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "#38bdf820", color: "#38bdf8" }}>{u.isOfficial ? "公式解除" : "公式登録"}</button>
                   <button onClick={() => void act(u.uid, "dm", { message: dmText })} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "var(--accent-light)", color: "var(--accent)" }}>DM送信</button>

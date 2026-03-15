@@ -23,6 +23,7 @@ export interface UserProfile {
   dailyGoal: number; // seconds
   totalPoints: number;
   bonusPoints?: number;
+  profileSetupDone?: boolean;
 }
 
 export type ProfileVisibility = "public" | "friends" | "private";
@@ -36,6 +37,7 @@ export interface PublicProfile {
   dailyGoal: number;
   totalPoints: number;
   bonusPoints?: number;
+  profileSetupDone?: boolean;
   isOfficial?: boolean;
 }
 

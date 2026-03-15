@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
-import { addDoc, collection, getDocs, limit, orderBy, query, serverTimestamp } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDocs, limit, orderBy, query, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { requireAdmin } from "@/lib/server/adminGuard";
 
 export async function GET() {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
   const q = query(collection(db, "announcements"), orderBy("createdAt", "desc"), limit(100));
   const snapshot = await getDocs(q);
   const rows = snapshot.docs.map((d) => {
@@ -38,5 +41,45 @@ export async function POST(request: Request) {
     createdAt: serverTimestamp(),
   });
 
+  return NextResponse.json({ ok: true });
+}
+
+export async function PUT(request: Request) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
+  const body = (await request.json()) as { id?: string; title?: string; body?: string };
+  const id = (body.id || "").trim();
+  const title = (body.title || "").trim();
+  const content = (body.body || "").trim();
+  if (!id || !title || !content) {
+    return NextResponse.json({ error: "id/title/body required" }, { status: 400 });
+  }
+
+  await setDoc(
+    doc(db, "announcements", id),
+    {
+      title,
+      body: content,
+      updatedBy: guard.appUid,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  return NextResponse.json({ ok: true });
+}
+
+export async function DELETE(request: Request) {
+  const guard = await requireAdmin();
+  if (!guard.ok) return guard.response;
+
+  const body = (await request.json()) as { id?: string };
+  const id = (body.id || "").trim();
+  if (!id) {
+    return NextResponse.json({ error: "id required" }, { status: 400 });
+  }
+
+  await deleteDoc(doc(db, "announcements", id));
   return NextResponse.json({ ok: true });
 }

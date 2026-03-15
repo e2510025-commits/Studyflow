@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { GraduationCap, Mail, Lock, User, Eye, EyeOff, ArrowRight, Loader2, ImageIcon, Upload, X } from "lucide-react";
+import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 
 type AuthMode = "login" | "register";
 
@@ -11,57 +11,15 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
-    name: "",
     email: "",
     password: "",
-    bio: "",
-    avatar: "👤",
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
     setError("");
-  };
-
-  const handleBioChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setForm((prev) => ({ ...prev, bio: e.target.value.slice(0, 280) }));
-    setError("");
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) return;
-    if (file.size > 2 * 1024 * 1024) {
-      setError("画像サイズは2MB以下にしてください");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const img = new Image();
-      img.onload = () => {
-        const size = 128;
-        const canvas = document.createElement("canvas");
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-
-        const minDim = Math.min(img.width, img.height);
-        const sx = (img.width - minDim) / 2;
-        const sy = (img.height - minDim) / 2;
-        ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
-        setForm((prev) => ({ ...prev, avatar: canvas.toDataURL("image/webp", 0.8) }));
-      };
-      img.src = String(ev.target?.result || "");
-    };
-
-    reader.readAsDataURL(file);
-    e.target.value = "";
   };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
@@ -197,105 +155,17 @@ export default function LoginPage() {
           {/* Email form */}
           <form onSubmit={handleEmailAuth} className="space-y-4">
             <AnimatePresence mode="wait">
-              {mode === "register" && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="space-y-3"
+              {mode === "register" ? (
+                <motion.p
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  className="text-xs px-3 py-2 rounded-lg"
+                  style={{ background: "var(--muted-bg)", color: "var(--muted)" }}
                 >
-                  <div className="rounded-xl p-3" style={{ background: "var(--muted-bg)" }}>
-                    <p className="text-xs font-medium mb-2" style={{ color: "var(--muted)" }}>ユーザーアイコン</p>
-                    <div className="flex items-center gap-3">
-                      <div className="w-14 h-14 rounded-full overflow-hidden" style={{ background: "var(--card-bg)" }}>
-                        {form.avatar.startsWith("data:") || form.avatar.startsWith("http") ? (
-                          <img src={form.avatar} alt="avatar" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-lg">👤</div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5"
-                          style={{ background: "var(--accent)", color: "#fff" }}
-                        >
-                          <Upload size={13} /> 画像を選択
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setForm((prev) => ({ ...prev, avatar: "👤" }))}
-                          className="px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5"
-                          style={{ background: "#ef444420", color: "#ef4444" }}
-                        >
-                          <X size={13} /> リセット
-                        </button>
-                      </div>
-                    </div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleImageUpload}
-                    />
-                    <p className="text-[10px] mt-2" style={{ color: "var(--muted)" }}>
-                      画像のみ（2MB以下）
-                    </p>
-                  </div>
-
-                  <div className="relative">
-                    <User
-                      size={18}
-                      className="absolute left-3 top-1/2 -translate-y-1/2"
-                      style={{ color: "var(--muted)" }}
-                    />
-                    <input
-                      type="text"
-                      name="name"
-                      value={form.name}
-                      onChange={handleChange}
-                      placeholder="ユーザー名"
-                      className="w-full pl-10 pr-4 py-3 rounded-xl text-sm font-medium outline-none transition-all"
-                      style={{
-                        background: "var(--muted-bg)",
-                        color: "var(--foreground)",
-                        border: "2px solid transparent",
-                      }}
-                      onFocus={(e) => (e.target.style.borderColor = "var(--accent)")}
-                      onBlur={(e) => (e.target.style.borderColor = "transparent")}
-                      required
-                    />
-                  </div>
-
-                  <div className="relative">
-                    <ImageIcon
-                      size={18}
-                      className="absolute left-3 top-3"
-                      style={{ color: "var(--muted)" }}
-                    />
-                    <textarea
-                      name="bio"
-                      value={form.bio}
-                      onChange={handleBioChange}
-                      placeholder="自己紹介（任意・280文字まで）"
-                      rows={3}
-                      className="w-full pl-10 pr-4 py-3 rounded-xl text-sm font-medium outline-none transition-all"
-                      style={{
-                        background: "var(--muted-bg)",
-                        color: "var(--foreground)",
-                        border: "2px solid transparent",
-                      }}
-                      onFocus={(e) => (e.target.style.borderColor = "var(--accent)")}
-                      onBlur={(e) => (e.target.style.borderColor = "transparent")}
-                    />
-                    <p className="text-[10px] mt-1" style={{ color: "var(--muted)" }}>
-                      {form.bio.length}/280
-                    </p>
-                  </div>
-                </motion.div>
-              )}
+                  登録後にアカウント設定ページで「名前・アイコン・自己紹介」を設定できます。
+                </motion.p>
+              ) : null}
             </AnimatePresence>
 
             <div className="relative">
