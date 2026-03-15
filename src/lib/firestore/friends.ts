@@ -11,7 +11,6 @@ import {
   getDoc,
   getDocs,
   limit,
-  orderBy,
   writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -126,8 +125,7 @@ export function subscribeIncomingFriendRequests(
   const q = query(
     collection(db, FRIEND_REQUESTS_COLLECTION),
     where("toUid", "==", myUid),
-    where("status", "==", "pending"),
-    orderBy("createdAt", "desc")
+    where("status", "==", "pending")
   );
 
   return onSnapshot(q, (snapshot) => {
@@ -145,7 +143,7 @@ export function subscribeIncomingFriendRequests(
             ? data.createdAt.toDate().toISOString()
             : data.createdAt,
       } satisfies FriendRequest;
-    });
+    }).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
     callback(requests);
   });
 }
@@ -157,8 +155,7 @@ export function subscribeOutgoingFriendRequests(
   const q = query(
     collection(db, FRIEND_REQUESTS_COLLECTION),
     where("fromUid", "==", myUid),
-    where("status", "==", "pending"),
-    orderBy("createdAt", "desc")
+    where("status", "==", "pending")
   );
 
   return onSnapshot(q, (snapshot) => {
@@ -176,7 +173,7 @@ export function subscribeOutgoingFriendRequests(
             ? data.createdAt.toDate().toISOString()
             : data.createdAt,
       } satisfies FriendRequest;
-    });
+    }).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
     callback(requests);
   });
 }

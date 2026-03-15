@@ -7,6 +7,7 @@ import Sidebar from "./Sidebar";
 import ThemePicker from "./ThemePicker";
 import HeaderMenu from "./HeaderMenu";
 import RankingBadge from "@/components/ranking/RankingBadge";
+import FriendRequestBell from "./FriendRequestBell";
 import { subscribeStudyLogs } from "@/lib/firestore/studyLogs";
 import { saveUserProfile } from "@/lib/firestore/ranking";
 import { subscribeFriends } from "@/lib/firestore/friends";
@@ -206,6 +207,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {!immersiveMode && (
         <>
           <HeaderMenu />
+          <FriendRequestBell />
           <RankingBadge />
         </>
       )}

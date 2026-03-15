@@ -49,7 +49,7 @@ export default function RankingBadge() {
         onClick={() => setShowModal(true)}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        className="fixed top-4 right-16 z-40 h-10 flex items-center gap-2 px-3 rounded-xl glass-card cursor-pointer"
+        className="fixed top-4 right-28 z-40 h-10 flex items-center gap-2 px-3 rounded-xl glass-card cursor-pointer"
         style={{ padding: "0 12px" }}
         initial={{ opacity: 0, y: -20, scale: 0.9 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
