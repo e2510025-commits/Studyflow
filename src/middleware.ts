@@ -19,9 +19,9 @@ export async function middleware(req: NextRequest) {
   }
 
   const pathname = req.nextUrl.pathname;
-  const isAdminPath = pathname.startsWith("/admin") || pathname.startsWith("/api/admin");
+  const isAdminApiPath = pathname.startsWith("/api/admin");
 
-  if (isAdminPath) {
+  if (isAdminApiPath) {
     const token = await getToken({ req, secret: process.env.AUTH_SECRET });
     const rawUid =
       (token?.id as string | undefined) ||
@@ -29,10 +29,7 @@ export async function middleware(req: NextRequest) {
       "";
     const uid = toAppUid(rawUid);
     if (!isAdminUid(uid)) {
-      if (pathname.startsWith("/api/admin")) {
-        return NextResponse.json({ error: "forbidden" }, { status: 403 });
-      }
-      return NextResponse.redirect(new URL("/", req.url));
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
   }
 
