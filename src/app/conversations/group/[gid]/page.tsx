@@ -22,7 +22,15 @@ import {
   upsertGroupTaskProgress,
 } from "@/lib/firestore/groups";
 import { getProfilesBatch } from "@/lib/firestore/ranking";
-import { ArrowLeft, MessageSquare, Plus, UserPlus, Check, X } from "lucide-react";
+import {
+  ArrowLeft,
+  MessageSquare,
+  Plus,
+  UserPlus,
+  Check,
+  X,
+  Sparkles,
+} from "lucide-react";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 
 interface MemberProfile {
@@ -51,6 +59,15 @@ function resolveTaskEndMs(task: GroupTask): number {
   return new Date(`${task.endDate}T23:59:59`).getTime();
 }
 
+function daysLeftText(task: GroupTask, nowMs: number): string {
+  const endMs = resolveTaskEndMs(task);
+  if (!Number.isFinite(endMs)) return "期限なし";
+  const diff = endMs - nowMs;
+  if (diff < 0) return "期限切れ";
+  const day = Math.ceil(diff / (24 * 60 * 60 * 1000));
+  return `残り${day}日`;
+}
+
 export default function GroupConversationPage() {
   const params = useParams<{ gid?: string | string[] }>();
   const gid = Array.isArray(params.gid) ? params.gid[0] : params.gid || "";
@@ -75,6 +92,8 @@ export default function GroupConversationPage() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteUids, setInviteUids] = useState<string[]>([]);
   const [draftPagesByTask, setDraftPagesByTask] = useState<Record<string, number>>({});
+  const [activeOnlyInTotal, setActiveOnlyInTotal] = useState(true);
+  const [reportFxTaskId, setReportFxTaskId] = useState("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -135,27 +154,48 @@ export default function GroupConversationPage() {
   }, [friends, currentGroup]);
 
   const nowMs = Date.now();
-  const activeTasks = useMemo(
-    () => tasks.filter((task) => resolveTaskEndMs(task) >= nowMs),
-    [tasks, nowMs]
-  );
-  const archivedTasks = useMemo(
-    () => tasks.filter((task) => resolveTaskEndMs(task) < nowMs),
-    [tasks, nowMs]
-  );
+
+  const activeTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      const total = task.totalPages || 0;
+      const saved = myTaskProgress.get(task.id)?.completedPages || 0;
+      const complete = total > 0 && saved >= total;
+      const expired = resolveTaskEndMs(task) < nowMs;
+      return !complete && !expired;
+    });
+  }, [myTaskProgress, nowMs, tasks]);
+
+  const completedTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      const total = task.totalPages || 0;
+      const saved = myTaskProgress.get(task.id)?.completedPages || 0;
+      return total > 0 && saved >= total;
+    });
+  }, [myTaskProgress, tasks]);
+
+  const expiredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      const total = task.totalPages || 0;
+      const saved = myTaskProgress.get(task.id)?.completedPages || 0;
+      const complete = total > 0 && saved >= total;
+      return !complete && resolveTaskEndMs(task) < nowMs;
+    });
+  }, [myTaskProgress, nowMs, tasks]);
+
+  const allCalcTasks = activeOnlyInTotal ? activeTasks : tasks;
 
   const overallProgress = useMemo(() => {
-    const totalPages = activeTasks.reduce((sum, task) => sum + (task.totalPages || 0), 0);
+    const totalPages = allCalcTasks.reduce((sum, task) => sum + (task.totalPages || 0), 0);
     if (totalPages <= 0) return 0;
 
-    const currentPages = activeTasks.reduce((sum, task) => {
+    const currentPages = allCalcTasks.reduce((sum, task) => {
       const saved = myTaskProgress.get(task.id)?.completedPages || 0;
       const draft = typeof draftPagesByTask[task.id] === "number" ? draftPagesByTask[task.id] : saved;
       return sum + Math.min(Math.max(draft, 0), task.totalPages || 0);
     }, 0);
 
     return Math.round((currentPages / totalPages) * 100);
-  }, [activeTasks, draftPagesByTask, myTaskProgress]);
+  }, [allCalcTasks, draftPagesByTask, myTaskProgress]);
 
   const sendMessage = async () => {
     const text = chatInput.trim();
@@ -241,6 +281,9 @@ export default function GroupConversationPage() {
       userProfile.uid,
       `[進捗報告]\n${task.title}\n${completedPages}/${totalPages} (${Math.round((completedPages / totalPages) * 100)}%)`
     );
+
+    setReportFxTaskId(task.id);
+    setTimeout(() => setReportFxTaskId(""), 700);
   };
 
   const toggleInviteUid = (uid: string) => {
@@ -275,8 +318,8 @@ export default function GroupConversationPage() {
   }
 
   return (
-    <div className="w-full max-w-none mx-auto h-[calc(100vh-88px)] flex flex-col">
-      <div className="flex items-center justify-between mb-3">
+    <div className="w-full max-w-none mx-auto h-[calc(100vh-88px)] flex flex-col gap-3">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link
             href="/conversations"
@@ -304,217 +347,248 @@ export default function GroupConversationPage() {
         </button>
       </div>
 
-      <section className="glass-card p-4 flex-1 min-h-0 flex flex-col">
-        <div className="flex items-center justify-between gap-2 pb-3 border-b" style={{ borderColor: "var(--card-border)" }}>
-          <div className="flex items-center gap-2">
+      <div className="grid lg:grid-cols-[1fr_340px] gap-3 flex-1 min-h-0">
+        <section className="glass-card p-4 flex flex-col min-h-0">
+          <div className="flex items-center gap-2 pb-3 border-b" style={{ borderColor: "var(--card-border)" }}>
             <MessageSquare size={16} style={{ color: "var(--accent)" }} />
             <h2 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
               グループ会話
             </h2>
           </div>
-          <span className="text-xs font-bold" style={{ color: "var(--accent)" }}>
-            全体進捗 {overallProgress}%
-          </span>
-        </div>
 
-        <div className="flex-1 overflow-y-auto py-3 space-y-2 min-h-0">
-          {(activeTasks.length > 0 || archivedTasks.length > 0) && (
-            <div className="rounded-xl p-2" style={{ background: "#ffffff22" }}>
-              <p className="text-[11px] font-bold" style={{ color: "var(--muted)" }}>
-                課題カード（チャット埋め込み）
-              </p>
-            </div>
-          )}
-
-          {activeTasks.map((task) => {
-            const totalPages = task.totalPages || 0;
-            const saved = myTaskProgress.get(task.id)?.completedPages || 0;
-            const draft = typeof draftPagesByTask[task.id] === "number" ? draftPagesByTask[task.id] : saved;
-            const currentPages = Math.min(Math.max(draft, 0), totalPages);
-            const percent = totalPages > 0 ? Math.round((currentPages / totalPages) * 100) : 0;
-            const endMs = resolveTaskEndMs(task);
-            const dueSoon = endMs - nowMs <= 24 * 60 * 60 * 1000;
-            const barColor = dueSoon ? "#eab308" : "var(--accent)";
-            const pageLocked = endMs < nowMs;
-
-            return (
-              <div key={task.id} className="flex justify-start">
-                <div className="w-full max-w-[92%] rounded-xl p-3" style={{ background: "var(--muted-bg)" }}>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold truncate" style={{ color: "var(--foreground)" }}>
-                        {task.title}
+          <div className="flex-1 overflow-y-auto py-3 space-y-2 min-h-0">
+            {messages.map((msg) => {
+              const me = msg.fromUid === userProfile.uid;
+              const profile = memberProfiles.get(msg.fromUid);
+              return (
+                <div key={msg.id} className={`flex ${me ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className="max-w-[85%] rounded-xl px-3 py-2"
+                    style={{
+                      background: me ? "var(--accent)" : "var(--muted-bg)",
+                      color: me ? "#fff" : "var(--foreground)",
+                    }}
+                  >
+                    {!me && (
+                      <p className="text-[10px] mb-1" style={{ color: "var(--muted)" }}>
+                        <span className="inline-flex items-center gap-1.5">
+                          <InlineAvatar avatar={profile?.avatar || "👤"} />
+                          {sanitizeDisplayName(profile?.name || msg.fromUid)}
+                        </span>
                       </p>
-                      <p className="text-[11px]" style={{ color: "var(--muted)" }}>
-                        期限: {task.startDate || "-"} - {task.endDate || "-"}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => void reportTaskProgress(task)}
-                      disabled={pageLocked || totalPages <= 0}
-                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-white disabled:opacity-40"
-                      style={{ background: "var(--accent)" }}
-                    >
-                      報告
-                    </button>
-                  </div>
-
-                  <div className="mt-2 h-2 rounded-full" style={{ background: "#ffffff44" }}>
-                    <div className="h-2 rounded-full" style={{ width: `${percent}%`, background: barColor }} />
-                  </div>
-
-                  <div className="mt-2 flex items-center gap-2">
-                    <input
-                      type="range"
-                      min={0}
-                      max={totalPages}
-                      value={currentPages}
-                      disabled={pageLocked || totalPages <= 0}
-                      onChange={(e) => {
-                        const value = Number(e.target.value);
-                        setDraftPagesByTask((prev) => ({ ...prev, [task.id]: value }));
-                      }}
-                      className="flex-1"
-                    />
-                    <input
-                      type="number"
-                      min={0}
-                      max={totalPages}
-                      value={currentPages}
-                      disabled={pageLocked || totalPages <= 0}
-                      onChange={(e) => {
-                        const value = Number(e.target.value || 0);
-                        setDraftPagesByTask((prev) => ({ ...prev, [task.id]: value }));
-                      }}
-                      className="w-24 px-2 py-1 rounded text-xs"
-                      style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
-                    />
-                    <span className="text-xs" style={{ color: "var(--muted)" }}>
-                      / {totalPages}
-                    </span>
-                  </div>
-
-                  {task.details && (
-                    <p className="text-[11px] mt-2" style={{ color: "var(--muted)" }}>
-                      {task.details}
-                    </p>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          {archivedTasks.length > 0 && (
-            <div className="rounded-xl p-2 mt-1" style={{ background: "#80808022" }}>
-              <p className="text-[11px] font-bold" style={{ color: "var(--muted)" }}>
-                過去の課題（期限切れ）
-              </p>
-            </div>
-          )}
-
-          {archivedTasks.map((task) => {
-            const totalPages = task.totalPages || 0;
-            const saved = myTaskProgress.get(task.id)?.completedPages || 0;
-            const percent = totalPages > 0 ? Math.round((saved / totalPages) * 100) : 0;
-            const incomplete = percent < 100;
-            return (
-              <div key={task.id} className="flex justify-start">
-                <div className="w-full max-w-[92%] rounded-xl p-3" style={{ background: "#80808033", color: "#d1d5db" }}>
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-bold">{task.title}</p>
-                    {incomplete && (
-                      <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: "#ef444433", color: "#fecaca" }}>
-                        未完了
-                      </span>
                     )}
-                  </div>
-                  <p className="text-[11px] mt-1">{saved}/{totalPages} ({percent}%)</p>
-                </div>
-              </div>
-            );
-          })}
-
-          {messages.map((msg) => {
-            const me = msg.fromUid === userProfile.uid;
-            const profile = memberProfiles.get(msg.fromUid);
-            return (
-              <div key={msg.id} className={`flex ${me ? "justify-end" : "justify-start"}`}>
-                <div
-                  className="max-w-[85%] rounded-xl px-3 py-2"
-                  style={{
-                    background: me ? "var(--accent)" : "var(--muted-bg)",
-                    color: me ? "#fff" : "var(--foreground)",
-                  }}
-                >
-                  {!me && (
-                    <p className="text-[10px] mb-1" style={{ color: "var(--muted)" }}>
-                      <span className="inline-flex items-center gap-1.5">
-                        <InlineAvatar avatar={profile?.avatar || "👤"} />
-                        {sanitizeDisplayName(profile?.name || msg.fromUid)}
-                      </span>
+                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    <p className="text-[10px] mt-1 opacity-70">
+                      {new Date(msg.createdAt).toLocaleTimeString("ja-JP")}
                     </p>
-                  )}
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                  <p className="text-[10px] mt-1 opacity-70">
-                    {new Date(msg.createdAt).toLocaleTimeString("ja-JP")}
-                  </p>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-          <div ref={messagesEndRef} />
-        </div>
+              );
+            })}
+            <div ref={messagesEndRef} />
+          </div>
 
-        <div className="pt-3 border-t flex items-center gap-2 relative" style={{ borderColor: "var(--card-border)" }}>
-          <button
-            onClick={() => setTaskMenuOpen((prev) => !prev)}
-            className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ background: "var(--muted-bg)", color: taskMenuOpen ? "var(--accent)" : "var(--muted)" }}
-            title="課題メニュー"
-          >
-            <Plus size={18} />
-          </button>
-
-          {taskMenuOpen && (
-            <div
-              className="absolute bottom-14 left-0 rounded-xl p-2 z-20"
-              style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)", boxShadow: "var(--shadow)" }}
+          <div className="pt-3 border-t flex items-center gap-2 relative" style={{ borderColor: "var(--card-border)" }}>
+            <button
+              onClick={() => setTaskMenuOpen((prev) => !prev)}
+              className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{ background: "var(--muted-bg)", color: taskMenuOpen ? "var(--accent)" : "var(--muted)" }}
+              title="課題メニュー"
             >
-              <button
-                onClick={() => {
-                  setTaskMenuOpen(false);
-                  setTaskDialogOpen(true);
-                }}
-                className="px-3 py-2 rounded-lg text-sm font-semibold"
-                style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-              >
-                課題を追加
-              </button>
-            </div>
-          )}
+              <Plus size={18} />
+            </button>
 
-          <input
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void sendMessage();
-              }
-            }}
-            placeholder="メッセージを入力"
-            className="flex-1 px-3 py-2 rounded-xl text-sm"
-            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-          />
-          <button
-            onClick={sendMessage}
-            className="px-3 py-2 rounded-xl text-sm font-semibold text-white"
-            style={{ background: "var(--accent)" }}
-          >
-            送信
-          </button>
-        </div>
-      </section>
+            {taskMenuOpen && (
+              <div
+                className="absolute bottom-14 left-0 rounded-xl p-2 z-20"
+                style={{
+                  background: "var(--card-bg)",
+                  border: "1px solid var(--card-border)",
+                  boxShadow: "var(--shadow)",
+                }}
+              >
+                <button
+                  onClick={() => {
+                    setTaskMenuOpen(false);
+                    setTaskDialogOpen(true);
+                  }}
+                  className="px-3 py-2 rounded-lg text-sm font-semibold"
+                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                >
+                  課題を追加
+                </button>
+              </div>
+            )}
+
+            <input
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void sendMessage();
+                }
+              }}
+              placeholder="メッセージを入力"
+              className="flex-1 px-3 py-2 rounded-xl text-sm"
+              style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+            />
+            <button
+              onClick={sendMessage}
+              className="px-3 py-2 rounded-xl text-sm font-semibold text-white"
+              style={{ background: "var(--accent)" }}
+            >
+              送信
+            </button>
+          </div>
+        </section>
+
+        <aside className="glass-card p-4 flex flex-col min-h-0 overflow-hidden">
+          <div className="shrink-0 pb-3 border-b" style={{ borderColor: "var(--card-border)" }}>
+            <p className="text-[10px] font-black tracking-[0.14em]" style={{ color: "var(--muted)" }}>
+              ALL TASKS PROGRESS
+            </p>
+            <div className="mt-2">
+              <div className="h-4 rounded-full" style={{ background: "#ffffff22" }}>
+                <div
+                  className="h-4 rounded-full transition-all duration-200"
+                  style={{ width: `${overallProgress}%`, background: "var(--accent)" }}
+                />
+              </div>
+              <p className="text-xs font-bold mt-1" style={{ color: "var(--accent)" }}>
+                {overallProgress}% ({activeOnlyInTotal ? "アクティブのみ" : "全課題"})
+              </p>
+            </div>
+            <label className="mt-2 inline-flex items-center gap-2 text-[11px]" style={{ color: "var(--muted)" }}>
+              <input
+                type="checkbox"
+                checked={activeOnlyInTotal}
+                onChange={(e) => setActiveOnlyInTotal(e.target.checked)}
+              />
+              全体進捗をアクティブ課題のみで計算
+            </label>
+          </div>
+
+          <div className="flex-1 overflow-y-auto pt-3 space-y-3">
+            {activeTasks.length === 0 && completedTasks.length === 0 && expiredTasks.length === 0 && (
+              <p className="text-sm" style={{ color: "var(--muted)" }}>
+                課題がまだありません
+              </p>
+            )}
+
+            {activeTasks.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-bold" style={{ color: "var(--foreground)" }}>進行中課題</p>
+                {activeTasks.map((task) => {
+                  const totalPages = task.totalPages || 0;
+                  const saved = myTaskProgress.get(task.id)?.completedPages || 0;
+                  const draft = typeof draftPagesByTask[task.id] === "number" ? draftPagesByTask[task.id] : saved;
+                  const currentPages = Math.min(Math.max(draft, 0), totalPages);
+                  const percent = totalPages > 0 ? Math.round((currentPages / totalPages) * 100) : 0;
+                  const endMs = resolveTaskEndMs(task);
+                  const dueSoon = endMs - nowMs <= 24 * 60 * 60 * 1000;
+                  const barColor = dueSoon ? "#eab308" : "var(--accent)";
+
+                  return (
+                    <div key={task.id} className="rounded-xl p-3" style={{ background: "var(--muted-bg)" }}>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-bold truncate" style={{ color: "var(--foreground)" }}>
+                          {task.title}
+                        </p>
+                        <span className="text-[10px]" style={{ color: dueSoon ? "#eab308" : "var(--muted)" }}>
+                          {daysLeftText(task, nowMs)}
+                        </span>
+                      </div>
+
+                      <div className="mt-2 h-2 rounded-full" style={{ background: "#ffffff44" }}>
+                        <div className="h-2 rounded-full transition-all" style={{ width: `${percent}%`, background: barColor }} />
+                      </div>
+
+                      <div className="mt-2 flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={0}
+                          max={totalPages}
+                          value={currentPages}
+                          onChange={(e) => {
+                            const value = Number(e.target.value);
+                            setDraftPagesByTask((prev) => ({ ...prev, [task.id]: value }));
+                          }}
+                          className="flex-1"
+                        />
+                        <input
+                          type="number"
+                          min={0}
+                          max={totalPages}
+                          value={currentPages}
+                          onChange={(e) => {
+                            const value = Number(e.target.value || 0);
+                            setDraftPagesByTask((prev) => ({ ...prev, [task.id]: value }));
+                          }}
+                          className="w-20 px-2 py-1 rounded text-xs"
+                          style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
+                        />
+                        <span className="text-xs" style={{ color: "var(--muted)" }}>
+                          / {totalPages}
+                        </span>
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-end">
+                        <button
+                          onClick={() => void reportTaskProgress(task)}
+                          className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-white inline-flex items-center gap-1"
+                          style={{ background: reportFxTaskId === task.id ? "#22c55e" : "var(--accent)" }}
+                        >
+                          {reportFxTaskId === task.id ? <Sparkles size={12} /> : null}
+                          報告
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {completedTasks.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-bold" style={{ color: "#22c55e" }}>達成履歴</p>
+                {completedTasks.map((task) => (
+                  <div key={task.id} className="rounded-xl p-3" style={{ background: "#22c55e22" }}>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-bold" style={{ color: "#16a34a" }}>{task.title}</p>
+                      <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: "#16a34a33", color: "#166534" }}>
+                        達成済
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {expiredTasks.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-bold" style={{ color: "#ef4444" }}>期限切れ</p>
+                {expiredTasks.map((task) => {
+                  const totalPages = task.totalPages || 0;
+                  const saved = myTaskProgress.get(task.id)?.completedPages || 0;
+                  const percent = totalPages > 0 ? Math.round((saved / totalPages) * 100) : 0;
+                  return (
+                    <div key={task.id} className="rounded-xl p-3" style={{ background: "#80808033", color: "#d1d5db" }}>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-bold">{task.title}</p>
+                        <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: "#ef444433", color: "#fecaca" }}>
+                          未完了
+                        </span>
+                      </div>
+                      <p className="text-[11px] mt-1">{saved}/{totalPages} ({percent}%)</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </aside>
+      </div>
 
       {taskDialogOpen && (
         <div
