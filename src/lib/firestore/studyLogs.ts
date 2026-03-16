@@ -83,6 +83,49 @@ export async function addStudyLogToFirestore(
 }
 
 /**
+ * 実行中セッションを同一ドキュメントに保存/更新
+ * (終了前でもランキングやポイント反映を進めるための upsert)
+ */
+export async function upsertStudyLogById(
+  userUid: string,
+  logId: string,
+  log: Omit<StudyLog, "id" | "createdAt">,
+  options?: {
+    userProfile?: { name: string; avatar: string };
+    createdAt?: Date;
+    recomputeAchievements?: boolean;
+  }
+): Promise<void> {
+  await setDoc(
+    doc(db, LOGS_COLLECTION, logId),
+    {
+      userUid,
+      ...log,
+      createdAt: options?.createdAt ? Timestamp.fromDate(options.createdAt) : serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  if (options?.userProfile) {
+    setDoc(
+      doc(db, "userProfiles", userUid),
+      {
+        uid: userUid,
+        name: options.userProfile.name,
+        avatar: options.userProfile.avatar,
+        updatedAt: new Date(),
+      },
+      { merge: true }
+    ).catch(() => {});
+  }
+
+  if (options?.recomputeAchievements) {
+    void recomputeAndSaveAchievements(userUid).catch(() => {});
+  }
+}
+
+/**
  * スタディログを削除
  */
 export async function deleteStudyLogFromFirestore(logId: string): Promise<void> {

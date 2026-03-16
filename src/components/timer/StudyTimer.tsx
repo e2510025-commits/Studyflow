@@ -33,7 +33,7 @@ import SubjectSelector from "./SubjectSelector";
 import MemoDialog from "./MemoDialog";
 import FullscreenWave from "./FullscreenWave";
 import FocusRoom from "./FocusRoom";
-import { addStudyLogToFirestore } from "@/lib/firestore/studyLogs";
+import { upsertStudyLogById } from "@/lib/firestore/studyLogs";
 import { upsertActiveStudySession } from "@/lib/firestore/focusRoom";
 import { upsertSubjectCatalog } from "@/lib/firestore/subjects";
 import {
@@ -150,6 +150,78 @@ export default function StudyTimer() {
   const selectedSubject = subjects.find(
     (s) => s.id === timer.selectedSubjectId
   );
+  const liveSessionRef = useRef<{
+    id: string;
+    createdAt: Date;
+    subjectId: string;
+    subjectName: string;
+  } | null>(null);
+  const isWorkPhase = timer.mode !== "pomodoro" || pomodoroState.phase === "work";
+
+  const ensureLiveSession = useCallback(() => {
+    if (liveSessionRef.current) return liveSessionRef.current;
+    if (!userProfile.uid || !timer.selectedSubjectId || !selectedSubject) return null;
+    const now = new Date();
+    const session = {
+      id: `live_${userProfile.uid}_${now.getTime()}`,
+      createdAt: now,
+      subjectId: timer.selectedSubjectId,
+      subjectName: selectedSubject.name,
+    };
+    liveSessionRef.current = session;
+    return session;
+  }, [selectedSubject, timer.selectedSubjectId, userProfile.uid]);
+
+  const persistElapsedProgress = useCallback(
+    (durationSeconds: number, options?: { memo?: string; focusRating?: number; force?: boolean; finalize?: boolean }) => {
+      if (!userProfile.uid || durationSeconds <= 0) return;
+      if (!timer.selectedSubjectId || !selectedSubject) return;
+      if (!isWorkPhase) return;
+
+      const effectiveDuration = Math.max(0, Math.floor(durationSeconds));
+      if (!options?.force && effectiveDuration < 15) return;
+
+      const session = ensureLiveSession();
+      if (!session) return;
+
+      const basePoints = Math.floor(effectiveDuration / 60);
+      const points = focusBonusActive ? Math.floor(basePoints * 1.2) : basePoints;
+
+      void upsertStudyLogById(
+        userProfile.uid,
+        session.id,
+        {
+          subjectId: session.subjectId,
+          duration: effectiveDuration,
+          memo: options?.memo ?? "",
+          focusRating: options?.focusRating,
+          focusBonus: focusBonusActive,
+          points,
+        },
+        {
+          createdAt: session.createdAt,
+          userProfile: { name: userProfile.name, avatar: userProfile.avatar },
+          recomputeAchievements: Boolean(options?.finalize),
+        }
+      ).catch(() => {});
+
+      void upsertSubjectCatalog(session.subjectName).catch(() => {});
+
+      if (options?.finalize) {
+        liveSessionRef.current = null;
+      }
+    },
+    [
+      ensureLiveSession,
+      focusBonusActive,
+      isWorkPhase,
+      selectedSubject,
+      timer.selectedSubjectId,
+      userProfile.avatar,
+      userProfile.name,
+      userProfile.uid,
+    ]
+  );
 
   useEffect(() => {
     if (!userProfile.uid) return;
@@ -213,6 +285,42 @@ export default function StudyTimer() {
     return () => clearInterval(intervalId);
   }, [userProfile.uid, userProfile.name, userProfile.avatar, selectedSubject?.name, timer.status]);
 
+  useEffect(() => {
+    if (timer.status !== "running" || !isWorkPhase) return;
+
+    const intervalId = window.setInterval(() => {
+      persistElapsedProgress(timer.elapsed);
+    }, 15_000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isWorkPhase, persistElapsedProgress, timer.elapsed, timer.status]);
+
+  useEffect(() => {
+    if (timer.status !== "running") return;
+
+    const flush = () => {
+      persistElapsedProgress(timer.elapsed, { force: true });
+    };
+
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("beforeunload", flush);
+    document.addEventListener("visibilitychange", flush);
+
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("beforeunload", flush);
+      document.removeEventListener("visibilitychange", flush);
+    };
+  }, [persistElapsedProgress, timer.elapsed, timer.status]);
+
+  useEffect(() => {
+    if (timer.status === "idle") {
+      liveSessionRef.current = null;
+    }
+  }, [timer.status]);
+
   /* ── Today's stats ─────────────────────────────────── */
   const todayLogs = useMemo(() => getTodayLogs(studyLogs), [studyLogs]);
   const todayTotal = useMemo(() => getTotalDuration(todayLogs), [todayLogs]);
@@ -245,6 +353,7 @@ export default function StudyTimer() {
     if (timer.mode === "countdown" && timer.elapsed >= timer.countdownTotal) {
       if (soundEnabled) playSound("complete");
       if (timer.elapsed > 0 && timer.selectedSubjectId) {
+        persistElapsedProgress(timer.elapsed, { force: true });
         setFinishedDuration(timer.elapsed);
         setShowMemo(true);
         pauseTimer();
@@ -256,6 +365,7 @@ export default function StudyTimer() {
       if (pomodoroState.phase === "work") {
         if (soundEnabled) playSound("complete");
         if (timer.selectedSubjectId) {
+          persistElapsedProgress(currentPhaseTotal, { force: true });
           setFinishedDuration(currentPhaseTotal);
           setShowMemo(true);
         }
@@ -308,35 +418,30 @@ export default function StudyTimer() {
       return;
     }
     if (timer.elapsed > 0 && timer.selectedSubjectId) {
+      persistElapsedProgress(timer.elapsed, { force: true });
       setFinishedDuration(timer.elapsed);
       setShowMemo(true);
       pauseTimer();
     }
-  }, [timer.elapsed, timer.selectedSubjectId, timer.mode, pomodoroState.phase, pauseTimer, pomodoroNextPhase]);
+  }, [timer.elapsed, timer.selectedSubjectId, timer.mode, pomodoroState.phase, pauseTimer, pomodoroNextPhase, persistElapsedProgress]);
+
+  const handlePause = useCallback(() => {
+    persistElapsedProgress(timer.elapsed, { force: true });
+    pauseTimer();
+  }, [pauseTimer, persistElapsedProgress, timer.elapsed]);
 
   const handleSaveMemo = useCallback(
     (memo: string, focusRating?: number) => {
       if (timer.selectedSubjectId && finishedDuration > 0 && selectedSubject && userProfile.uid) {
-        const basePoints = Math.floor(finishedDuration / 60);
-        const points = focusBonusActive ? Math.floor(basePoints * 1.2) : basePoints;
         const todoTag = selectedTodo ? `TODO: ${selectedTodo.title}` : "";
         const finalMemo = [todoTag, memo].filter(Boolean).join("\n");
 
-        void addStudyLogToFirestore(
-          userProfile.uid,
-          {
-            subjectId: timer.selectedSubjectId,
-            duration: finishedDuration,
-            memo: finalMemo,
-            focusRating,
-            focusBonus: focusBonusActive,
-            points,
-          },
-          {
-            name: userProfile.name,
-            avatar: userProfile.avatar,
-          }
-        ).catch(() => {});
+        persistElapsedProgress(finishedDuration, {
+          memo: finalMemo,
+          focusRating,
+          force: true,
+          finalize: true,
+        });
 
         void upsertSubjectCatalog(selectedSubject.name).catch(() => {});
         if (selectedTodo && completeTodoOnSave) {
@@ -361,33 +466,21 @@ export default function StudyTimer() {
       userProfile.avatar,
       resetTimer,
       pomodoroNextPhase,
-      focusBonusActive,
       selectedTodo,
       completeTodoOnSave,
+      persistElapsedProgress,
     ]
   );
 
   const handleSkipMemo = useCallback(() => {
     if (timer.selectedSubjectId && finishedDuration > 0 && selectedSubject && userProfile.uid) {
-      const basePoints = Math.floor(finishedDuration / 60);
-      const points = focusBonusActive ? Math.floor(basePoints * 1.2) : basePoints;
       const todoTag = selectedTodo ? `TODO: ${selectedTodo.title}` : "";
 
-      void addStudyLogToFirestore(
-        userProfile.uid,
-        {
-          subjectId: timer.selectedSubjectId,
-          duration: finishedDuration,
-          memo: todoTag,
-          focusRating: undefined,
-          focusBonus: focusBonusActive,
-          points,
-        },
-        {
-          name: userProfile.name,
-          avatar: userProfile.avatar,
-        }
-      ).catch(() => {});
+      persistElapsedProgress(finishedDuration, {
+        memo: todoTag,
+        force: true,
+        finalize: true,
+      });
 
       void upsertSubjectCatalog(selectedSubject.name).catch(() => {});
       if (selectedTodo && completeTodoOnSave) {
@@ -411,16 +504,19 @@ export default function StudyTimer() {
     userProfile.avatar,
     resetTimer,
     pomodoroNextPhase,
-    focusBonusActive,
     selectedTodo,
     completeTodoOnSave,
+    persistElapsedProgress,
   ]);
 
   const handleFullReset = useCallback(() => {
+    if (timer.elapsed > 0) {
+      persistElapsedProgress(timer.elapsed, { force: true, finalize: true });
+    }
     resetTimer();
     if (timer.mode === "pomodoro") pomodoroReset();
     setImmersiveMode(false);
-  }, [resetTimer, timer.mode, pomodoroReset, setImmersiveMode]);
+  }, [persistElapsedProgress, pomodoroReset, resetTimer, setImmersiveMode, timer.elapsed, timer.mode]);
 
   /* ── Keyboard shortcuts ────────────────────────────── */
   useEffect(() => {
@@ -433,7 +529,7 @@ export default function StudyTimer() {
       if (e.code === "Space") {
         e.preventDefault();
         if (timer.status === "idle" && timer.selectedSubjectId) handleStart();
-        else if (timer.status === "running") pauseTimer();
+        else if (timer.status === "running") handlePause();
         else if (timer.status === "paused" && !showMemo) resumeTimer();
       }
       if (e.code === "Escape") {
@@ -451,7 +547,7 @@ export default function StudyTimer() {
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [timer.status, timer.selectedSubjectId, showMemo, immersiveMode, handleStart, pauseTimer, resumeTimer, handleFullReset, setImmersiveMode]);
+  }, [timer.status, timer.selectedSubjectId, showMemo, immersiveMode, handleStart, handlePause, resumeTimer, handleFullReset, setImmersiveMode]);
 
   /* ── Derived ───────────────────────────────────────── */
   const countdownPresets = [
@@ -643,7 +739,7 @@ export default function StudyTimer() {
             {isRunning && (
               <>
                 <motion.button
-                  onClick={() => pauseTimer()}
+                  onClick={handlePause}
                   className="w-16 h-16 rounded-full flex items-center justify-center backdrop-blur-md"
                   style={{ background: "rgba(255,255,255,0.12)", color: "#fff" }}
                   whileHover={{ scale: 1.1 }}
@@ -1093,7 +1189,7 @@ export default function StudyTimer() {
             {isRunning && (
               <>
                 <motion.button
-                  onClick={() => pauseTimer()}
+                  onClick={handlePause}
                   className="w-14 h-14 rounded-full flex items-center justify-center"
                   style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
                   whileHover={{ scale: 1.1 }}

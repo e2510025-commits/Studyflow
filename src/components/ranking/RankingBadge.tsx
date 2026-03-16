@@ -5,7 +5,7 @@ import { useStore } from "@/store/useStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, TrendingUp } from "lucide-react";
 import RankingTrendModal from "./RankingTrendModal";
-import { fetchRankingData } from "@/lib/firestore/ranking";
+import { fetchRankingData, fetchUserRankHistory, type RankHistoryPoint } from "@/lib/firestore/ranking";
 
 export default function RankingBadge() {
   const { userProfile } = useStore();
@@ -13,6 +13,7 @@ export default function RankingBadge() {
   const [hovered, setHovered] = useState(false);
   const [rank, setRank] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [rankHistory, setRankHistory] = useState<RankHistoryPoint[]>([]);
 
   const loadRank = useCallback(async () => {
     if (!userProfile.uid) {
@@ -40,6 +41,13 @@ export default function RankingBadge() {
     }, 60000);
     return () => clearInterval(intervalId);
   }, [loadRank]);
+
+  useEffect(() => {
+    if (!showModal || !userProfile.uid) return;
+    void fetchUserRankHistory(userProfile.uid, 21)
+      .then((rows) => setRankHistory(rows))
+      .catch(() => setRankHistory([]));
+  }, [showModal, userProfile.uid]);
 
   const formattedRank = loading ? "--" : rank > 0 ? rank.toLocaleString() : "-";
 
@@ -117,7 +125,7 @@ export default function RankingBadge() {
         open={showModal}
         onClose={() => setShowModal(false)}
         currentRank={rank}
-        rankHistory={[]}
+        rankHistory={rankHistory}
       />
     </>
   );

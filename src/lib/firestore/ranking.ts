@@ -27,6 +27,12 @@ export interface RankingUser extends AggregatedUser {
   rank: number;
 }
 
+export interface RankHistoryPoint {
+  date: string;
+  rank: number;
+  totalHours: number;
+}
+
 /* ─── User Profiles ──────────────────────────────── */
 
 const PROFILES = "userProfiles";
@@ -238,4 +244,40 @@ export async function fetchDailyRankMap(dayOffset: number): Promise<Map<string, 
     rankMap.set(row.userId, index + 1);
   });
   return rankMap;
+}
+
+export async function fetchUserRankHistory(
+  uid: string,
+  days = 14
+): Promise<RankHistoryPoint[]> {
+  const safeDays = Math.min(Math.max(3, Math.floor(days)), 60);
+  const points: RankHistoryPoint[] = [];
+
+  for (let offset = safeDays - 1; offset >= 0; offset -= 1) {
+    const day = new Date();
+    day.setHours(0, 0, 0, 0);
+    day.setDate(day.getDate() - offset);
+
+    const start = new Date(day);
+    const end = new Date(day);
+    end.setDate(end.getDate() + 1);
+
+    const rows = await fetchRankingDataByDateRange({
+      startAt: start,
+      endBefore: end,
+    });
+
+    const rank = rows.findIndex((row) => row.userId === uid);
+    const mine = rows.find((row) => row.userId === uid);
+
+    if (rank >= 0 && mine) {
+      points.push({
+        date: start.toISOString(),
+        rank: rank + 1,
+        totalHours: Math.round((mine.totalDuration / 3600) * 10) / 10,
+      });
+    }
+  }
+
+  return points;
 }
