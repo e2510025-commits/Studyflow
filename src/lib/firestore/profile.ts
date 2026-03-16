@@ -25,8 +25,10 @@ export interface FollowListUser {
 export interface FollowListsResult {
   following: FollowListUser[];
   followers: FollowListUser[];
+  friends: FollowListUser[];
   followingSet: Set<string>;
   followerSet: Set<string>;
+  friendSet: Set<string>;
 }
 
 export interface ProfileActivityItem {
@@ -51,6 +53,9 @@ export async function saveDisplayProfile(params: {
   statusMessage?: string;
   headerImage?: string;
   deviceLabel?: string;
+  showFollowCount?: boolean;
+  showFollowerCount?: boolean;
+  showFriendCount?: boolean;
 }) {
   const safeName = sanitizeDisplayName(params.name);
   const safeAvatar = sanitizeAvatar(params.avatar);
@@ -79,6 +84,15 @@ export async function saveDisplayProfile(params: {
   }
   if (typeof params.deviceLabel === "string") {
     payload.deviceLabel = params.deviceLabel.trim().slice(0, 40);
+  }
+  if (typeof params.showFollowCount === "boolean") {
+    payload.showFollowCount = params.showFollowCount;
+  }
+  if (typeof params.showFollowerCount === "boolean") {
+    payload.showFollowerCount = params.showFollowerCount;
+  }
+  if (typeof params.showFriendCount === "boolean") {
+    payload.showFriendCount = params.showFriendCount;
   }
 
   await setDoc(
@@ -140,6 +154,9 @@ export async function fetchPublicProfile(uid: string): Promise<PublicProfile | n
     statusMessage: typeof data.statusMessage === "string" ? data.statusMessage : "",
     headerImage: typeof data.headerImage === "string" ? data.headerImage : "",
     deviceLabel: typeof data.deviceLabel === "string" ? data.deviceLabel : "",
+    showFollowCount: typeof data.showFollowCount === "boolean" ? data.showFollowCount : true,
+    showFollowerCount: typeof data.showFollowerCount === "boolean" ? data.showFollowerCount : true,
+    showFriendCount: typeof data.showFriendCount === "boolean" ? data.showFriendCount : true,
   };
 }
 
@@ -225,7 +242,7 @@ export function subscribeFollowCounts(
   const emit = () => callback({ following, followers });
 
   const unsubFollowing = onSnapshot(
-    query(collection(db, "friends"), where("ownerUid", "==", uid)),
+    query(collection(db, "follows"), where("ownerUid", "==", uid)),
     (snapshot) => {
       following = snapshot.size;
       emit();
@@ -237,7 +254,7 @@ export function subscribeFollowCounts(
   );
 
   const unsubFollowers = onSnapshot(
-    query(collection(db, "friends"), where("uid", "==", uid)),
+    query(collection(db, "follows"), where("targetUid", "==", uid)),
     (snapshot) => {
       followers = snapshot.size;
       emit();
@@ -252,6 +269,18 @@ export function subscribeFollowCounts(
     unsubFollowing();
     unsubFollowers();
   };
+}
+
+export function subscribeFriendCount(uid: string, callback: (count: number) => void) {
+  if (!uid) {
+    callback(0);
+    return () => {};
+  }
+  return onSnapshot(
+    query(collection(db, "friends"), where("ownerUid", "==", uid)),
+    (snapshot) => callback(snapshot.size),
+    () => callback(0)
+  );
 }
 
 async function fetchProfilesByUids(uids: string[]): Promise<Map<string, { name: string; avatar: string }>> {
@@ -282,42 +311,50 @@ export async function fetchFollowLists(uid: string, take = 300): Promise<FollowL
     return {
       following: [],
       followers: [],
+      friends: [],
       followingSet: new Set<string>(),
       followerSet: new Set<string>(),
+      friendSet: new Set<string>(),
     };
   }
 
   const safeTake = Math.max(10, Math.min(1000, Math.floor(take)));
-  const [followingSnap, followerSnap] = await Promise.all([
+  const [followingSnap, followerSnap, friendsSnap] = await Promise.all([
+    getDocs(query(collection(db, "follows"), where("ownerUid", "==", uid), limit(safeTake))),
+    getDocs(query(collection(db, "follows"), where("targetUid", "==", uid), limit(safeTake))),
     getDocs(query(collection(db, "friends"), where("ownerUid", "==", uid), limit(safeTake))),
-    getDocs(query(collection(db, "friends"), where("uid", "==", uid), limit(safeTake))),
   ]);
 
   const followingSet = new Set<string>();
   const followerSet = new Set<string>();
+  const friendSet = new Set<string>();
   followingSnap.docs.forEach((d) => {
     const data = d.data();
-    if (data.uid) followingSet.add(String(data.uid));
+    if (data.targetUid) followingSet.add(String(data.targetUid));
   });
   followerSnap.docs.forEach((d) => {
     const data = d.data();
     if (data.ownerUid) followerSet.add(String(data.ownerUid));
   });
+  friendsSnap.docs.forEach((d) => {
+    const data = d.data();
+    if (data.uid) friendSet.add(String(data.uid));
+  });
 
-  const allUids = Array.from(new Set([...followingSet, ...followerSet]));
+  const allUids = Array.from(new Set([...followingSet, ...followerSet, ...friendSet]));
   const profileMap = await fetchProfilesByUids(allUids);
 
   const following: FollowListUser[] = followingSnap.docs.map((d) => {
     const data = d.data();
-    const targetUid = String(data.uid || "");
+    const targetUid = String(data.targetUid || "");
     const profile = profileMap.get(targetUid);
     return {
       uid: targetUid,
       name: profile?.name || sanitizeDisplayName(data.name || "匿名"),
       avatar: profile?.avatar || sanitizeAvatar(data.avatar || "👤"),
       addedAt:
-        typeof data.addedAt?.toDate === "function"
-          ? data.addedAt.toDate().toISOString()
+        typeof data.createdAt?.toDate === "function"
+          ? data.createdAt.toDate().toISOString()
           : new Date().toISOString(),
     };
   });
@@ -331,13 +368,73 @@ export async function fetchFollowLists(uid: string, take = 300): Promise<FollowL
       name: profile?.name || "匿名",
       avatar: profile?.avatar || "👤",
       addedAt:
+        typeof data.createdAt?.toDate === "function"
+          ? data.createdAt.toDate().toISOString()
+          : new Date().toISOString(),
+    };
+  });
+
+  const friends: FollowListUser[] = friendsSnap.docs.map((d) => {
+    const data = d.data();
+    const friendUid = String(data.uid || "");
+    const profile = profileMap.get(friendUid);
+    return {
+      uid: friendUid,
+      name: profile?.name || sanitizeDisplayName(data.name || "匿名"),
+      avatar: profile?.avatar || sanitizeAvatar(data.avatar || "👤"),
+      addedAt:
         typeof data.addedAt?.toDate === "function"
           ? data.addedAt.toDate().toISOString()
           : new Date().toISOString(),
     };
   });
 
-  return { following, followers, followingSet, followerSet };
+  return { following, followers, friends, followingSet, followerSet, friendSet };
+}
+
+function followDocId(ownerUid: string, targetUid: string): string {
+  return `${ownerUid}_${targetUid}`;
+}
+
+export async function isFollowing(ownerUid: string, targetUid: string): Promise<boolean> {
+  if (!ownerUid || !targetUid || ownerUid === targetUid) return false;
+  const snap = await getDoc(doc(db, "follows", followDocId(ownerUid, targetUid)));
+  return snap.exists();
+}
+
+export function subscribeFollowState(
+  ownerUid: string,
+  targetUid: string,
+  callback: (following: boolean) => void
+) {
+  if (!ownerUid || !targetUid || ownerUid === targetUid) {
+    callback(false);
+    return () => {};
+  }
+
+  return onSnapshot(
+    doc(db, "follows", followDocId(ownerUid, targetUid)),
+    (snapshot) => callback(snapshot.exists()),
+    () => callback(false)
+  );
+}
+
+export async function setFollow(ownerUid: string, targetUid: string, follow: boolean): Promise<void> {
+  if (!ownerUid || !targetUid || ownerUid === targetUid) return;
+  const ref = doc(db, "follows", followDocId(ownerUid, targetUid));
+  if (follow) {
+    await setDoc(
+      ref,
+      {
+        ownerUid,
+        targetUid,
+        createdAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+    return;
+  }
+  await deleteDoc(ref);
 }
 
 export async function fetchRecentProfileActivity(uid: string, take = 8): Promise<ProfileActivityItem[]> {

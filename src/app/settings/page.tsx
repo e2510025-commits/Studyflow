@@ -19,6 +19,9 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [bio, setBio] = useState("");
   const [visibility, setVisibility] = useState<ProfileVisibility>("public");
+  const [showFollowCount, setShowFollowCount] = useState(true);
+  const [showFollowerCount, setShowFollowerCount] = useState(true);
+  const [showFriendCount, setShowFriendCount] = useState(true);
   const [nameError, setNameError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -29,6 +32,9 @@ export default function SettingsPage() {
         if (!profile) return;
         setBio(profile.bio || "");
         setVisibility(profile.visibility || "public");
+        setShowFollowCount(profile.showFollowCount ?? true);
+        setShowFollowerCount(profile.showFollowerCount ?? true);
+        setShowFriendCount(profile.showFriendCount ?? true);
       })
       .catch(() => {});
   }, [userProfile.uid]);
@@ -52,6 +58,9 @@ export default function SettingsPage() {
       totalPoints: userProfile.totalPoints,
       bonusPoints: userProfile.bonusPoints || 0,
       profileSetupDone: true,
+      showFollowCount,
+      showFollowerCount,
+      showFriendCount,
     });
     updateUserProfile({ name: trimmedName, avatar });
     setSaved(true);
@@ -343,6 +352,23 @@ export default function SettingsPage() {
           <option value="friends">フレンドのみ</option>
           <option value="private">非公開（自分のみ）</option>
         </select>
+        <div className="pt-2 space-y-2">
+          <p className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>
+            関係情報の表示設定
+          </p>
+          <label className="text-xs inline-flex items-center gap-2" style={{ color: "var(--muted)" }}>
+            <input type="checkbox" checked={showFollowCount} onChange={(e) => setShowFollowCount(e.target.checked)} />
+            フォロー数を表示
+          </label>
+          <label className="text-xs inline-flex items-center gap-2" style={{ color: "var(--muted)" }}>
+            <input type="checkbox" checked={showFollowerCount} onChange={(e) => setShowFollowerCount(e.target.checked)} />
+            フォロワー数を表示
+          </label>
+          <label className="text-xs inline-flex items-center gap-2" style={{ color: "var(--muted)" }}>
+            <input type="checkbox" checked={showFriendCount} onChange={(e) => setShowFriendCount(e.target.checked)} />
+            フレンド数を表示
+          </label>
+        </div>
       </motion.div>
 
       {/* Save button */}

@@ -22,6 +22,7 @@ import {
   subscribeOutgoingFriendRequests,
 } from "@/lib/firestore/friends";
 import { subscribeUsersOnlineStatus } from "@/lib/firestore/presence";
+import { setProfileCheer } from "@/lib/firestore/profile";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 
 function AvatarPill({ avatar, size = 40 }: { avatar: string; size?: number }) {
@@ -46,6 +47,7 @@ export default function FriendsPage() {
   const [searchResults, setSearchResults] = useState<Array<Omit<Friend, "addedAt">>>([]);
   const [outgoingRequests, setOutgoingRequests] = useState<FriendRequest[]>([]);
   const [onlineUids, setOnlineUids] = useState<Set<string>>(new Set());
+  const [cheeringAll, setCheeringAll] = useState(false);
 
   useEffect(() => {
     if (!userProfile.uid) return;
@@ -101,6 +103,7 @@ export default function FriendsPage() {
     () => new Set(outgoingRequests.map((r) => r.toUid)),
     [outgoingRequests]
   );
+  const onlineFriends = useMemo(() => friends.filter((f) => onlineUids.has(f.uid)), [friends, onlineUids]);
 
   const handleCopyUid = () => {
     navigator.clipboard.writeText(userProfile.uid);
@@ -302,6 +305,30 @@ export default function FriendsPage() {
           >
             {friends.length}
           </span>
+          <button
+            onClick={async () => {
+              if (!userProfile.uid || onlineFriends.length === 0 || cheeringAll) return;
+              setCheeringAll(true);
+              try {
+                await Promise.all(
+                  onlineFriends.map((friend) =>
+                    setProfileCheer(friend.uid, userProfile.uid, true).catch(() => {})
+                  )
+                );
+              } finally {
+                setCheeringAll(false);
+              }
+            }}
+            disabled={onlineFriends.length === 0 || cheeringAll}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+            style={{
+              border: "1px solid rgba(249,115,22,0.6)",
+              color: "#f97316",
+              background: "transparent",
+            }}
+          >
+            {cheeringAll ? "送信中..." : `🔥 オンライン全員に応援 (${onlineFriends.length})`}
+          </button>
         </div>
 
         {friends.length === 0 ? (

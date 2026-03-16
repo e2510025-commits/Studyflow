@@ -30,6 +30,9 @@ export interface UserProfile {
   statusMessage?: string;
   headerImage?: string;
   deviceLabel?: string;
+  showFollowCount?: boolean;
+  showFollowerCount?: boolean;
+  showFriendCount?: boolean;
 }
 
 export type ProfileVisibility = "public" | "friends" | "private";
@@ -51,6 +54,9 @@ export interface PublicProfile {
   statusMessage?: string;
   headerImage?: string;
   deviceLabel?: string;
+  showFollowCount?: boolean;
+  showFollowerCount?: boolean;
+  showFriendCount?: boolean;
 }
 
 export type MissionScope = "daily" | "weekly" | "season";

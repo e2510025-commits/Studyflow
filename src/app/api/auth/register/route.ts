@@ -85,6 +85,9 @@ export async function POST(req: Request) {
         totalPoints: 0,
         bonusPoints: 0,
         profileSetupDone: false,
+        showFollowCount: true,
+        showFollowerCount: true,
+        showFriendCount: true,
         updatedAt: serverTimestamp(),
       },
       { merge: true }

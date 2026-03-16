@@ -13,8 +13,11 @@ import {
   fetchRecentProfileActivity,
   fetchUserStudyStats,
   saveDisplayProfile,
+  setFollow,
   setProfileCheer,
+  subscribeFriendCount,
   subscribeFollowCounts,
+  subscribeFollowState,
   type FollowListUser,
   type ProfileActivityItem,
 } from "@/lib/firestore/profile";
@@ -98,13 +101,15 @@ export default function PublicProfilePage() {
   const [stats, setStats] = useState({ totalSeconds: 0, totalSessions: 0 });
   const [heatmap, setHeatmap] = useState<Record<string, number>>({});
   const [followCounts, setFollowCounts] = useState({ following: 0, followers: 0 });
-  const [followBump, setFollowBump] = useState<"following" | "followers" | null>(null);
+  const [friendCount, setFriendCount] = useState(0);
+  const [followBump, setFollowBump] = useState<"following" | "followers" | "friends" | null>(null);
   const [followModalOpen, setFollowModalOpen] = useState(false);
-  const [followModalTab, setFollowModalTab] = useState<"following" | "followers">("following");
+  const [followModalTab, setFollowModalTab] = useState<"following" | "followers" | "friends">("following");
   const [followSearch, setFollowSearch] = useState("");
-  const [followLists, setFollowLists] = useState<{ following: FollowListUser[]; followers: FollowListUser[] }>({
+  const [followLists, setFollowLists] = useState<{ following: FollowListUser[]; followers: FollowListUser[]; friends: FollowListUser[] }>({
     following: [],
     followers: [],
+    friends: [],
   });
   const [followingSet, setFollowingSet] = useState<Set<string>>(new Set());
   const [followerSet, setFollowerSet] = useState<Set<string>>(new Set());
@@ -115,6 +120,8 @@ export default function PublicProfilePage() {
   const [cheerCount, setCheerCount] = useState(0);
   const [cheered, setCheered] = useState(false);
   const [savingCheer, setSavingCheer] = useState(false);
+  const [isFollowingUser, setIsFollowingUser] = useState(false);
+  const [followPending, setFollowPending] = useState(false);
 
   const [editOpen, setEditOpen] = useState(false);
   const [editName, setEditName] = useState("");
@@ -152,10 +159,11 @@ export default function PublicProfilePage() {
         setProfile(p);
         setStats(s);
         setHeatmap(hm);
-        setFollowLists({ following: follow.following, followers: follow.followers });
+        setFollowLists({ following: follow.following, followers: follow.followers, friends: follow.friends });
         setFollowingSet(new Set(follow.followingSet));
         setFollowerSet(new Set(follow.followerSet));
         setFollowCounts({ following: follow.following.length, followers: follow.followers.length });
+        setFriendCount(follow.friends.length);
         setCheerCount(cheer.count);
         setCheered(cheer.cheeredByViewer);
         setActivities(recent);
@@ -189,13 +197,19 @@ export default function PublicProfilePage() {
   }, [uid]);
 
   useEffect(() => {
-    const uids = Array.from(new Set([...followLists.following.map((f) => f.uid), ...followLists.followers.map((f) => f.uid)]));
+    const uids = Array.from(
+      new Set([
+        ...followLists.following.map((f) => f.uid),
+        ...followLists.followers.map((f) => f.uid),
+        ...followLists.friends.map((f) => f.uid),
+      ])
+    );
     if (uids.length === 0) {
       setFollowOnlineSet(new Set());
       return;
     }
     return subscribeUsersOnlineStatus(uids, setFollowOnlineSet);
-  }, [followLists.followers, followLists.following]);
+  }, [followLists.friends, followLists.followers, followLists.following]);
 
   useEffect(() => {
     if (!uid) return;
@@ -209,10 +223,28 @@ export default function PublicProfilePage() {
   }, [uid]);
 
   useEffect(() => {
+    if (!uid) return;
+    return subscribeFriendCount(uid, (nextCount) => {
+      setFriendCount((prev) => {
+        if (prev !== nextCount) setFollowBump("friends");
+        return nextCount;
+      });
+    });
+  }, [uid]);
+
+  useEffect(() => {
     if (!followBump) return;
     const timer = window.setTimeout(() => setFollowBump(null), 380);
     return () => window.clearTimeout(timer);
   }, [followBump]);
+
+  useEffect(() => {
+    if (!userProfile.uid || !uid || isSelf) {
+      setIsFollowingUser(false);
+      return;
+    }
+    return subscribeFollowState(userProfile.uid, uid, setIsFollowingUser);
+  }, [isSelf, uid, userProfile.uid]);
 
   const statusColor = useMemo<PresenceColor>(() => {
     if (activeStudySet.has(uid)) return "studying";
@@ -231,7 +263,12 @@ export default function PublicProfilePage() {
 
   const isImageAvatar = Boolean(profile?.avatar?.startsWith("http") || profile?.avatar?.startsWith("data:"));
   const equipped = (profile?.equippedBadges || []).slice(0, 3);
-  const modalRows = followModalTab === "following" ? followLists.following : followLists.followers;
+  const modalRows =
+    followModalTab === "following"
+      ? followLists.following
+      : followModalTab === "followers"
+      ? followLists.followers
+      : followLists.friends;
   const searchText = normalizeSearchText(followSearch);
   const filteredModalRows = useMemo(() => {
     if (!searchText) return modalRows;
@@ -336,16 +373,29 @@ export default function PublicProfilePage() {
     }
   };
 
-  const openFollowModal = async (tab: "following" | "followers") => {
+  const openFollowModal = async (tab: "following" | "followers" | "friends") => {
     setFollowModalTab(tab);
     setFollowSearch("");
     setFollowModalOpen(true);
     if (!uid) return;
     const next = await fetchFollowLists(uid, 300).catch(() => null);
     if (!next) return;
-    setFollowLists({ following: next.following, followers: next.followers });
+    setFollowLists({ following: next.following, followers: next.followers, friends: next.friends });
     setFollowingSet(new Set(next.followingSet));
     setFollowerSet(new Set(next.followerSet));
+    setFriendCount(next.friends.length);
+  };
+
+  const toggleFollow = async () => {
+    if (!userProfile.uid || !uid || isSelf || followPending) return;
+    setFollowPending(true);
+    try {
+      const next = !isFollowingUser;
+      await setFollow(userProfile.uid, uid, next);
+      setIsFollowingUser(next);
+    } finally {
+      setFollowPending(false);
+    }
   };
 
   if (loading) {
@@ -366,6 +416,9 @@ export default function PublicProfilePage() {
   const headerBackground = profile.headerImage
     ? `url(${profile.headerImage}) center/cover`
     : "linear-gradient(135deg, #082f49, #0f172a 45%, #1e293b)";
+  const canShowFollowing = isSelf || profile.showFollowCount !== false;
+  const canShowFollowers = isSelf || profile.showFollowerCount !== false;
+  const canShowFriendCount = isSelf || profile.showFriendCount !== false;
 
   return (
     <div className="max-w-6xl mx-auto space-y-5">
@@ -394,47 +447,65 @@ export default function PublicProfilePage() {
                     {profile.name}
                     {profile.isOfficial ? <BadgeCheck size={18} style={{ color: "#38bdf8" }} /> : null}
                   </h1>
-                  <span className="text-xs" style={{ color: "var(--card-border)" }}>|</span>
-                  <button
-                    onClick={() => void openFollowModal("following")}
-                    className="text-[13px] font-semibold px-2 py-0.5 rounded-md transition-all"
-                    style={{
-                      color: "var(--muted)",
-                      background: followBump === "following" ? "rgba(34,211,238,0.14)" : "transparent",
-                      transform: followBump === "following" ? "scale(1.06)" : "scale(1)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "var(--foreground)";
-                      e.currentTarget.style.background = "rgba(148,163,184,0.14)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = "var(--muted)";
-                      e.currentTarget.style.background =
-                        followBump === "following" ? "rgba(34,211,238,0.14)" : "transparent";
-                    }}
-                  >
-                    {followCounts.following.toLocaleString()} フォロー
-                  </button>
-                  <button
-                    onClick={() => void openFollowModal("followers")}
-                    className="text-[13px] font-semibold px-2 py-0.5 rounded-md transition-all"
-                    style={{
-                      color: "var(--muted)",
-                      background: followBump === "followers" ? "rgba(34,211,238,0.14)" : "transparent",
-                      transform: followBump === "followers" ? "scale(1.06)" : "scale(1)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "var(--foreground)";
-                      e.currentTarget.style.background = "rgba(148,163,184,0.14)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = "var(--muted)";
-                      e.currentTarget.style.background =
-                        followBump === "followers" ? "rgba(34,211,238,0.14)" : "transparent";
-                    }}
-                  >
-                    {followCounts.followers.toLocaleString()} フォロワー
-                  </button>
+                  {(canShowFollowing || canShowFollowers) && <span className="text-xs" style={{ color: "var(--card-border)" }}>|</span>}
+                  {canShowFollowing ? (
+                    <button
+                      onClick={() => void openFollowModal("following")}
+                      className="text-[12.5px] font-semibold px-2 py-0.5 rounded-md transition-all"
+                      style={{
+                        color: "#94a3b8",
+                        background: followBump === "following" ? "rgba(34,211,238,0.14)" : "transparent",
+                        transform: followBump === "following" ? "scale(1.06)" : "scale(1)",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = "var(--foreground)";
+                        e.currentTarget.style.background = "rgba(148,163,184,0.14)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = "#94a3b8";
+                        e.currentTarget.style.background =
+                          followBump === "following" ? "rgba(34,211,238,0.14)" : "transparent";
+                      }}
+                    >
+                      {followCounts.following.toLocaleString()} フォロー
+                    </button>
+                  ) : null}
+                  {canShowFollowers ? (
+                    <button
+                      onClick={() => void openFollowModal("followers")}
+                      className="text-[12.5px] font-semibold px-2 py-0.5 rounded-md transition-all"
+                      style={{
+                        color: "#94a3b8",
+                        background: followBump === "followers" ? "rgba(34,211,238,0.14)" : "transparent",
+                        transform: followBump === "followers" ? "scale(1.06)" : "scale(1)",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = "var(--foreground)";
+                        e.currentTarget.style.background = "rgba(148,163,184,0.14)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = "#94a3b8";
+                        e.currentTarget.style.background =
+                          followBump === "followers" ? "rgba(34,211,238,0.14)" : "transparent";
+                      }}
+                    >
+                      {followCounts.followers.toLocaleString()} フォロワー
+                    </button>
+                  ) : null}
+                  {!isSelf ? (
+                    <button
+                      onClick={() => void toggleFollow()}
+                      disabled={followPending}
+                      className="ml-1 px-3 py-1 rounded-lg text-xs font-semibold disabled:opacity-50"
+                      style={{
+                        border: "1px solid rgba(56,189,248,0.7)",
+                        color: isFollowingUser ? "#38bdf8" : "var(--foreground)",
+                        background: "transparent",
+                      }}
+                    >
+                      {followPending ? "処理中..." : isFollowingUser ? "フォロー中" : "+ フォローする"}
+                    </button>
+                  ) : null}
                 </div>
                 <p className="text-xs font-mono" style={{ color: "var(--muted)" }}>UID: {profile.uid}</p>
                 <p className="text-xs mt-1" style={{ color: statusStyle.bg }}>
@@ -458,7 +529,7 @@ export default function PublicProfilePage() {
               <button
                 onClick={() => void toggleCheer()}
                 disabled={savingCheer}
-                className="px-3 py-2 rounded-xl text-sm font-bold inline-flex items-center gap-1 disabled:opacity-50"
+                className="px-3 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1 disabled:opacity-50"
                 style={{ background: cheered ? "#f9731622" : "var(--muted-bg)", color: cheered ? "#f97316" : "var(--foreground)" }}
               >
                 <Flame size={14} /> {cheered ? "応援中" : "応援する"}
@@ -478,12 +549,14 @@ export default function PublicProfilePage() {
           <p className="text-xl font-black" style={{ color: "var(--accent)" }}>{stats.totalSessions}</p>
         </div>
         <div className="glass-card p-4">
-          <p className="text-xs" style={{ color: "var(--muted)" }}>ポイント</p>
-          <p className="text-xl font-black" style={{ color: "var(--accent)" }}>{profile.totalPoints}</p>
-        </div>
-        <div className="glass-card p-4">
           <p className="text-xs" style={{ color: "var(--muted)" }}>応援数</p>
           <p className="text-xl font-black" style={{ color: "#f97316" }}>{cheerCount}</p>
+        </div>
+        <div className="glass-card p-4">
+          <p className="text-xs" style={{ color: "var(--muted)" }}>フレンド</p>
+          <p className="text-xl font-black" style={{ color: "var(--accent)" }}>
+            {canShowFriendCount ? friendCount : "--"}
+          </p>
         </div>
       </section>
 
@@ -626,6 +699,16 @@ export default function PublicProfilePage() {
               >
                 フォロワー {followCounts.followers}
               </button>
+              <button
+                onClick={() => setFollowModalTab("friends")}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                style={{
+                  background: followModalTab === "friends" ? "var(--accent-light)" : "var(--muted-bg)",
+                  color: followModalTab === "friends" ? "var(--accent)" : "var(--muted)",
+                }}
+              >
+                フレンド {friendCount}
+              </button>
             </div>
 
             <div className="mt-3 relative">
@@ -664,7 +747,11 @@ export default function PublicProfilePage() {
                           <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>{row.name}</p>
                           <p className="text-xs font-mono" style={{ color: "var(--muted)" }}>UID: {row.uid}</p>
                         </div>
-                        {isMutual ? (
+                        {followModalTab === "friends" ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: "rgba(34,197,94,0.16)", color: "#22c55e" }}>
+                            FRIEND
+                          </span>
+                        ) : isMutual ? (
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: "rgba(34,211,238,0.16)", color: "#22d3ee" }}>
                             相互
                           </span>
