@@ -2,12 +2,14 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useStore } from "@/store/useStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquare, Users, Plus, X, Check } from "lucide-react";
 import { createGroupChat, subscribeMyGroups, type GroupChat } from "@/lib/firestore/groups";
 import { markChatMessagesAsRead, subscribeUnreadDirectMessageCounts } from "@/lib/firestore/chat";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
+import QuickProfileCard from "@/components/profile/QuickProfileCard";
 
 function AvatarPill({ avatar }: { avatar: string }) {
   const isImage = avatar.startsWith("http") || avatar.startsWith("data:");
@@ -22,12 +24,14 @@ function AvatarPill({ avatar }: { avatar: string }) {
 }
 
 export default function ConversationsPage() {
+  const router = useRouter();
   const { userProfile, friends } = useStore();
   const [groups, setGroups] = useState<GroupChat[]>([]);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [groupName, setGroupName] = useState("");
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [unreadByUser, setUnreadByUser] = useState<Record<string, number>>({});
+  const [quickProfileUid, setQuickProfileUid] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userProfile.uid) return;
@@ -110,18 +114,34 @@ export default function ConversationsPage() {
                 const safeAvatar = sanitizeAvatar(friend.avatar);
                 const unreadCount = visibleUnreadByUser[friend.uid] || 0;
                 return (
-                <Link
+                <div
                   key={friend.uid}
-                  href={`/friends/chat/${friend.uid}`}
                   onClick={() => {
                     if (!userProfile.uid) return;
                     setUnreadByUser((prev) => ({ ...prev, [friend.uid]: 0 }));
                     void markChatMessagesAsRead(userProfile.uid, friend.uid).catch(() => {});
+                    router.push(`/friends/chat/${friend.uid}`);
                   }}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors"
-                  style={{ background: "var(--muted-bg)" }}
+                  style={{ background: "var(--muted-bg)", cursor: "pointer" }}
                 >
-                  <AvatarPill avatar={safeAvatar} />
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setQuickProfileUid(friend.uid);
+                    }}
+                    className="rounded-full transition-all"
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "scale(1.06)";
+                      e.currentTarget.style.filter = "brightness(0.92)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "scale(1)";
+                      e.currentTarget.style.filter = "none";
+                    }}
+                  >
+                    <AvatarPill avatar={safeAvatar} />
+                  </button>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 min-w-0">
                       <p className="text-sm font-bold truncate" style={{ color: "var(--foreground)" }}>
@@ -140,7 +160,7 @@ export default function ConversationsPage() {
                       UID: {friend.uid}
                     </p>
                   </div>
-                </Link>
+                </div>
                 );
               })}
             </div>
@@ -274,6 +294,13 @@ export default function ConversationsPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <QuickProfileCard
+        open={Boolean(quickProfileUid)}
+        uid={quickProfileUid}
+        viewerUid={userProfile.uid}
+        onClose={() => setQuickProfileUid(null)}
+      />
     </div>
   );
 }

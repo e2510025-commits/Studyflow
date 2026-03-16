@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import { useStore } from "@/store/useStore";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -20,6 +21,8 @@ import {
 } from "lucide-react";
 import { formatHoursMinutes } from "@/lib/utils";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
+import { getAchievementMeta } from "@/lib/achievements";
+import { subscribeActiveStudyUsers } from "@/lib/firestore/focusRoom";
 import {
   fetchDailyRankMap,
   fetchRankingData,
@@ -28,6 +31,7 @@ import {
   type AggregatedUser,
 } from "@/lib/firestore/ranking";
 import { addRival, removeRival, subscribeRivals } from "@/lib/firestore/rivals";
+import QuickProfileCard from "@/components/profile/QuickProfileCard";
 
 type RankingPeriod = "today" | "week" | "month" | "all";
 
@@ -39,10 +43,12 @@ function Avatar({
   avatar,
   size = 40,
   background,
+  glowColor,
 }: {
   avatar: string;
   size?: number;
   background: string;
+  glowColor?: string;
 }) {
   const isImage =
     typeof avatar === "string" &&
@@ -54,7 +60,7 @@ function Avatar({
         src={avatar}
         alt="avatar"
         className="rounded-full object-cover"
-        style={{ width: size, height: size, background }}
+        style={{ width: size, height: size, background, boxShadow: glowColor ? `0 0 0 2px ${glowColor}` : "none" }}
       />
     );
   }
@@ -62,7 +68,7 @@ function Avatar({
   return (
     <div
       className="rounded-full flex items-center justify-center text-lg flex-shrink-0"
-      style={{ width: size, height: size, background }}
+      style={{ width: size, height: size, background, boxShadow: glowColor ? `0 0 0 2px ${glowColor}` : "none" }}
     >
       {avatar || "👤"}
     </div>
@@ -84,6 +90,8 @@ export default function RankingPage() {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [quickProfileUid, setQuickProfileUid] = useState<string | null>(null);
+  const [activeStudySet, setActiveStudySet] = useState<Set<string>>(new Set());
 
   /* ── Save own profile once ─────────────────────── */
   const savedRef = useRef(false);
@@ -152,6 +160,12 @@ export default function RankingPage() {
       setRivalUids(new Set(rows.map((row) => row.rivalUid)));
     });
   }, [userProfile.uid]);
+
+  useEffect(() => {
+    return subscribeActiveStudyUsers((rows) => {
+      setActiveStudySet(new Set(rows.map((r) => r.userUid)));
+    });
+  }, []);
 
   /* ── Load more ─────────────────────────────────── */
   const handleLoadMore = useCallback(async () => {
@@ -279,18 +293,40 @@ export default function RankingPage() {
           {friends.map((friend) => {
             const isRival = rivalUids.has(friend.uid);
             return (
-              <button
+              <div
                 key={friend.uid}
-                onClick={() => void (isRival ? removeRival(userProfile.uid, friend.uid) : addRival(userProfile.uid, friend.uid))}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1"
+                className="px-2 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-2"
                 style={{
-                  background: isRival ? "var(--accent-light)" : "var(--muted-bg)",
-                  color: isRival ? "var(--accent)" : "var(--muted)",
+                  background: "var(--muted-bg)",
                 }}
               >
-                {isRival ? <UserMinus size={12} /> : <UserPlus size={12} />}
-                {friend.name}
-              </button>
+                <button
+                  onClick={() => setQuickProfileUid(friend.uid)}
+                  className="px-1.5 py-1 rounded-md transition-all"
+                  style={{ color: "var(--foreground)" }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "scale(1.03)";
+                    e.currentTarget.style.background = "rgba(148,163,184,0.14)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "scale(1)";
+                    e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  {friend.name}
+                </button>
+                <button
+                  onClick={() => void (isRival ? removeRival(userProfile.uid, friend.uid) : addRival(userProfile.uid, friend.uid))}
+                  className="px-1.5 py-1 rounded-md inline-flex items-center gap-1 transition-colors"
+                  style={{
+                    color: isRival ? "#ef4444" : "var(--accent)",
+                    background: isRival ? "rgba(239,68,68,0.1)" : "var(--accent-light)",
+                  }}
+                >
+                  {isRival ? <UserMinus size={12} /> : <UserPlus size={12} />}
+                  {isRival ? "解除" : "ライバル"}
+                </button>
+              </div>
             );
           })}
         </div>
@@ -430,6 +466,8 @@ export default function RankingPage() {
                 const isMe = user.userId === userProfile.uid;
                 const isTop3 = user.rank <= 3;
                 const trend = dailyTrend.get(user.userId) || 0;
+                const isStudying = activeStudySet.has(user.userId);
+                const title = (profiles.get(user.userId)?.equippedBadges || [])[0];
 
                 return (
                   <motion.div
@@ -470,15 +508,35 @@ export default function RankingPage() {
 
                     {/* Avatar + Name */}
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <Avatar
-                        avatar={user.avatar}
-                        background={isMe ? "var(--accent)" : "var(--muted-bg)"}
-                      />
+                      <button
+                        onClick={() => setQuickProfileUid(user.userId)}
+                        className="rounded-full transition-all"
+                        style={{ cursor: "pointer" }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = "scale(1.06)";
+                          e.currentTarget.style.filter = "brightness(0.92)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = "scale(1)";
+                          e.currentTarget.style.filter = "none";
+                        }}
+                      >
+                        <Avatar
+                          avatar={user.avatar}
+                          background={isMe ? "var(--accent)" : "var(--muted-bg)"}
+                          glowColor={isStudying ? "#38bdf8" : undefined}
+                        />
+                      </button>
                       <div className="min-w-0">
-                          <span className="text-sm font-bold truncate flex items-center gap-1" style={{ color: isMe ? "var(--accent)" : "var(--foreground)" }}>
-                            {isMe ? `${user.name} (あなた)` : user.name}
-                            {profiles.get(user.userId)?.isOfficial ? <BadgeCheck size={14} style={{ color: "#38bdf8" }} /> : null}
+                        {title ? (
+                          <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "#22d3ee" }}>
+                            {getAchievementMeta(title)?.title || title}
                           </span>
+                        ) : null}
+                        <Link href={`/profile/${user.userId}`} className="text-sm font-bold truncate flex items-center gap-1 hover:underline" style={{ color: isMe ? "var(--accent)" : "var(--foreground)" }}>
+                          {isMe ? `${user.name} (あなた)` : user.name}
+                          {profiles.get(user.userId)?.isOfficial ? <BadgeCheck size={14} style={{ color: "#38bdf8" }} /> : null}
+                        </Link>
                         <span
                           className="text-xs"
                           style={{ color: "var(--muted)" }}
@@ -574,7 +632,20 @@ export default function RankingPage() {
           transition={{ delay: 0.35 }}
         >
           <div className="flex items-center gap-4">
-            <Avatar avatar={myAvatar} size={48} background="var(--accent)" />
+            <button
+              onClick={() => setQuickProfileUid(userProfile.uid)}
+              className="rounded-full transition-all"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "scale(1.06)";
+                e.currentTarget.style.filter = "brightness(0.92)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "scale(1)";
+                e.currentTarget.style.filter = "none";
+              }}
+            >
+              <Avatar avatar={myAvatar} size={48} background="var(--accent)" glowColor={activeStudySet.has(userProfile.uid) ? "#38bdf8" : undefined} />
+            </button>
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <span
@@ -637,6 +708,13 @@ export default function RankingPage() {
           </div>
         </motion.div>
       )}
+
+      <QuickProfileCard
+        open={Boolean(quickProfileUid)}
+        uid={quickProfileUid}
+        viewerUid={userProfile.uid}
+        onClose={() => setQuickProfileUid(null)}
+      />
     </div>
   );
 }

@@ -16,6 +16,7 @@ import {
   Loader2,
   ListTodo,
 } from "lucide-react";
+import QuickProfileCard from "@/components/profile/QuickProfileCard";
 import {
   subscribeChatMessages,
   sendTextMessage,
@@ -55,6 +56,25 @@ function AvatarPill({ avatar }: { avatar: string }) {
   );
 }
 
+function HoverableAvatar({ avatar, onClick }: { avatar: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-full transition-all"
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "scale(1.06)";
+        e.currentTarget.style.filter = "brightness(0.92)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "scale(1)";
+        e.currentTarget.style.filter = "none";
+      }}
+    >
+      <AvatarPill avatar={avatar} />
+    </button>
+  );
+}
+
 export default function ChatPage() {
   const params = useParams();
   const router = useRouter();
@@ -80,6 +100,7 @@ export default function ChatPage() {
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDetails, setTaskDetails] = useState("");
   const [taskDueDate, setTaskDueDate] = useState("");
+  const [quickProfileUid, setQuickProfileUid] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -312,14 +333,15 @@ export default function ChatPage() {
         >
           <ArrowLeft size={18} />
         </motion.button>
-        <AvatarPill avatar={safeFriendAvatar} />
+        <HoverableAvatar avatar={safeFriendAvatar} onClick={() => setQuickProfileUid(friend.uid)} />
         <div className="flex-1 min-w-0">
-          <span
-            className="text-sm font-bold block truncate"
+          <Link
+            href={`/profile/${friend.uid}`}
+            className="text-sm font-bold block truncate hover:underline"
             style={{ color: "var(--foreground)" }}
           >
-            <Link href={`/profile/${friend.uid}`}>{safeFriendName}</Link>
-          </span>
+            {safeFriendName}
+          </Link>
           <span className="text-xs font-mono" style={{ color: "var(--muted)" }}>
             UID: {friend.uid}
           </span>
@@ -356,6 +378,8 @@ export default function ChatPage() {
 
             {group.msgs.map((msg) => {
               const isMine = msg.fromUid === userProfile.uid;
+              const msgAvatar = isMine ? sanitizeAvatar(userProfile.avatar || "👤") : safeFriendAvatar;
+              const msgUid = isMine ? userProfile.uid : friend.uid;
               return (
                 <motion.div
                   key={msg.id}
@@ -363,6 +387,20 @@ export default function ChatPage() {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                 >
+                  <button
+                    onClick={() => setQuickProfileUid(msgUid)}
+                    className={`self-end ${isMine ? "order-2 ml-2" : "order-0 mr-2"} rounded-full transition-all`}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "scale(1.06)";
+                      e.currentTarget.style.filter = "brightness(0.92)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "scale(1)";
+                      e.currentTarget.style.filter = "none";
+                    }}
+                  >
+                    <AvatarPill avatar={msgAvatar} />
+                  </button>
                   <div
                     className={`relative max-w-[75%] sm:max-w-[65%] ${
                       isMine ? "order-1" : "order-1"
@@ -741,6 +779,13 @@ export default function ChatPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <QuickProfileCard
+        open={Boolean(quickProfileUid)}
+        uid={quickProfileUid}
+        viewerUid={userProfile.uid}
+        onClose={() => setQuickProfileUid(null)}
+      />
     </div>
   );
 }
