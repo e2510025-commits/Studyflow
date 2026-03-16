@@ -6,6 +6,7 @@ import {
   collection,
   deleteDoc,
   getDocs,
+  onSnapshot,
   query,
   where,
   limit,
@@ -13,6 +14,28 @@ import {
 import { db } from "@/lib/firebase";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 import type { Friend, ProfileVisibility, PublicProfile } from "@/types";
+
+export interface FollowListUser {
+  uid: string;
+  name: string;
+  avatar: string;
+  addedAt: string;
+}
+
+export interface FollowListsResult {
+  following: FollowListUser[];
+  followers: FollowListUser[];
+  followingSet: Set<string>;
+  followerSet: Set<string>;
+}
+
+export interface ProfileActivityItem {
+  id: string;
+  type: "badge" | "study";
+  createdAt: string;
+  label: string;
+  detail?: string;
+}
 
 export async function saveDisplayProfile(params: {
   uid: string;
@@ -186,6 +209,194 @@ export async function fetchUserFriendsPreview(uid: string, take = 16): Promise<F
           : new Date().toISOString(),
     };
   });
+}
+
+export function subscribeFollowCounts(
+  uid: string,
+  callback: (counts: { following: number; followers: number }) => void
+) {
+  if (!uid) {
+    callback({ following: 0, followers: 0 });
+    return () => {};
+  }
+
+  let following = 0;
+  let followers = 0;
+  const emit = () => callback({ following, followers });
+
+  const unsubFollowing = onSnapshot(
+    query(collection(db, "friends"), where("ownerUid", "==", uid)),
+    (snapshot) => {
+      following = snapshot.size;
+      emit();
+    },
+    () => {
+      following = 0;
+      emit();
+    }
+  );
+
+  const unsubFollowers = onSnapshot(
+    query(collection(db, "friends"), where("uid", "==", uid)),
+    (snapshot) => {
+      followers = snapshot.size;
+      emit();
+    },
+    () => {
+      followers = 0;
+      emit();
+    }
+  );
+
+  return () => {
+    unsubFollowing();
+    unsubFollowers();
+  };
+}
+
+async function fetchProfilesByUids(uids: string[]): Promise<Map<string, { name: string; avatar: string }>> {
+  const map = new Map<string, { name: string; avatar: string }>();
+  if (uids.length === 0) return map;
+
+  await Promise.all(
+    uids.map(async (uid) => {
+      try {
+        const snap = await getDoc(doc(db, "userProfiles", uid));
+        if (!snap.exists()) return;
+        const data = snap.data();
+        map.set(uid, {
+          name: sanitizeDisplayName(data.name),
+          avatar: sanitizeAvatar(data.avatar),
+        });
+      } catch {
+        // skip profile fetch failure
+      }
+    })
+  );
+
+  return map;
+}
+
+export async function fetchFollowLists(uid: string, take = 300): Promise<FollowListsResult> {
+  if (!uid) {
+    return {
+      following: [],
+      followers: [],
+      followingSet: new Set<string>(),
+      followerSet: new Set<string>(),
+    };
+  }
+
+  const safeTake = Math.max(10, Math.min(1000, Math.floor(take)));
+  const [followingSnap, followerSnap] = await Promise.all([
+    getDocs(query(collection(db, "friends"), where("ownerUid", "==", uid), limit(safeTake))),
+    getDocs(query(collection(db, "friends"), where("uid", "==", uid), limit(safeTake))),
+  ]);
+
+  const followingSet = new Set<string>();
+  const followerSet = new Set<string>();
+  followingSnap.docs.forEach((d) => {
+    const data = d.data();
+    if (data.uid) followingSet.add(String(data.uid));
+  });
+  followerSnap.docs.forEach((d) => {
+    const data = d.data();
+    if (data.ownerUid) followerSet.add(String(data.ownerUid));
+  });
+
+  const allUids = Array.from(new Set([...followingSet, ...followerSet]));
+  const profileMap = await fetchProfilesByUids(allUids);
+
+  const following: FollowListUser[] = followingSnap.docs.map((d) => {
+    const data = d.data();
+    const targetUid = String(data.uid || "");
+    const profile = profileMap.get(targetUid);
+    return {
+      uid: targetUid,
+      name: profile?.name || sanitizeDisplayName(data.name || "匿名"),
+      avatar: profile?.avatar || sanitizeAvatar(data.avatar || "👤"),
+      addedAt:
+        typeof data.addedAt?.toDate === "function"
+          ? data.addedAt.toDate().toISOString()
+          : new Date().toISOString(),
+    };
+  });
+
+  const followers: FollowListUser[] = followerSnap.docs.map((d) => {
+    const data = d.data();
+    const ownerUid = String(data.ownerUid || "");
+    const profile = profileMap.get(ownerUid);
+    return {
+      uid: ownerUid,
+      name: profile?.name || "匿名",
+      avatar: profile?.avatar || "👤",
+      addedAt:
+        typeof data.addedAt?.toDate === "function"
+          ? data.addedAt.toDate().toISOString()
+          : new Date().toISOString(),
+    };
+  });
+
+  return { following, followers, followingSet, followerSet };
+}
+
+export async function fetchRecentProfileActivity(uid: string, take = 8): Promise<ProfileActivityItem[]> {
+  if (!uid) return [];
+  const safeTake = Math.max(3, Math.min(20, Math.floor(take)));
+
+  const [profileSnap, logsSnap, subjectsSnap] = await Promise.all([
+    getDoc(doc(db, "userProfiles", uid)),
+    getDocs(query(collection(db, "studyLogs"), where("userUid", "==", uid))),
+    getDocs(query(collection(db, "userSubjects"), where("ownerUid", "==", uid))),
+  ]);
+
+  const subjectNameMap = new Map<string, string>();
+  subjectsSnap.docs.forEach((d) => {
+    const data = d.data();
+    subjectNameMap.set(d.id, String(data.name || "学習"));
+  });
+
+  const activities: ProfileActivityItem[] = [];
+
+  const unlockMap =
+    profileSnap.exists() && typeof profileSnap.data().achievementUnlockedAt === "object"
+      ? (profileSnap.data().achievementUnlockedAt as Record<string, string>)
+      : {};
+
+  Object.entries(unlockMap).forEach(([badgeId, at]) => {
+    const date = new Date(at);
+    activities.push({
+      id: `badge_${badgeId}`,
+      type: "badge",
+      createdAt: Number.isNaN(date.getTime()) ? new Date(0).toISOString() : date.toISOString(),
+      label: "勲章を獲得",
+      detail: badgeId,
+    });
+  });
+
+  logsSnap.docs.forEach((d) => {
+    const data = d.data();
+    const createdAtRaw = data.createdAt;
+    const createdAt =
+      createdAtRaw && typeof createdAtRaw.toDate === "function"
+        ? createdAtRaw.toDate().toISOString()
+        : typeof createdAtRaw === "string"
+        ? createdAtRaw
+        : new Date().toISOString();
+    const subjectLabel = subjectNameMap.get(String(data.subjectId || "")) || "学習";
+    const durationMinutes = Math.max(1, Math.floor(Number(data.duration || 0) / 60));
+    activities.push({
+      id: `study_${d.id}`,
+      type: "study",
+      createdAt,
+      label: `${subjectLabel} を完了`,
+      detail: `${durationMinutes}分` ,
+    });
+  });
+
+  return activities
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, safeTake);
 }
 
 export async function fetchUserHeatmap(uid: string, days = 84): Promise<Record<string, number>> {

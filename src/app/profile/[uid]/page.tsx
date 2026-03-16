@@ -6,19 +6,23 @@ import { useParams } from "next/navigation";
 import { useStore } from "@/store/useStore";
 import {
   canViewProfile,
+  fetchFollowLists,
   fetchProfileCheerSummary,
   fetchPublicProfile,
-  fetchUserFriendsPreview,
   fetchUserHeatmap,
+  fetchRecentProfileActivity,
   fetchUserStudyStats,
   saveDisplayProfile,
   setProfileCheer,
+  subscribeFollowCounts,
+  type FollowListUser,
+  type ProfileActivityItem,
 } from "@/lib/firestore/profile";
 import { subscribeActiveStudyUsers } from "@/lib/firestore/focusRoom";
 import { subscribeUserPresenceStatus, subscribeUsersOnlineStatus } from "@/lib/firestore/presence";
 import { getAchievementMeta } from "@/lib/achievements";
 import { formatHoursMinutes } from "@/lib/utils";
-import { BadgeCheck, Flame, PenLine, Send } from "lucide-react";
+import { BadgeCheck, Flame, PenLine, Search, Send, UserRound } from "lucide-react";
 
 type PresenceColor = "online" | "away" | "offline" | "studying";
 
@@ -39,6 +43,23 @@ function detectDeviceLabel(): string {
   if (ua.includes("windows")) return "PC (Windows)";
   if (ua.includes("mac")) return "PC (macOS)";
   return "PC (Web)";
+}
+
+function formatRelativeTime(iso: string): string {
+  const ts = new Date(iso).getTime();
+  if (Number.isNaN(ts)) return "今";
+  const diff = Math.max(0, Date.now() - ts);
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "たった今";
+  if (min < 60) return `${min}分前`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}時間前`;
+  const day = Math.floor(hr / 24);
+  return `${day}日前`;
+}
+
+function normalizeSearchText(text: string): string {
+  return text.trim().toLowerCase();
 }
 
 function calcRadarValues(heatmap: Record<string, number>): number[] {
@@ -76,8 +97,19 @@ export default function PublicProfilePage() {
   const [profile, setProfile] = useState<Awaited<ReturnType<typeof fetchPublicProfile>>>(null);
   const [stats, setStats] = useState({ totalSeconds: 0, totalSessions: 0 });
   const [heatmap, setHeatmap] = useState<Record<string, number>>({});
-  const [friends, setFriends] = useState<Array<{ uid: string; name: string; avatar: string }>>([]);
-  const [friendOnlineSet, setFriendOnlineSet] = useState<Set<string>>(new Set());
+  const [followCounts, setFollowCounts] = useState({ following: 0, followers: 0 });
+  const [followBump, setFollowBump] = useState<"following" | "followers" | null>(null);
+  const [followModalOpen, setFollowModalOpen] = useState(false);
+  const [followModalTab, setFollowModalTab] = useState<"following" | "followers">("following");
+  const [followSearch, setFollowSearch] = useState("");
+  const [followLists, setFollowLists] = useState<{ following: FollowListUser[]; followers: FollowListUser[] }>({
+    following: [],
+    followers: [],
+  });
+  const [followingSet, setFollowingSet] = useState<Set<string>>(new Set());
+  const [followerSet, setFollowerSet] = useState<Set<string>>(new Set());
+  const [followOnlineSet, setFollowOnlineSet] = useState<Set<string>>(new Set());
+  const [activities, setActivities] = useState<ProfileActivityItem[]>([]);
   const [activeStudySet, setActiveStudySet] = useState<Set<string>>(new Set());
   const [presence, setPresence] = useState<{ isOnline: boolean; updatedAtMs: number }>({ isOnline: false, updatedAtMs: 0 });
   const [cheerCount, setCheerCount] = useState(0);
@@ -107,21 +139,26 @@ export default function PublicProfilePage() {
         setAllowed(visible);
         if (!visible) return;
 
-        const [p, s, hm, fr, cheer] = await Promise.all([
+        const [p, s, hm, follow, cheer, recent] = await Promise.all([
           fetchPublicProfile(uid),
           fetchUserStudyStats(uid),
           fetchUserHeatmap(uid, 84),
-          fetchUserFriendsPreview(uid, 16),
+          fetchFollowLists(uid, 300),
           fetchProfileCheerSummary(uid, userProfile.uid),
+          fetchRecentProfileActivity(uid, 9),
         ]);
 
         if (cancelled) return;
         setProfile(p);
         setStats(s);
         setHeatmap(hm);
-        setFriends(fr);
+        setFollowLists({ following: follow.following, followers: follow.followers });
+        setFollowingSet(new Set(follow.followingSet));
+        setFollowerSet(new Set(follow.followerSet));
+        setFollowCounts({ following: follow.following.length, followers: follow.followers.length });
         setCheerCount(cheer.count);
         setCheered(cheer.cheeredByViewer);
+        setActivities(recent);
 
         if (p) {
           setEditName(p.name || "");
@@ -152,13 +189,30 @@ export default function PublicProfilePage() {
   }, [uid]);
 
   useEffect(() => {
-    const uids = friends.map((f) => f.uid);
+    const uids = Array.from(new Set([...followLists.following.map((f) => f.uid), ...followLists.followers.map((f) => f.uid)]));
     if (uids.length === 0) {
-      setFriendOnlineSet(new Set());
+      setFollowOnlineSet(new Set());
       return;
     }
-    return subscribeUsersOnlineStatus(uids, setFriendOnlineSet);
-  }, [friends]);
+    return subscribeUsersOnlineStatus(uids, setFollowOnlineSet);
+  }, [followLists.followers, followLists.following]);
+
+  useEffect(() => {
+    if (!uid) return;
+    return subscribeFollowCounts(uid, (next) => {
+      setFollowCounts((prev) => {
+        if (prev.following !== next.following) setFollowBump("following");
+        if (prev.followers !== next.followers) setFollowBump("followers");
+        return next;
+      });
+    });
+  }, [uid]);
+
+  useEffect(() => {
+    if (!followBump) return;
+    const timer = window.setTimeout(() => setFollowBump(null), 380);
+    return () => window.clearTimeout(timer);
+  }, [followBump]);
 
   const statusColor = useMemo<PresenceColor>(() => {
     if (activeStudySet.has(uid)) return "studying";
@@ -177,6 +231,16 @@ export default function PublicProfilePage() {
 
   const isImageAvatar = Boolean(profile?.avatar?.startsWith("http") || profile?.avatar?.startsWith("data:"));
   const equipped = (profile?.equippedBadges || []).slice(0, 3);
+  const modalRows = followModalTab === "following" ? followLists.following : followLists.followers;
+  const searchText = normalizeSearchText(followSearch);
+  const filteredModalRows = useMemo(() => {
+    if (!searchText) return modalRows;
+    return modalRows.filter((row) => {
+      const name = normalizeSearchText(row.name);
+      const uidText = normalizeSearchText(row.uid);
+      return name.includes(searchText) || uidText.includes(searchText);
+    });
+  }, [modalRows, searchText]);
 
   const heatDays = useMemo(() => Array.from({ length: 84 }, (_, i) => dateKey(83 - i)), []);
   const heatMax = useMemo(() => Math.max(1, ...Object.values(heatmap), 1), [heatmap]);
@@ -272,6 +336,18 @@ export default function PublicProfilePage() {
     }
   };
 
+  const openFollowModal = async (tab: "following" | "followers") => {
+    setFollowModalTab(tab);
+    setFollowSearch("");
+    setFollowModalOpen(true);
+    if (!uid) return;
+    const next = await fetchFollowLists(uid, 300).catch(() => null);
+    if (!next) return;
+    setFollowLists({ following: next.following, followers: next.followers });
+    setFollowingSet(new Set(next.followingSet));
+    setFollowerSet(new Set(next.followerSet));
+  };
+
   if (loading) {
     return <div className="max-w-5xl mx-auto py-12 text-sm" style={{ color: "var(--muted)" }}>読み込み中...</div>;
   }
@@ -313,10 +389,53 @@ export default function PublicProfilePage() {
                 />
               </div>
               <div>
-                <h1 className="text-2xl font-black flex items-center gap-1" style={{ color: "var(--foreground)" }}>
-                  {profile.name}
-                  {profile.isOfficial ? <BadgeCheck size={18} style={{ color: "#38bdf8" }} /> : null}
-                </h1>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-2xl font-black flex items-center gap-1" style={{ color: "var(--foreground)" }}>
+                    {profile.name}
+                    {profile.isOfficial ? <BadgeCheck size={18} style={{ color: "#38bdf8" }} /> : null}
+                  </h1>
+                  <span className="text-xs" style={{ color: "var(--card-border)" }}>|</span>
+                  <button
+                    onClick={() => void openFollowModal("following")}
+                    className="text-[13px] font-semibold px-2 py-0.5 rounded-md transition-all"
+                    style={{
+                      color: "var(--muted)",
+                      background: followBump === "following" ? "rgba(34,211,238,0.14)" : "transparent",
+                      transform: followBump === "following" ? "scale(1.06)" : "scale(1)",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = "var(--foreground)";
+                      e.currentTarget.style.background = "rgba(148,163,184,0.14)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = "var(--muted)";
+                      e.currentTarget.style.background =
+                        followBump === "following" ? "rgba(34,211,238,0.14)" : "transparent";
+                    }}
+                  >
+                    {followCounts.following.toLocaleString()} フォロー
+                  </button>
+                  <button
+                    onClick={() => void openFollowModal("followers")}
+                    className="text-[13px] font-semibold px-2 py-0.5 rounded-md transition-all"
+                    style={{
+                      color: "var(--muted)",
+                      background: followBump === "followers" ? "rgba(34,211,238,0.14)" : "transparent",
+                      transform: followBump === "followers" ? "scale(1.06)" : "scale(1)",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = "var(--foreground)";
+                      e.currentTarget.style.background = "rgba(148,163,184,0.14)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = "var(--muted)";
+                      e.currentTarget.style.background =
+                        followBump === "followers" ? "rgba(34,211,238,0.14)" : "transparent";
+                    }}
+                  >
+                    {followCounts.followers.toLocaleString()} フォロワー
+                  </button>
+                </div>
                 <p className="text-xs font-mono" style={{ color: "var(--muted)" }}>UID: {profile.uid}</p>
                 <p className="text-xs mt-1" style={{ color: statusStyle.bg }}>
                   {statusStyle.label}
@@ -398,6 +517,40 @@ export default function PublicProfilePage() {
         </div>
       </section>
 
+      <section className="grid lg:grid-cols-[1.1fr_0.9fr] gap-4">
+        <div className="glass-card p-5">
+          <h3 className="text-base font-black" style={{ color: "var(--foreground)" }}>自己紹介</h3>
+          <p className="text-sm mt-2 whitespace-pre-wrap leading-relaxed" style={{ color: "var(--foreground)" }}>
+            {profile.bio || "自己紹介はまだ設定されていません"}
+          </p>
+          <div className="mt-4 text-xs space-y-1" style={{ color: "var(--muted)" }}>
+            <p>System Status: Certified Scholar</p>
+            <p>Active Since: {activeSince}</p>
+            <p>Device: {profile.deviceLabel || "Unknown"}</p>
+          </div>
+        </div>
+
+        <div className="glass-card p-5">
+          <h3 className="text-sm font-black" style={{ color: "var(--foreground)" }}>アクティビティ</h3>
+          <div className="mt-3 space-y-2">
+            {activities.length === 0 ? (
+              <p className="text-sm" style={{ color: "var(--muted)" }}>最近のアクティビティはまだありません</p>
+            ) : (
+              activities.map((item) => (
+                <div key={item.id} className="rounded-xl px-3 py-2" style={{ background: "var(--muted-bg)" }}>
+                  <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                    {item.type === "badge" ? "勲章" : "学習"}・{item.label}
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>
+                    {item.detail || ""} {formatRelativeTime(item.createdAt)}
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </section>
+
       <section className="grid xl:grid-cols-[1.3fr_0.7fr] gap-4">
         <div className="glass-card p-4">
           <h3 className="text-sm font-black" style={{ color: "var(--foreground)" }}>学習ヒートマップ</h3>
@@ -440,50 +593,105 @@ export default function PublicProfilePage() {
         </div>
       </section>
 
-      <section className="glass-card p-4">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="text-sm font-black" style={{ color: "var(--foreground)" }}>フレンド / フォロワー</h3>
-          <Link href="/friends" className="text-xs" style={{ color: "var(--accent)" }}>一覧へ</Link>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {friends.length === 0 ? (
-            <p className="text-sm" style={{ color: "var(--muted)" }}>フレンドがまだいません</p>
-          ) : (
-            friends.map((f) => {
-              const studying = activeStudySet.has(f.uid);
-              const online = friendOnlineSet.has(f.uid);
-              const dot = studying ? "#a855f7" : online ? "#22c55e" : "#9ca3af";
-              const isImg = f.avatar.startsWith("http") || f.avatar.startsWith("data:");
-              return (
-                <Link key={f.uid} href={`/friends/chat/${f.uid}`} className="rounded-xl px-2 py-2 inline-flex items-center gap-2" style={{ background: "var(--muted-bg)" }}>
-                  <span className="relative">
-                    {isImg ? (
-                      <img src={f.avatar} alt={f.name} className="w-8 h-8 rounded-full object-cover" />
-                    ) : (
-                      <span className="w-8 h-8 rounded-full inline-flex items-center justify-center" style={{ background: "var(--accent-light)" }}>{f.avatar}</span>
-                    )}
-                    <span className="absolute right-0 bottom-0 w-2.5 h-2.5 rounded-full border" style={{ background: dot, borderColor: "var(--card-bg)" }} />
-                  </span>
-                  <span className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>{f.name}</span>
-                  <Send size={12} style={{ color: "var(--muted)" }} />
-                </Link>
-              );
-            })
-          )}
-        </div>
-      </section>
+      {followModalOpen && (
+        <div className="fixed inset-0 z-[118] flex items-center justify-center p-4" style={{ background: "rgba(2,6,23,0.68)" }}>
+          <div className="w-full max-w-2xl rounded-2xl glass-card p-4 max-h-[88vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-base font-black" style={{ color: "var(--foreground)" }}>
+                {followModalTab === "following" ? "フォロー一覧" : "フォロワー一覧"}
+              </h3>
+              <button onClick={() => setFollowModalOpen(false)} className="text-sm" style={{ color: "var(--muted)" }}>
+                閉じる
+              </button>
+            </div>
 
-      <section className="glass-card p-4">
-        <h3 className="text-sm font-black" style={{ color: "var(--foreground)" }}>自己紹介</h3>
-        <p className="text-sm mt-2 whitespace-pre-wrap" style={{ color: "var(--foreground)" }}>
-          {profile.bio || "自己紹介はまだ設定されていません"}
-        </p>
-        <div className="mt-4 text-xs space-y-1" style={{ color: "var(--muted)" }}>
-          <p>System Status: Certified Scholar</p>
-          <p>Active Since: {activeSince}</p>
-          <p>Primary Skill: Mathematics / Science-Track</p>
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                onClick={() => setFollowModalTab("following")}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                style={{
+                  background: followModalTab === "following" ? "var(--accent-light)" : "var(--muted-bg)",
+                  color: followModalTab === "following" ? "var(--accent)" : "var(--muted)",
+                }}
+              >
+                フォロー {followCounts.following}
+              </button>
+              <button
+                onClick={() => setFollowModalTab("followers")}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                style={{
+                  background: followModalTab === "followers" ? "var(--accent-light)" : "var(--muted-bg)",
+                  color: followModalTab === "followers" ? "var(--accent)" : "var(--muted)",
+                }}
+              >
+                フォロワー {followCounts.followers}
+              </button>
+            </div>
+
+            <div className="mt-3 relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--muted)" }} />
+              <input
+                value={followSearch}
+                onChange={(e) => setFollowSearch(e.target.value)}
+                placeholder="名前・UIDで検索"
+                className="w-full pl-8 pr-3 py-2 rounded-xl text-sm"
+                style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+              />
+            </div>
+
+            <div className="mt-3 overflow-y-auto pr-1 space-y-2">
+              {filteredModalRows.length === 0 ? (
+                <p className="text-sm py-6 text-center" style={{ color: "var(--muted)" }}>該当ユーザーがいません</p>
+              ) : (
+                filteredModalRows.map((row) => {
+                  const isImg = row.avatar.startsWith("http") || row.avatar.startsWith("data:");
+                  const studying = activeStudySet.has(row.uid);
+                  const online = followOnlineSet.has(row.uid);
+                  const dot = studying ? "#a855f7" : online ? "#22c55e" : "#9ca3af";
+                  const isMutual = followingSet.has(row.uid) && followerSet.has(row.uid);
+                  return (
+                    <div key={`${followModalTab}_${row.uid}`} className="rounded-xl px-3 py-2.5" style={{ background: "var(--muted-bg)" }}>
+                      <div className="flex items-center gap-3">
+                        <span className="relative">
+                          {isImg ? (
+                            <img src={row.avatar} alt={row.name} className="w-10 h-10 rounded-full object-cover" />
+                          ) : (
+                            <span className="w-10 h-10 rounded-full inline-flex items-center justify-center" style={{ background: "var(--accent-light)" }}>{row.avatar}</span>
+                          )}
+                          <span className="absolute right-0 bottom-0 w-3 h-3 rounded-full border" style={{ background: dot, borderColor: "var(--card-bg)" }} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>{row.name}</p>
+                          <p className="text-xs font-mono" style={{ color: "var(--muted)" }}>UID: {row.uid}</p>
+                        </div>
+                        {isMutual ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: "rgba(34,211,238,0.16)", color: "#22d3ee" }}>
+                            相互
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="mt-2 flex items-center gap-2">
+                        <Link href={`/profile/${row.uid}`} className="px-2.5 py-1 rounded-lg text-xs font-semibold" style={{ background: "var(--card-bg)", color: "var(--foreground)" }}>
+                          プロフィールを見る
+                        </Link>
+                        {row.uid !== userProfile.uid ? (
+                          <Link href={`/friends/chat/${row.uid}`} className="px-2.5 py-1 rounded-lg text-xs font-semibold inline-flex items-center gap-1" style={{ background: "var(--accent-light)", color: "var(--accent)" }}>
+                            <Send size={12} /> メッセージ
+                          </Link>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-lg text-xs font-semibold inline-flex items-center gap-1" style={{ background: "var(--card-bg)", color: "var(--muted)" }}>
+                            <UserRound size={12} /> あなた
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
         </div>
-      </section>
+      )}
 
       {editOpen && isSelf && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.55)" }}>
