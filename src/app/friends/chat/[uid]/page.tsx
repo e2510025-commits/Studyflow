@@ -91,7 +91,10 @@ export default function ChatPage() {
     const unsubscribe = subscribeChatMessages(
       userProfile.uid,
       friendUid,
-      (msgs) => setMessages(msgs)
+      (msgs) => {
+        setMessages(msgs);
+        void markChatMessagesAsRead(userProfile.uid, friendUid).catch(() => {});
+      }
     );
 
     const timer = setInterval(() => {

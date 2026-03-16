@@ -53,6 +53,8 @@ export interface GroupTask {
   title: string;
   details: string;
   totalPages: number | null;
+  startDate: string;
+  endDate: string;
   createdBy: string;
   createdAt: string;
 }
@@ -230,6 +232,8 @@ export function subscribeGroupTasks(groupId: string, callback: (tasks: GroupTask
         title: data.title,
         details: data.details || "",
         totalPages: typeof data.totalPages === "number" ? data.totalPages : null,
+        startDate: typeof data.startDate === "string" ? data.startDate : "",
+        endDate: typeof data.endDate === "string" ? data.endDate : "",
         createdBy: data.createdBy,
         createdAt: toIso(data.createdAt),
       } satisfies GroupTask;
@@ -247,6 +251,8 @@ export async function createGroupTask(params: {
   title: string;
   details: string;
   totalPages?: number | null;
+  startDate?: string;
+  endDate?: string;
   createdBy: string;
 }) {
   await addDoc(collection(db, GROUP_TASKS_COLLECTION), {
@@ -258,6 +264,8 @@ export async function createGroupTask(params: {
       typeof params.totalPages === "number" && params.totalPages > 0
         ? params.totalPages
         : null,
+    startDate: typeof params.startDate === "string" ? params.startDate : "",
+    endDate: typeof params.endDate === "string" ? params.endDate : "",
     createdBy: params.createdBy,
     createdAt: serverTimestamp(),
   });
