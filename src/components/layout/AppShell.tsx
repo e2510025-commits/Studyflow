@@ -197,6 +197,24 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!userProfile.uid) return;
 
+    const runDispatch = () => {
+      void fetch("/api/announcements/dispatch-scheduled", {
+        method: "POST",
+        cache: "no-store",
+      }).catch(() => {});
+    };
+
+    runDispatch();
+    const intervalId = window.setInterval(runDispatch, 2 * 60 * 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [userProfile.uid]);
+
+  useEffect(() => {
+    if (!userProfile.uid) return;
+
     let disposed = false;
 
     const upsert = (online: boolean) => {

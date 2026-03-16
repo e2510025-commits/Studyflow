@@ -44,6 +44,7 @@ interface AdminAnnouncement {
   createdBy: string;
   createdAt: string;
   scheduledAt?: string;
+  notifyAsMissionStart?: boolean;
 }
 
 export default function AdminPage() {
@@ -58,11 +59,13 @@ export default function AdminPage() {
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementBody, setAnnouncementBody] = useState("");
   const [announcementScheduledAt, setAnnouncementScheduledAt] = useState("");
+  const [announcementMissionNotify, setAnnouncementMissionNotify] = useState(false);
   const [announcements, setAnnouncements] = useState<AdminAnnouncement[]>([]);
   const [editingAnnouncementId, setEditingAnnouncementId] = useState("");
   const [editingTitle, setEditingTitle] = useState("");
   const [editingBody, setEditingBody] = useState("");
   const [editingScheduledAt, setEditingScheduledAt] = useState("");
+  const [editingMissionNotify, setEditingMissionNotify] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [section, setSection] = useState<AdminSection>("overview");
   const [appVersion, setAppVersion] = useState("1.0.0");
@@ -173,7 +176,12 @@ export default function AdminPage() {
     const res = await fetch("/api/admin/announcements", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, body, scheduledAt: announcementScheduledAt || null }),
+      body: JSON.stringify({
+        title,
+        body,
+        scheduledAt: announcementScheduledAt || null,
+        notifyAsMissionStart: announcementMissionNotify,
+      }),
     });
 
     if (!res.ok) {
@@ -184,6 +192,7 @@ export default function AdminPage() {
     setAnnouncementTitle("");
     setAnnouncementBody("");
     setAnnouncementScheduledAt("");
+    setAnnouncementMissionNotify(false);
     await Promise.all([loadOverview(), loadAnnouncements()]);
   }, [announcementTitle, announcementBody, announcementScheduledAt, loadAnnouncements, loadOverview]);
 
@@ -192,6 +201,7 @@ export default function AdminPage() {
     setEditingTitle(row.title);
     setEditingBody(row.body);
     setEditingScheduledAt(row.scheduledAt ? row.scheduledAt.slice(0, 16) : "");
+    setEditingMissionNotify(Boolean(row.notifyAsMissionStart));
   }, []);
 
   const saveAnnouncementEdit = useCallback(async () => {
@@ -203,7 +213,13 @@ export default function AdminPage() {
     const res = await fetch("/api/admin/announcements", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: editingAnnouncementId, title, body, scheduledAt: editingScheduledAt || null }),
+      body: JSON.stringify({
+        id: editingAnnouncementId,
+        title,
+        body,
+        scheduledAt: editingScheduledAt || null,
+        notifyAsMissionStart: editingMissionNotify,
+      }),
     });
     if (!res.ok) {
       alert("お知らせ更新に失敗しました");
@@ -214,6 +230,7 @@ export default function AdminPage() {
     setEditingTitle("");
     setEditingBody("");
     setEditingScheduledAt("");
+    setEditingMissionNotify(false);
     await loadAnnouncements();
   }, [editingAnnouncementId, editingTitle, editingBody, loadAnnouncements]);
 
@@ -355,6 +372,14 @@ export default function AdminPage() {
               className="w-full mt-1 px-3 py-2 rounded-xl text-sm"
               style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
             />
+            <label className="mt-2 text-xs inline-flex items-center gap-2" style={{ color: "var(--muted)" }}>
+              <input
+                type="checkbox"
+                checked={announcementMissionNotify}
+                onChange={(e) => setAnnouncementMissionNotify(e.target.checked)}
+              />
+              この投稿を「ミッション開始通知」として予約配信する
+            </label>
           </div>
           <button
             onClick={publishAnnouncement}
@@ -393,6 +418,14 @@ export default function AdminPage() {
                         className="w-full px-3 py-2 rounded text-sm"
                         style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
                       />
+                      <label className="text-xs inline-flex items-center gap-2" style={{ color: "var(--muted)" }}>
+                        <input
+                          type="checkbox"
+                          checked={editingMissionNotify}
+                          onChange={(e) => setEditingMissionNotify(e.target.checked)}
+                        />
+                        ミッション開始通知として配信
+                      </label>
                       <div className="flex gap-2">
                         <button onClick={() => void saveAnnouncementEdit()} className="px-3 py-1.5 rounded text-xs font-bold text-white" style={{ background: "var(--accent)" }}>保存</button>
                         <button onClick={() => setEditingAnnouncementId("")} className="px-3 py-1.5 rounded text-xs font-bold" style={{ background: "#ffffff22", color: "var(--foreground)" }}>キャンセル</button>
@@ -408,6 +441,11 @@ export default function AdminPage() {
                       {row.scheduledAt && (
                         <p className="text-[10px] mt-1" style={{ color: "#f59e0b" }}>
                           予約: {new Date(row.scheduledAt).toLocaleString("ja-JP")}
+                        </p>
+                      )}
+                      {row.notifyAsMissionStart && (
+                        <p className="text-[10px] mt-1" style={{ color: "#22c55e" }}>
+                          ミッション開始通知: ON
                         </p>
                       )}
                       <div className="mt-2 flex gap-2">
