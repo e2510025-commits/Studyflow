@@ -76,7 +76,7 @@ export default function RankingPage() {
   /* ── State ─────────────────────────────────────── */
   const [rawData, setRawData] = useState<AggregatedUser[]>([]);
   const [profiles, setProfiles] = useState<
-    Map<string, { name: string; avatar: string; isOfficial?: boolean }>
+    Map<string, { name: string; avatar: string; isOfficial?: boolean; equippedBadges?: string[] }>
   >(new Map());
   const [dailyTrend, setDailyTrend] = useState<Map<string, number>>(new Map());
   const [rivalUids, setRivalUids] = useState<Set<string>>(new Set());
@@ -478,6 +478,15 @@ export default function RankingPage() {
                         >
                           {user.sessions} セッション
                         </span>
+                        {(profiles.get(user.userId)?.equippedBadges || []).length > 0 ? (
+                          <span className="text-[10px] inline-flex items-center gap-1" style={{ color: "#22d3ee" }}>
+                            {(profiles.get(user.userId)?.equippedBadges || []).map((b) => (
+                              <span key={b} className="px-1 py-0.5 rounded" style={{ background: "#22d3ee22" }}>
+                                {b}
+                              </span>
+                            ))}
+                          </span>
+                        ) : null}
                         <span className="text-[10px] inline-flex items-center gap-1" style={{ color: trend > 0 ? "#16a34a" : trend < 0 ? "#ef4444" : "var(--muted)" }}>
                           {trend > 0 ? <ArrowUp size={12} /> : trend < 0 ? <ArrowDown size={12} /> : null}
                           前日比 {trend > 0 ? `+${trend}` : trend < 0 ? `${trend}` : "±0"}

@@ -25,6 +25,8 @@ export interface UserProfile {
   bonusPoints?: number;
   profileSetupDone?: boolean;
   badges?: string[];
+  achievementUnlockedAt?: Record<string, string>;
+  equippedBadges?: string[];
 }
 
 export type ProfileVisibility = "public" | "friends" | "private";
@@ -41,6 +43,8 @@ export interface PublicProfile {
   profileSetupDone?: boolean;
   isOfficial?: boolean;
   badges?: string[];
+  achievementUnlockedAt?: Record<string, string>;
+  equippedBadges?: string[];
 }
 
 export type MissionScope = "daily" | "weekly" | "season";

@@ -22,6 +22,7 @@ export async function saveDisplayProfile(params: {
   totalPoints?: number;
   bonusPoints?: number;
   profileSetupDone?: boolean;
+  equippedBadges?: string[];
 }) {
   const safeName = sanitizeDisplayName(params.name);
   const safeAvatar = sanitizeAvatar(params.avatar);
@@ -38,6 +39,9 @@ export async function saveDisplayProfile(params: {
   };
   if (typeof params.profileSetupDone === "boolean") {
     payload.profileSetupDone = params.profileSetupDone;
+  }
+  if (Array.isArray(params.equippedBadges)) {
+    payload.equippedBadges = params.equippedBadges.slice(0, 3);
   }
 
   await setDoc(
@@ -88,7 +92,26 @@ export async function fetchPublicProfile(uid: string): Promise<PublicProfile | n
     totalPoints: typeof data.totalPoints === "number" ? data.totalPoints : 0,
     bonusPoints: typeof data.bonusPoints === "number" ? data.bonusPoints : 0,
     profileSetupDone: typeof data.profileSetupDone === "boolean" ? data.profileSetupDone : true,
+    badges: Array.isArray(data.badges) ? data.badges.filter((b: unknown) => typeof b === "string") : [],
+    achievementUnlockedAt:
+      typeof data.achievementUnlockedAt === "object" && data.achievementUnlockedAt
+        ? (data.achievementUnlockedAt as Record<string, string>)
+        : {},
+    equippedBadges: Array.isArray(data.equippedBadges)
+      ? data.equippedBadges.filter((b: unknown) => typeof b === "string").slice(0, 3)
+      : [],
   };
+}
+
+export async function updateEquippedBadges(uid: string, badges: string[]) {
+  await setDoc(
+    doc(db, "userProfiles", uid),
+    {
+      equippedBadges: badges.slice(0, 3),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
 }
 
 export async function canViewProfile(targetUid: string, viewerUid: string): Promise<boolean> {

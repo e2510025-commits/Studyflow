@@ -1,4 +1,4 @@
-import { collection, getDocs, query, setDoc, where, doc } from "firebase/firestore";
+import { collection, getDoc, getDocs, query, setDoc, where, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { StudyLog } from "@/types";
 import { evaluateAchievements } from "@/lib/achievements";
@@ -26,10 +26,31 @@ export async function recomputeAndSaveAchievements(userUid: string): Promise<str
   });
 
   const badges = evaluateAchievements(logs);
+  const profileRef = doc(db, "userProfiles", userUid);
+  const profileSnap = await getDoc(profileRef);
+  const existingMap = profileSnap.exists()
+    ? ((profileSnap.data().achievementUnlockedAt || {}) as Record<string, string>)
+    : {};
+  const equippedBadges = profileSnap.exists()
+    ? ((profileSnap.data().equippedBadges || []) as string[])
+    : [];
+
+  const nextUnlockMap: Record<string, string> = { ...existingMap };
+  const nowIso = new Date().toISOString();
+  badges.forEach((id) => {
+    if (!nextUnlockMap[id]) {
+      nextUnlockMap[id] = nowIso;
+    }
+  });
+
+  const safeEquipped = equippedBadges.filter((id) => badges.includes(id)).slice(0, 3);
+
   await setDoc(
-    doc(db, "userProfiles", userUid),
+    profileRef,
     {
       badges,
+      achievementUnlockedAt: nextUnlockMap,
+      equippedBadges: safeEquipped,
       achievementUpdatedAt: new Date(),
     },
     { merge: true }

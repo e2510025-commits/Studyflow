@@ -167,7 +167,7 @@ export default function MissionManager() {
 
     setSaving(true);
     try {
-      await fetch("/api/admin/missions", {
+      const res = await fetch("/api/admin/missions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -178,6 +178,11 @@ export default function MissionManager() {
           actionType: "at_least",
         }),
       });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        alert(err.error || "ミッション保存に失敗しました");
+        return;
+      }
       setEditingId("");
       setStep(1);
       setForm(defaultDraft);
@@ -625,6 +630,17 @@ export default function MissionManager() {
             </div>
           </div>
         </aside>
+      </div>
+
+      <div className="flex items-center justify-end gap-2">
+        <button
+          onClick={() => void saveTemplate()}
+          disabled={saving || !form.title.trim()}
+          className="px-4 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-40"
+          style={{ background: "var(--accent)" }}
+        >
+          {saving ? "保存中..." : editingId ? "この内容で更新" : "この内容で追加"}
+        </button>
       </div>
 
       <div className="space-y-2">

@@ -117,6 +117,15 @@ export default function MotivationPanel() {
     return calcStreak(keys);
   }, [studyLogs]);
   const comment = autoComment({ growthRate, streak, totalHours: totalWeeklySec / 3600 });
+  const rarityOrder: Record<string, number> = {
+    common: 1,
+    rare: 2,
+    epic: 3,
+    legendary: 4,
+  };
+  const featuredBadge = badges
+    .map((id) => ({ id, meta: getAchievementMeta(id) }))
+    .sort((a, b) => (rarityOrder[b.meta?.rarity || "common"] || 0) - (rarityOrder[a.meta?.rarity || "common"] || 0))[0];
 
   const createWeeklySummaryImage = async (shareVariant: ShareVariant): Promise<File> => {
     const canvas = document.createElement("canvas");
@@ -127,43 +136,73 @@ export default function MotivationPanel() {
     if (!ctx) throw new Error("canvas not available");
 
     const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-    grad.addColorStop(0, "#0f172a");
-    grad.addColorStop(0.55, "#111827");
-    grad.addColorStop(1, "#1e1b4b");
+    grad.addColorStop(0, "#020617");
+    grad.addColorStop(0.55, "#082f49");
+    grad.addColorStop(1, "#0f172a");
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Subtle cyber pattern
-    ctx.globalAlpha = 0.12;
-    for (let i = 0; i < 24; i += 1) {
-      const x = (i * 143) % canvas.width;
-      const y = (i * 211) % canvas.height;
-      ctx.strokeStyle = i % 2 === 0 ? "#38bdf8" : "#a78bfa";
-      ctx.lineWidth = 2;
+    // Cyber grid background
+    ctx.globalAlpha = 0.25;
+    ctx.strokeStyle = "#22d3ee";
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= canvas.width; x += 54) {
       ctx.beginPath();
-      ctx.arc(x + 40, y + 40, 26, 0, Math.PI * 2);
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= canvas.height; y += 54) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
 
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "700 58px 'Noto Sans JP','Roboto',sans-serif";
-    ctx.fillText("StudyFlow Weekly Report", 64, 106);
+    ctx.fillStyle = "#e0f2fe";
+    ctx.font = "800 54px 'Noto Sans JP','Roboto',sans-serif";
+    ctx.fillText("ARCHIVE REPORT", 64, 102);
+    ctx.font = "700 24px 'Roboto',sans-serif";
+    ctx.fillStyle = "#7dd3fc";
+    ctx.fillText("STUDYFLOW // WEEKLY INTELLIGENCE", 66, 136);
 
     ctx.fillStyle = "#cbd5e1";
     ctx.font = "700 28px 'Noto Sans JP','Roboto',sans-serif";
-    ctx.fillText(`${userProfile.name || userProfile.uid} / ${Math.round(totalWeeklySec / 3600)}h`, 64, 154);
+    ctx.fillText(`${userProfile.name || userProfile.uid} / ${Math.round(totalWeeklySec / 3600)}h`, 64, 186);
 
     ctx.fillStyle = "#f8fafc";
     ctx.font = "700 32px 'Noto Sans JP','Roboto',sans-serif";
-    ctx.fillText(` ${streak}日連続学習中`, 64, 210);
+    ctx.fillText(` ${streak}日連続学習中`, 64, 238);
 
     ctx.fillStyle = growthPercent >= 0 ? "#22c55e" : "#ef4444";
-    ctx.fillText(` 先週比 ${growthPercent >= 0 ? "+" : ""}${growthPercent}%`, 360, 210);
+    ctx.fillText(` 先週比 ${growthPercent >= 0 ? "+" : ""}${growthPercent}%`, 360, 238);
+
+    // Featured rare medal (center card)
+    const medalW = isStory ? 820 : 420;
+    const medalX = Math.round((canvas.width - medalW) / 2);
+    const medalY = isStory ? 300 : 276;
+    ctx.fillStyle = "rgba(6,182,212,0.14)";
+    ctx.fillRect(medalX, medalY, medalW, 186);
+    ctx.strokeStyle = "rgba(103,232,249,0.8)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(medalX, medalY, medalW, 186);
+
+    const medalTitle = featuredBadge?.meta?.title || "NO MEDAL";
+    const medalRarity = featuredBadge?.meta?.rarity || "common";
+    ctx.fillStyle = "#ecfeff";
+    ctx.font = "800 34px 'Noto Sans JP','Roboto',sans-serif";
+    ctx.fillText(medalTitle, medalX + 24, medalY + 72);
+    ctx.fillStyle = "#a5f3fc";
+    ctx.font = "700 20px 'Roboto',sans-serif";
+    ctx.fillText(`FEATURED MEDAL  //  ${medalRarity.toUpperCase()}`, medalX + 24, medalY + 112);
+    ctx.fillStyle = "#bae6fd";
+    ctx.font = "700 18px 'Noto Sans JP','Roboto',sans-serif";
+    ctx.fillText(featuredBadge?.meta?.description || "称号を獲得してアーカイブを強化しよう", medalX + 24, medalY + 146);
 
     // Bar chart
     const chartX = 72;
-    const chartY = 270;
+    const chartY = isStory ? 540 : 500;
     const chartW = isStory ? 936 : 620;
     const chartH = 350;
     const maxSec = Math.max(...weeklyDurations, 1);
@@ -193,7 +232,7 @@ export default function MotivationPanel() {
 
     // Subject pie
     const pieCx = isStory ? 300 : 800;
-    const pieCy = isStory ? 770 : 450;
+    const pieCy = isStory ? 1000 : 680;
     const pieR = 120;
     const subjectTotal = Math.max(1, subjectBreakdown.reduce((s, row) => s + row.duration, 0));
     let angle = -Math.PI / 2;
@@ -219,7 +258,7 @@ export default function MotivationPanel() {
     ctx.fillText("内訳", pieCx - 18, pieCy + 20);
 
     const legendX = isStory ? 490 : 710;
-    const legendY = isStory ? 680 : 330;
+    const legendY = isStory ? 920 : 560;
     subjectBreakdown.forEach((row, idx) => {
       ctx.fillStyle = row.color;
       ctx.fillRect(legendX, legendY + idx * 44, 18, 18);
@@ -230,11 +269,24 @@ export default function MotivationPanel() {
 
     ctx.fillStyle = "#e2e8f0";
     ctx.font = "700 24px 'Noto Sans JP','Roboto',sans-serif";
-    ctx.fillText(` ${comment}`, 72, isStory ? 980 : 680);
+    ctx.fillText(` ${comment}`, 72, isStory ? 1260 : 910);
+
+    // Mini acquisition list
+    const latestBadges = badges.slice(-4);
+    ctx.fillStyle = "#7dd3fc";
+    ctx.font = "700 22px 'Roboto',sans-serif";
+    ctx.fillText("RECENT MEDAL LOG", 72, isStory ? 1330 : 960);
+    latestBadges.forEach((id, idx) => {
+      const meta = getAchievementMeta(id);
+      ctx.fillStyle = "#e2e8f0";
+      ctx.font = "700 18px 'Noto Sans JP','Roboto',sans-serif";
+      ctx.fillText(`- ${meta?.title || id}`, 72, (isStory ? 1370 : 1000) + idx * 28);
+    });
 
     ctx.fillStyle = "#94a3b8";
     ctx.font = "700 20px 'Roboto',sans-serif";
-    ctx.fillText("Generated by StudyFlow", 72, canvas.height - 48);
+    ctx.fillText("SYSTEM // STUDYFLOW ARCHIVE", 72, canvas.height - 72);
+    ctx.fillText("Generated by StudyFlow", 72, canvas.height - 44);
 
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png", 0.94));
     if (!blob) throw new Error("failed to generate image");
