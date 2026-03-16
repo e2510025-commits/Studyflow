@@ -4,20 +4,45 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore } from "@/store/useStore";
 import { motion } from "framer-motion";
-import { BookText, CheckCircle2, Loader2, MessageCircleQuestion } from "lucide-react";
+import { isAdminUid } from "@/lib/admin";
+import {
+  BookText,
+  CheckCircle2,
+  Flame,
+  Loader2,
+  MessageCircleQuestion,
+  PencilLine,
+  Sparkles,
+} from "lucide-react";
 import {
   createBulletinPost,
   subscribeBulletinPosts,
   subscribeMyHelpfulPostIds,
   toggleBulletinHelpful,
+  updateBulletinResolved,
 } from "@/lib/firestore/community";
 import type { BulletinCategory, BulletinPost } from "@/types";
 
 const CATEGORY_LABEL: Record<BulletinCategory, string> = {
-  qa: "質問・回答",
-  tips: "学習Tips",
-  ops: "運営からのお知らせ",
+  qa: "❓質問",
+  tips: "💡Tips",
+  chat: "☕雑談",
+  ops: "📢運営",
 };
+
+const CATEGORY_ORDER: BulletinCategory[] = ["ops", "qa", "tips", "chat"];
+
+function formatRelativeOrDate(iso: string) {
+  const time = new Date(iso).getTime();
+  if (Number.isNaN(time)) return "日時不明";
+  const diff = Date.now() - time;
+  const minute = 60_000;
+  const hour = minute * 60;
+  const day = hour * 24;
+  if (diff < hour) return `${Math.max(1, Math.floor(diff / minute))}分前`;
+  if (diff < day) return `${Math.floor(diff / hour)}時間前`;
+  return new Date(iso).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
 
 function renderInline(text: string): React.ReactNode {
   const parts: React.ReactNode[] = [];
@@ -87,13 +112,17 @@ function renderMarkdown(content: string): React.ReactNode {
 
 export default function BulletinPage() {
   const { userProfile } = useStore();
+  const isAdmin = isAdminUid(userProfile.uid);
   const [tab, setTab] = useState<BulletinCategory | "all">("all");
   const [rows, setRows] = useState<BulletinPost[]>([]);
   const [helpfulIds, setHelpfulIds] = useState<Set<string>>(new Set());
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [category, setCategory] = useState<BulletinCategory>("tips");
+  const [preview, setPreview] = useState(false);
   const [posting, setPosting] = useState(false);
+  const [togglingResolvedId, setTogglingResolvedId] = useState("");
+  const [errorText, setErrorText] = useState("");
 
   useEffect(() => {
     return subscribeBulletinPosts(setRows, tab);
@@ -105,6 +134,27 @@ export default function BulletinPage() {
   }, [userProfile.uid]);
 
   const totalLabel = useMemo(() => `${rows.length}件`, [rows.length]);
+  const trendingRows = useMemo(() => {
+    return [...rows]
+      .sort((a, b) => {
+        const scoreA = a.helpfulCount * 4 + a.replyCount * 2 + (a.category === "qa" && !a.resolved ? 2 : 0);
+        const scoreB = b.helpfulCount * 4 + b.replyCount * 2 + (b.category === "qa" && !b.resolved ? 2 : 0);
+        if (scoreA !== scoreB) return scoreB - scoreA;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      })
+      .slice(0, 4);
+  }, [rows]);
+
+  const selectableCategories = useMemo(
+    () => (isAdmin ? CATEGORY_ORDER : CATEGORY_ORDER.filter((key) => key !== "ops")),
+    [isAdmin]
+  );
+
+  useEffect(() => {
+    if (!isAdmin && category === "ops") {
+      setCategory("tips");
+    }
+  }, [isAdmin, category]);
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
@@ -119,6 +169,30 @@ export default function BulletinPage() {
       </div>
 
       <section className="glass-card p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Flame size={16} style={{ color: "#f59e0b" }} />
+          <h2 className="text-sm font-black" style={{ color: "var(--foreground)" }}>注目のトピック</h2>
+        </div>
+        {trendingRows.length === 0 ? (
+          <p className="text-sm" style={{ color: "var(--muted)" }}>まだトピックがありません。</p>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-2">
+            {trendingRows.map((row) => (
+              <div key={`trend_${row.id}`} className="rounded-xl p-3" style={{ background: "var(--muted-bg)" }}>
+                <p className="text-[11px] font-semibold" style={{ color: "var(--muted)" }}>
+                  {CATEGORY_LABEL[row.category]} ・ {formatRelativeOrDate(row.createdAt)}
+                </p>
+                <p className="text-sm font-bold truncate" style={{ color: "var(--foreground)" }}>{row.title}</p>
+                <p className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>
+                  役立った {row.helpfulCount} ・ 返信 {row.replyCount}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section id="bulletin-compose" className="glass-card p-4 space-y-3">
         <h2 className="text-sm font-black" style={{ color: "var(--foreground)" }}>新規投稿</h2>
         <div className="grid md:grid-cols-[180px_1fr] gap-2">
           <select
@@ -127,9 +201,9 @@ export default function BulletinPage() {
             className="px-3 py-2 rounded-xl text-sm"
             style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
           >
-            <option value="qa">質問・回答</option>
-            <option value="tips">学習Tips</option>
-            <option value="ops">運営からのお知らせ</option>
+            {selectableCategories.map((key) => (
+              <option key={key} value={key}>{CATEGORY_LABEL[key]}</option>
+            ))}
           </select>
           <input
             value={title}
@@ -147,6 +221,34 @@ export default function BulletinPage() {
           className="w-full px-3 py-2 rounded-xl text-sm"
           style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
         />
+        <div className="flex items-center gap-2 text-xs">
+          <button
+            onClick={() => setPreview(false)}
+            className="px-2.5 py-1 rounded-lg font-semibold"
+            style={{ background: !preview ? "var(--accent-light)" : "var(--muted-bg)", color: !preview ? "var(--accent)" : "var(--muted)" }}
+          >
+            エディタ
+          </button>
+          <button
+            onClick={() => setPreview(true)}
+            className="px-2.5 py-1 rounded-lg font-semibold"
+            style={{ background: preview ? "var(--accent-light)" : "var(--muted-bg)", color: preview ? "var(--accent)" : "var(--muted)" }}
+          >
+            プレビュー
+          </button>
+          {!isAdmin && (
+            <span style={{ color: "var(--muted)" }}>※運営カテゴリは管理者のみ投稿できます</span>
+          )}
+        </div>
+        {preview && (
+          <div className="rounded-xl px-3 py-2 min-h-[110px]" style={{ background: "var(--muted-bg)" }}>
+            {content.trim() ? (
+              <div className="space-y-1">{renderMarkdown(content)}</div>
+            ) : (
+              <p className="text-sm" style={{ color: "var(--muted)" }}>ここにプレビューが表示されます。</p>
+            )}
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <p className="text-xs" style={{ color: "var(--muted)" }}>
             Markdown/TeX風表記に対応。役立った数は投稿者プロフィール統計に反映されます。
@@ -154,18 +256,18 @@ export default function BulletinPage() {
           <button
             onClick={async () => {
               if (!userProfile.uid || posting || !title.trim() || !content.trim()) return;
+              setErrorText("");
               setPosting(true);
               try {
                 await createBulletinPost({
-                  uid: userProfile.uid,
-                  name: userProfile.name,
-                  avatar: userProfile.avatar,
                   title,
                   content,
                   category,
                 });
                 setTitle("");
                 setContent("");
+              } catch (error) {
+                setErrorText(error instanceof Error ? error.message : "投稿に失敗しました");
               } finally {
                 setPosting(false);
               }
@@ -177,6 +279,9 @@ export default function BulletinPage() {
             {posting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} 投稿
           </button>
         </div>
+        {errorText && (
+          <p className="text-xs" style={{ color: "#ef4444" }}>{errorText}</p>
+        )}
       </section>
 
       <section className="glass-card p-4 space-y-3">
@@ -189,7 +294,7 @@ export default function BulletinPage() {
             >
               すべて
             </button>
-            {(Object.keys(CATEGORY_LABEL) as BulletinCategory[]).map((key) => (
+            {CATEGORY_ORDER.map((key) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}
@@ -228,8 +333,16 @@ export default function BulletinPage() {
                         <Link href={`/profile/${row.uid}`} className="hover:underline ml-1" style={{ color: "var(--foreground)" }}>
                           {row.name}
                         </Link>
+                        <span className="ml-2">{formatRelativeOrDate(row.createdAt)}</span>
                       </p>
-                      <h3 className="text-base font-black mt-0.5" style={{ color: "var(--foreground)" }}>{row.title}</h3>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                        <h3 className="text-base font-black" style={{ color: "var(--foreground)" }}>{row.title}</h3>
+                        {row.category === "qa" && row.resolved && (
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: "rgba(34,197,94,0.16)", color: "#16a34a" }}>
+                            解決済み
+                          </span>
+                        )}
+                      </div>
                       <div className="mt-2 space-y-1">{renderMarkdown(row.content)}</div>
                       <div className="mt-3 flex items-center gap-2">
                         <button
@@ -242,6 +355,29 @@ export default function BulletinPage() {
                         >
                           役立った {row.helpfulCount}
                         </button>
+                        <span className="text-xs px-2 py-1 rounded-lg" style={{ background: "var(--card-bg)", color: "var(--muted)" }}>
+                          返信 {row.replyCount}
+                        </span>
+                        {row.category === "qa" && (row.uid === userProfile.uid || isAdmin) && (
+                          <button
+                            onClick={async () => {
+                              setErrorText("");
+                              setTogglingResolvedId(row.id);
+                              try {
+                                await updateBulletinResolved({ postId: row.id, resolved: !row.resolved });
+                              } catch (error) {
+                                setErrorText(error instanceof Error ? error.message : "解決状態の更新に失敗しました");
+                              } finally {
+                                setTogglingResolvedId("");
+                              }
+                            }}
+                            disabled={togglingResolvedId === row.id}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold disabled:opacity-50"
+                            style={{ background: "var(--card-bg)", color: "var(--muted)" }}
+                          >
+                            {togglingResolvedId === row.id ? "更新中..." : row.resolved ? "未解決に戻す" : "解決済みにする"}
+                          </button>
+                        )}
                         <span className="text-[11px]" style={{ color: "var(--muted)" }}>
                           <MessageCircleQuestion size={12} className="inline mr-1" />
                           Markdown + TeX風
@@ -255,6 +391,16 @@ export default function BulletinPage() {
           </div>
         )}
       </section>
+
+      <a
+        href="#bulletin-compose"
+        className="fixed right-5 bottom-5 px-4 py-2.5 rounded-full text-sm font-semibold text-white shadow-lg inline-flex items-center gap-2"
+        style={{ background: "linear-gradient(90deg, var(--accent), #0ea5e9)" }}
+      >
+        <PencilLine size={16} />
+        投稿する
+        <Sparkles size={14} />
+      </a>
     </div>
   );
 }

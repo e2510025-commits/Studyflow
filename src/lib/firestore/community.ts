@@ -22,6 +22,7 @@ const GLOBAL_STREAM = "globalStreamMessages";
 const GLOBAL_SYSTEM_EVENTS = "globalSystemEvents";
 const BULLETIN_POSTS = "bulletinPosts";
 const BULLETIN_HELPFULS = "bulletinHelpfuls";
+const BULLETIN_ALLOWED_CATEGORIES: BulletinCategory[] = ["qa", "tips", "chat", "ops"];
 
 function toIso(value: unknown): string {
   if (value instanceof Timestamp) return value.toDate().toISOString();
@@ -167,10 +168,12 @@ export function subscribeBulletinPosts(
             avatar: sanitizeAvatar(data.avatar || "👤"),
             title: String(data.title || "無題").slice(0, 120),
             content: String(data.content || ""),
-            category: (["qa", "tips", "ops"].includes(data.category)
+            category: (BULLETIN_ALLOWED_CATEGORIES.includes(data.category as BulletinCategory)
               ? data.category
               : "tips") as BulletinCategory,
             helpfulCount: Math.max(0, Number(data.helpfulCount || 0)),
+            replyCount: Math.max(0, Number(data.replyCount || 0)),
+            resolved: Boolean(data.resolved),
             createdAt: toIso(data.createdAt),
           };
         })
@@ -182,28 +185,47 @@ export function subscribeBulletinPosts(
 }
 
 export async function createBulletinPost(params: {
-  uid: string;
-  name: string;
-  avatar: string;
   title: string;
   content: string;
   category: BulletinCategory;
 }) {
-  if (!params.uid) return;
   const title = params.title.trim().slice(0, 120);
   const content = params.content.trim().slice(0, 6000);
   if (!title || !content) return;
 
-  await addDoc(collection(db, BULLETIN_POSTS), {
-    uid: params.uid,
-    name: sanitizeDisplayName(params.name || "匿名"),
-    avatar: sanitizeAvatar(params.avatar || "👤"),
-    title,
-    content,
-    category: params.category,
-    helpfulCount: 0,
-    createdAt: serverTimestamp(),
+  const response = await fetch("/api/bulletin", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title,
+      content,
+      category: params.category,
+    }),
   });
+
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error || "bulletin_create_failed");
+  }
+}
+
+export async function updateBulletinResolved(params: {
+  postId: string;
+  resolved: boolean;
+}) {
+  if (!params.postId) return;
+  const response = await fetch("/api/bulletin", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      postId: params.postId,
+      resolved: params.resolved,
+    }),
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error || "bulletin_update_failed");
+  }
 }
 
 function helpfulDocId(postId: string, uid: string) {

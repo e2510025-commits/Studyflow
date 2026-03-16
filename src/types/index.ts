@@ -61,7 +61,7 @@ export interface PublicProfile {
   helpfulReceived?: number;
 }
 
-export type BulletinCategory = "qa" | "tips" | "ops";
+export type BulletinCategory = "qa" | "tips" | "chat" | "ops";
 
 export interface CommunityStreamMessage {
   id: string;
@@ -82,6 +82,8 @@ export interface BulletinPost {
   content: string;
   category: BulletinCategory;
   helpfulCount: number;
+  replyCount: number;
+  resolved: boolean;
   createdAt: string;
 }
 
