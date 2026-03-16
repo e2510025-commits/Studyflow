@@ -200,16 +200,12 @@ export async function markChatMessagesAsRead(
   myUid: string,
   friendUid: string
 ): Promise<void> {
-  const conversationId = getConversationId(myUid, friendUid);
-  const q = query(
-    collection(db, CHAT_COLLECTION),
-    where("conversationId", "==", conversationId)
-  );
+  const q = query(collection(db, CHAT_COLLECTION), where("toUid", "==", myUid));
   const snapshot = await getDocs(q);
   const unread = snapshot.docs.filter((d) => {
     const data = d.data();
     const readBy = Array.isArray(data.readBy) ? data.readBy : [];
-    return data.fromUid === friendUid && data.toUid === myUid && !readBy.includes(myUid);
+    return data.fromUid === friendUid && !readBy.includes(myUid);
   });
 
   if (unread.length === 0) return;

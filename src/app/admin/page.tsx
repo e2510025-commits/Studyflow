@@ -55,6 +55,8 @@ export default function AdminPage() {
   const [editingBody, setEditingBody] = useState("");
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [section, setSection] = useState<AdminSection>("overview");
+  const [appVersion, setAppVersion] = useState("1.0.0");
+  const [savingVersion, setSavingVersion] = useState(false);
 
   const verifyAdmin = useCallback(async () => {
     setChecking(true);
@@ -97,6 +99,13 @@ export default function AdminPage() {
     setAnnouncements(json.announcements || []);
   }, []);
 
+  const loadSettings = useCallback(async () => {
+    const res = await fetch("/api/admin/settings", { cache: "no-store" });
+    if (!res.ok) return;
+    const json = (await res.json()) as { version?: string };
+    setAppVersion((json.version || "1.0.0").trim() || "1.0.0");
+  }, []);
+
   useEffect(() => {
     void verifyAdmin();
   }, [verifyAdmin]);
@@ -106,7 +115,28 @@ export default function AdminPage() {
     void loadOverview();
     void loadUsers();
     void loadAnnouncements();
-  }, [allowed, loadAnnouncements, loadOverview, loadUsers]);
+    void loadSettings();
+  }, [allowed, loadAnnouncements, loadOverview, loadSettings, loadUsers]);
+
+  const saveSettings = useCallback(async () => {
+    const version = appVersion.trim();
+    if (!version) return;
+    setSavingVersion(true);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ version }),
+      });
+      if (!res.ok) {
+        alert("バージョン保存に失敗しました");
+        return;
+      }
+      setAppVersion(version);
+    } finally {
+      setSavingVersion(false);
+    }
+  }, [appVersion]);
 
   const act = useCallback(
     async (targetUid: string, action: string, extras?: Record<string, unknown>) => {
@@ -254,6 +284,30 @@ export default function AdminPage() {
                 <p className="text-xl font-black" style={{ color: "var(--accent)" }}>{value}</p>
               </div>
             ))}
+          </div>
+
+          <div className="mt-4 pt-4 border-t" style={{ borderColor: "var(--card-border)" }}>
+            <h3 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>アプリ表示設定</h3>
+            <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
+              左下に表示されるバージョン値を変更できます
+            </p>
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                value={appVersion}
+                onChange={(e) => setAppVersion(e.target.value)}
+                placeholder="例: 1.1.0"
+                className="px-3 py-2 rounded-xl text-sm w-52"
+                style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+              />
+              <button
+                onClick={() => void saveSettings()}
+                disabled={savingVersion || !appVersion.trim()}
+                className="px-3 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-40"
+                style={{ background: "var(--accent)" }}
+              >
+                {savingVersion ? "保存中..." : "保存"}
+              </button>
+            </div>
           </div>
         </section>
       )}

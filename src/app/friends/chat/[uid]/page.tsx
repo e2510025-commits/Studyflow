@@ -280,11 +280,11 @@ export default function ChatPage() {
           フレンドが見つかりません
         </p>
         <button
-          onClick={() => router.push("/friends")}
+          onClick={() => router.push("/conversations")}
           className="px-4 py-2 rounded-xl text-sm font-semibold"
           style={{ background: "var(--accent)", color: "#fff" }}
         >
-          フレンド一覧へ戻る
+          DM一覧へ戻る
         </button>
       </div>
     );
@@ -301,7 +301,7 @@ export default function ChatPage() {
         }}
       >
         <motion.button
-          onClick={() => router.push("/friends")}
+          onClick={() => router.push("/conversations")}
           className="w-9 h-9 rounded-full flex items-center justify-center"
           style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
           whileHover={{ scale: 1.1 }}

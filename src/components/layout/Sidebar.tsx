@@ -1,10 +1,11 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useStore } from "@/store/useStore";
 import { isAdminUid } from "@/lib/admin";
+import { subscribeAppVersion } from "@/lib/firestore/appConfig";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
@@ -28,9 +29,16 @@ const baseNavItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const { sidebarOpen, setSidebarOpen, userProfile } = useStore();
+  const [appVersion, setAppVersion] = useState("1.0.0");
   const navItems = isAdminUid(userProfile.uid)
     ? [...baseNavItems, { href: "/admin", label: "管理者", icon: Shield }]
     : baseNavItems;
+
+  useEffect(() => {
+    return subscribeAppVersion((version) => {
+      setAppVersion(version);
+    });
+  }, []);
 
   return (
     <>
@@ -133,7 +141,7 @@ export default function Sidebar() {
             UID: {userProfile.uid}
           </span>
           <span className="text-xs" style={{ color: "var(--muted)" }}>
-            StudyFlow v1.0.0
+            StudyFlow v{appVersion}
           </span>
         </div>
       </aside>
