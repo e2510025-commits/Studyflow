@@ -134,6 +134,12 @@ export default function MissionsPage() {
                 <div className="text-right">
                   <p className="text-xs" style={{ color: "var(--muted)" }}>報酬</p>
                   <p className="text-lg font-black" style={{ color: "var(--accent)" }}>{mission.rewardPoints} pt</p>
+                  {mission.rewardMultiplier && mission.rewardMultiplier > 1 ? (
+                    <p className="text-[11px]" style={{ color: "#22c55e" }}>x{mission.rewardMultiplier.toFixed(1)} 倍率</p>
+                  ) : null}
+                  {mission.rewardBadge ? (
+                    <p className="text-[11px]" style={{ color: "#f59e0b" }}>バッジ: {mission.rewardBadge}</p>
+                  ) : null}
                 </div>
               </div>
 

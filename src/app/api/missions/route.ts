@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { addDoc, collection, doc, getDoc, increment, serverTimestamp, setDoc } from "firebase/firestore";
+import { addDoc, arrayUnion, collection, doc, getDoc, increment, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { auth } from "@/lib/auth/auth";
 import { toAppUid } from "@/lib/identity";
@@ -100,6 +100,9 @@ export async function POST(request: Request) {
     return toError("mission not found", 404);
   }
 
+  const rewardMultiplier = Math.max(1, Number(mission.rewardMultiplier || 1));
+  const finalRewardPoints = Math.max(1, Math.floor(mission.rewardPoints * rewardMultiplier));
+
   const claimDocId = buildClaimDocId(uid, scope, target.period.key);
   const existingClaim = await getDoc(doc(db, "missionClaims", claimDocId));
   if (existingClaim.exists()) {
@@ -121,7 +124,7 @@ export async function POST(request: Request) {
     scope,
     periodKey: target.period.key,
     missionId: mission.id,
-    points: mission.rewardPoints,
+    points: finalRewardPoints,
     claimedAt: serverTimestamp(),
   });
 
@@ -129,19 +132,20 @@ export async function POST(request: Request) {
     uid,
     scope,
     missionId: mission.id,
-    points: mission.rewardPoints,
+    points: finalRewardPoints,
     createdAt: serverTimestamp(),
   });
 
   await setDoc(
     doc(db, "userProfiles", uid),
     {
-      totalPoints: increment(mission.rewardPoints),
-      bonusPoints: increment(mission.rewardPoints),
+      totalPoints: increment(finalRewardPoints),
+      bonusPoints: increment(finalRewardPoints),
+      ...(mission.rewardBadge ? { badges: arrayUnion(mission.rewardBadge) } : {}),
       updatedAt: serverTimestamp(),
     },
     { merge: true }
   );
 
-  return NextResponse.json({ ok: true, points: mission.rewardPoints });
+  return NextResponse.json({ ok: true, points: finalRewardPoints });
 }

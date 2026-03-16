@@ -40,6 +40,12 @@ export async function POST(request: Request) {
         goalValue?: number;
         rewardPoints?: number;
         active?: boolean;
+        triggerType?: "study_time" | "study_sessions" | "login_days";
+        targetType?: "daily" | "weekly" | "season_total";
+        actionType?: "at_least";
+        subjectLabel?: string;
+        rewardBadge?: string;
+        rewardMultiplier?: number;
       }
     | {
         action: "deleteTemplate";
@@ -103,6 +109,18 @@ export async function POST(request: Request) {
       goalValue: Math.max(1, Math.floor(Number(body.goalValue || 1))),
       rewardPoints: Math.max(1, Math.floor(Number(body.rewardPoints || 1))),
       active: body.active !== false,
+      triggerType:
+        body.triggerType === "study_sessions" || body.triggerType === "login_days"
+          ? body.triggerType
+          : "study_time",
+      targetType:
+        body.targetType === "weekly" || body.targetType === "season_total"
+          ? body.targetType
+          : "daily",
+      actionType: "at_least",
+      subjectLabel: (body.subjectLabel || "").trim().slice(0, 40),
+      rewardBadge: (body.rewardBadge || "").trim().slice(0, 40),
+      rewardMultiplier: Math.max(1, Math.min(3, Number(body.rewardMultiplier || 1))),
       updatedBy: guard.appUid,
       updatedAt: serverTimestamp(),
     };

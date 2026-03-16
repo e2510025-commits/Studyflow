@@ -56,6 +56,12 @@ export interface MissionTemplate {
   goalValue: number;
   rewardPoints: number;
   active: boolean;
+  triggerType?: "study_time" | "study_sessions" | "login_days";
+  targetType?: "daily" | "weekly" | "season_total";
+  actionType?: "at_least";
+  subjectLabel?: string;
+  rewardBadge?: string;
+  rewardMultiplier?: number;
 }
 
 export interface MissionConfig {

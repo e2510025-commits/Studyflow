@@ -171,6 +171,21 @@ export async function getMissionTemplates(): Promise<MissionTemplate[]> {
         goalValue: Math.max(1, Math.floor(Number(data.goalValue || 1))),
         rewardPoints: Math.max(1, Math.floor(Number(data.rewardPoints || 1))),
         active: Boolean(data.active),
+        triggerType:
+          data.triggerType === "study_sessions" || data.triggerType === "login_days"
+            ? data.triggerType
+            : "study_time",
+        targetType:
+          data.targetType === "weekly" || data.targetType === "season_total"
+            ? data.targetType
+            : "daily",
+        actionType: "at_least",
+        subjectLabel: typeof data.subjectLabel === "string" ? data.subjectLabel : "",
+        rewardBadge: typeof data.rewardBadge === "string" ? data.rewardBadge : "",
+        rewardMultiplier:
+          typeof data.rewardMultiplier === "number" && Number.isFinite(data.rewardMultiplier)
+            ? Math.max(1, Math.min(3, data.rewardMultiplier))
+            : 1,
       } satisfies MissionTemplate;
     })
     .sort((a, b) => a.title.localeCompare(b.title, "ja"));
@@ -259,6 +274,17 @@ export async function readMissionProgress(params: {
     filters.push(where("createdAt", "<=", Timestamp.fromDate(params.endAt)));
   }
   const snap = await getDocs(query(collection(db, "studyLogs"), ...filters));
+
+  if (params.mission.triggerType === "login_days") {
+    const daySet = new Set<string>();
+    snap.docs.forEach((d) => {
+      const createdAt = d.data().createdAt;
+      const dt = createdAt instanceof Timestamp ? createdAt.toDate() : null;
+      if (!dt) return;
+      daySet.add(dt.toISOString().slice(0, 10));
+    });
+    return daySet.size;
+  }
 
   if (params.mission.goalType === "study_sessions") {
     return snap.docs.reduce((count, d) => {
