@@ -121,6 +121,57 @@ function pickRandom<T>(items: T[]): T | null {
   return items[index] || null;
 }
 
+function fallbackMission(scope: MissionScope): MissionTemplate {
+  if (scope === "daily") {
+    return {
+      id: "fallback-daily",
+      scope,
+      title: "デイリー学習 30分",
+      description: "毎日30分以上学習しよう",
+      goalType: "study_seconds",
+      goalValue: 1800,
+      rewardPoints: 30,
+      active: true,
+      triggerType: "study_time",
+      targetType: "daily",
+      actionType: "at_least",
+      rewardMultiplier: 1,
+    };
+  }
+
+  if (scope === "weekly") {
+    return {
+      id: "fallback-weekly",
+      scope,
+      title: "ウィークリー 3セッション",
+      description: "今週3回以上学習しよう",
+      goalType: "study_sessions",
+      goalValue: 3,
+      rewardPoints: 80,
+      active: true,
+      triggerType: "study_sessions",
+      targetType: "weekly",
+      actionType: "at_least",
+      rewardMultiplier: 1,
+    };
+  }
+
+  return {
+    id: "fallback-season",
+    scope,
+    title: "シーズン 10セッション",
+    description: "シーズン期間中に10回学習しよう",
+    goalType: "study_sessions",
+    goalValue: 10,
+    rewardPoints: 200,
+    active: true,
+    triggerType: "study_sessions",
+    targetType: "season_total",
+    actionType: "at_least",
+    rewardMultiplier: 1,
+  };
+}
+
 export function buildClaimDocId(uid: string, scope: MissionScope, periodKey: string): string {
   return `${uid}_${scope}_${periodKey}`;
 }
@@ -206,7 +257,8 @@ export async function resolveActiveMissions(config: MissionConfig, templates: Mi
 
   for (const scope of SCOPES) {
     const period = getPeriodInfo(scope, config);
-    const candidates = templates.filter((t) => t.scope === scope && t.active);
+    const scopedTemplates = templates.filter((t) => t.scope === scope && t.active);
+    const candidates = scopedTemplates.length > 0 ? scopedTemplates : [fallbackMission(scope)];
     const selectedFromRotation = currentRotation?.[scope] as
       | { missionId?: string; periodKey?: string }
       | undefined;
