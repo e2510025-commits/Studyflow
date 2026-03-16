@@ -22,15 +22,22 @@ function formatProgressValue(value: number, unit: string) {
 export default function MissionsPage() {
   const { userProfile, updateUserProfile } = useStore();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [claimingScope, setClaimingScope] = useState<string>("");
   const [seasonName, setSeasonName] = useState("Season");
   const [missions, setMissions] = useState<MissionStatus[]>([]);
 
   const loadMissions = useCallback(async () => {
     setLoading(true);
+    setLoadError("");
     try {
       const res = await fetch("/api/missions", { cache: "no-store" });
-      if (!res.ok) return;
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        setLoadError(err.error || "ミッションの取得に失敗しました");
+        setMissions([]);
+        return;
+      }
       const json = (await res.json()) as MissionApiResponse;
       setSeasonName(json.seasonName || "Season");
       setMissions(json.missions || []);
@@ -101,6 +108,27 @@ export default function MissionsPage() {
       </div>
 
       <div className="space-y-4">
+        {loadError && (
+          <section className="glass-card p-5">
+            <p className="text-sm font-bold" style={{ color: "#ef4444" }}>ミッションを表示できません</p>
+            <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>{loadError}</p>
+            <button
+              onClick={() => void loadMissions()}
+              className="mt-3 px-3 py-2 rounded-lg text-sm font-semibold"
+              style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+            >
+              再読み込み
+            </button>
+          </section>
+        )}
+        {!loadError && ordered.length === 0 && (
+          <section className="glass-card p-5">
+            <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>ミッションが見つかりません</p>
+            <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
+              現在配信中のミッションがありません。少し時間を置いて再読み込みしてください。
+            </p>
+          </section>
+        )}
         {ordered.map((row, index) => {
           const mission = row.mission;
           const isClaiming = claimingScope === row.scope;

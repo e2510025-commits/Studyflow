@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { addDoc, arrayUnion, collection, doc, getDoc, increment, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { auth } from "@/lib/auth/auth";
-import { toAppUid } from "@/lib/identity";
 import type { MissionScope, MissionStatus } from "@/types";
+import { resolveSessionUser } from "@/lib/server/sessionUser";
 import {
   buildClaimDocId,
   getMissionConfig,
@@ -17,9 +16,8 @@ function toError(message: string, status = 400) {
 }
 
 async function resolveUid() {
-  const session = await auth();
-  const uid = toAppUid(session?.user?.id || "");
-  return uid;
+  const user = await resolveSessionUser();
+  return user?.uid || "";
 }
 
 export async function GET() {

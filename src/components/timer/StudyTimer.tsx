@@ -42,6 +42,12 @@ import {
   subscribeUserTodos,
   type UserTodo,
 } from "@/lib/firestore/todos";
+import {
+  deletePomodoroPreset,
+  savePomodoroPreset,
+  subscribePomodoroPresets,
+  type PomodoroPreset,
+} from "@/lib/firestore/pomodoroPresets";
 
 /* ─── Sound helper ────────────────────────────────────── */
 function playSound(type: "complete" | "break") {
@@ -109,6 +115,8 @@ export default function StudyTimer() {
   const [newTodoTitle, setNewTodoTitle] = useState("");
   const [newTodoPages, setNewTodoPages] = useState("");
   const [completeTodoOnSave, setCompleteTodoOnSave] = useState(true);
+  const [presetName, setPresetName] = useState("");
+  const [presets, setPresets] = useState<PomodoroPreset[]>([]);
 
   /* ── Focus Bonus tracking (visibility API) ─────────── */
   const [focusLost, setFocusLost] = useState(false);
@@ -146,6 +154,11 @@ export default function StudyTimer() {
   useEffect(() => {
     if (!userProfile.uid) return;
     return subscribeUserTodos(userProfile.uid, setTodos);
+  }, [userProfile.uid]);
+
+  useEffect(() => {
+    if (!userProfile.uid) return;
+    return subscribePomodoroPresets(userProfile.uid, setPresets);
   }, [userProfile.uid]);
 
   const activeTodos = useMemo(() => todos.filter((row) => !row.done), [todos]);
@@ -847,6 +860,70 @@ export default function StudyTimer() {
                     <div className="w-5 h-5 bg-white rounded-full absolute top-1 transition-all shadow"
                       style={{ left: pomodoroConfig.autoStartWork ? "calc(100% - 24px)" : "4px" }} />
                   </button>
+                </div>
+
+                <div className="pt-2 border-t" style={{ borderColor: "var(--card-border)" }}>
+                  <p className="text-xs font-bold" style={{ color: "var(--foreground)" }}>
+                    ポモドーロプリセット
+                  </p>
+                  <p className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>
+                    現在の設定を保存して、ワンタップで再利用できます。
+                  </p>
+                  <div className="mt-2 grid sm:grid-cols-[1fr_auto] gap-2">
+                    <input
+                      value={presetName}
+                      onChange={(e) => setPresetName(e.target.value)}
+                      placeholder="例: 受験集中25-5"
+                      className="px-3 py-2 rounded-lg text-sm"
+                      style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
+                    />
+                    <button
+                      onClick={() => {
+                        if (!presetName.trim() || !userProfile.uid) return;
+                        void savePomodoroPreset(userProfile.uid, presetName, pomodoroConfig).catch(() => {});
+                        setPresetName("");
+                      }}
+                      className="px-3 py-2 rounded-lg text-sm font-semibold text-white"
+                      style={{ background: "var(--accent)" }}
+                    >
+                      現在設定を保存
+                    </button>
+                  </div>
+
+                  {presets.length === 0 ? (
+                    <p className="text-[11px] mt-2" style={{ color: "var(--muted)" }}>
+                      まだプリセットはありません
+                    </p>
+                  ) : (
+                    <div className="mt-2 space-y-2 max-h-44 overflow-y-auto pr-1">
+                      {presets.map((preset) => (
+                        <div key={preset.id} className="rounded-lg p-2.5 flex items-center gap-2" style={{ background: "var(--card-bg)" }}>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold truncate" style={{ color: "var(--foreground)" }}>
+                              {preset.name}
+                            </p>
+                            <p className="text-[10px]" style={{ color: "var(--muted)" }}>
+                              {Math.round(preset.config.workDuration / 60)}分 / {Math.round(preset.config.shortBreakDuration / 60)}分 / {Math.round(preset.config.longBreakDuration / 60)}分
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setPomodoroConfig(preset.config)}
+                            className="px-2 py-1 rounded text-xs font-semibold"
+                            style={{ background: "var(--accent-light)", color: "var(--accent)" }}
+                          >
+                            適用
+                          </button>
+                          <button
+                            onClick={() => void deletePomodoroPreset(preset.id)}
+                            className="px-2 py-1 rounded text-xs font-semibold"
+                            style={{ background: "#ef444420", color: "#ef4444" }}
+                          >
+                            削除
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}

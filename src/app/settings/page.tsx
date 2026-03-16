@@ -6,19 +6,11 @@ import { motion } from "framer-motion";
 import { User, Copy, Check, Save, Upload, X, ImageIcon } from "lucide-react";
 import { fetchPublicProfile, saveDisplayProfile } from "@/lib/firestore/profile";
 import type { ProfileVisibility } from "@/types";
-import {
-  deletePomodoroPreset,
-  savePomodoroPreset,
-  subscribePomodoroPresets,
-  type PomodoroPreset,
-} from "@/lib/firestore/pomodoroPresets";
 
 export default function SettingsPage() {
   const {
     userProfile,
     updateUserProfile,
-    pomodoroConfig,
-    setPomodoroConfig,
   } = useStore();
 
   const [name, setName] = useState(() => userProfile.name);
@@ -28,8 +20,6 @@ export default function SettingsPage() {
   const [bio, setBio] = useState("");
   const [visibility, setVisibility] = useState<ProfileVisibility>("public");
   const [nameError, setNameError] = useState("");
-  const [presetName, setPresetName] = useState("");
-  const [presets, setPresets] = useState<PomodoroPreset[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -41,11 +31,6 @@ export default function SettingsPage() {
         setVisibility(profile.visibility || "public");
       })
       .catch(() => {});
-  }, [userProfile.uid]);
-
-  useEffect(() => {
-    if (!userProfile.uid) return;
-    return subscribePomodoroPresets(userProfile.uid, setPresets);
   }, [userProfile.uid]);
 
   const handleSave = async () => {
@@ -358,72 +343,6 @@ export default function SettingsPage() {
           <option value="friends">フレンドのみ</option>
           <option value="private">非公開（自分のみ）</option>
         </select>
-      </motion.div>
-
-      <motion.div
-        className="glass-card p-5 space-y-3"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.195, duration: 0.4 }}
-      >
-        <h2 className="text-base font-bold" style={{ color: "var(--foreground)" }}>
-          ポモドーロプリセット
-        </h2>
-        <p className="text-xs" style={{ color: "var(--muted)" }}>
-          現在の集中/休憩設定を名前付きで保存し、ワンタップで適用できます。
-        </p>
-
-        <div className="grid sm:grid-cols-[1fr_auto] gap-2">
-          <input
-            value={presetName}
-            onChange={(e) => setPresetName(e.target.value)}
-            placeholder="例: 受験集中25-5"
-            className="px-4 py-2.5 rounded-xl text-sm"
-            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-          />
-          <button
-            onClick={() => {
-              if (!presetName.trim() || !userProfile.uid) return;
-              void savePomodoroPreset(userProfile.uid, presetName, pomodoroConfig).catch(() => {});
-              setPresetName("");
-            }}
-            className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white"
-            style={{ background: "var(--accent)" }}
-          >
-            現在設定を保存
-          </button>
-        </div>
-
-        {presets.length === 0 ? (
-          <p className="text-xs" style={{ color: "var(--muted)" }}>まだプリセットはありません</p>
-        ) : (
-          <div className="space-y-2">
-            {presets.map((preset) => (
-              <div key={preset.id} className="rounded-xl p-3 flex items-center gap-2" style={{ background: "var(--muted-bg)" }}>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold truncate" style={{ color: "var(--foreground)" }}>{preset.name}</p>
-                  <p className="text-xs" style={{ color: "var(--muted)" }}>
-                    {Math.round(preset.config.workDuration / 60)}分 / {Math.round(preset.config.shortBreakDuration / 60)}分 / {Math.round(preset.config.longBreakDuration / 60)}分
-                  </p>
-                </div>
-                <button
-                  onClick={() => setPomodoroConfig(preset.config)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-                  style={{ background: "var(--accent-light)", color: "var(--accent)" }}
-                >
-                  適用
-                </button>
-                <button
-                  onClick={() => void deletePomodoroPreset(preset.id)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-                  style={{ background: "#ef444420", color: "#ef4444" }}
-                >
-                  削除
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
       </motion.div>
 
       {/* Save button */}
