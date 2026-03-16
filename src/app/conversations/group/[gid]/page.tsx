@@ -30,7 +30,6 @@ import {
   ArrowLeft,
   Check,
   ImagePlus,
-  Menu,
   MessageSquare,
   MoreVertical,
   Plus,
@@ -107,9 +106,7 @@ export default function GroupConversationPage() {
   const [activeOnlyInTotal, setActiveOnlyInTotal] = useState(true);
   const [reportFxTaskId, setReportFxTaskId] = useState("");
 
-  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
-  const [fabOpen, setFabOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -242,7 +239,6 @@ export default function GroupConversationPage() {
 
   const openCreateTaskDialog = () => {
     setTaskMenuOpen(false);
-    setFabOpen(false);
     resetTaskForm();
     setTaskDialogOpen(true);
   };
@@ -335,7 +331,6 @@ export default function GroupConversationPage() {
     }
     await sendGroupImageMessage(gid, userProfile.uid, file);
     setTaskMenuOpen(false);
-    setFabOpen(false);
   };
 
   const reportTaskProgress = async (task: GroupTask) => {
@@ -593,13 +588,6 @@ export default function GroupConversationPage() {
             <UserPlus size={15} />
             メンバー招待
           </button>
-          <button
-            className="lg:hidden w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-            onClick={() => setMobileDrawerOpen(true)}
-          >
-            <Menu size={16} />
-          </button>
         </div>
       </div>
 
@@ -612,51 +600,80 @@ export default function GroupConversationPage() {
             </h2>
           </div>
 
-          <div className="flex-1 overflow-y-auto py-3 space-y-2 min-h-0">
-            {messages.map((msg) => {
-              const me = msg.fromUid === userProfile.uid;
-              const profile = memberProfiles.get(msg.fromUid);
-              return (
-                <div key={msg.id} className={`flex ${me ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className="max-w-[85%] rounded-xl px-3 py-2"
-                    style={{
-                      background: me ? "var(--accent)" : "var(--muted-bg)",
-                      color: me ? "#fff" : "var(--foreground)",
-                    }}
-                  >
-                    {!me && (
-                      <p className="text-[10px] mb-1" style={{ color: "var(--muted)" }}>
-                        <span className="inline-flex items-center gap-1.5">
-                          <InlineAvatar avatar={profile?.avatar || "👤"} />
-                          {sanitizeDisplayName(profile?.name || msg.fromUid)}
-                        </span>
-                      </p>
-                    )}
-
-                    {msg.type === "image" ? (
-                      <div className="space-y-1">
-                        <img src={msg.content} alt={msg.fileName || "group-image"} className="max-h-64 rounded-lg" />
-                        {msg.fileName && <p className="text-[10px] opacity-80">{msg.fileName}</p>}
-                      </div>
-                    ) : (
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                    )}
-
-                    <p className="text-[10px] mt-1 opacity-70">
-                      {new Date(msg.createdAt).toLocaleTimeString("ja-JP")}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-            <div ref={messagesEndRef} />
+          <div className="lg:hidden mt-2 mb-2 rounded-xl p-2.5" style={{ background: "var(--muted-bg)" }}>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] font-black tracking-[0.12em]" style={{ color: "var(--muted)" }}>
+                TASKS PROGRESS
+              </p>
+              <button
+                onClick={() => setMobileTab("tasks")}
+                className="text-[10px] px-2 py-1 rounded"
+                style={{ background: "var(--card-bg)", color: "var(--accent)" }}
+              >
+                一覧へ
+              </button>
+            </div>
+            <div className="mt-1 h-2 rounded-full" style={{ background: "#ffffff22" }}>
+              <div className="h-2 rounded-full transition-all" style={{ width: `${overallProgress}%`, background: "var(--accent)" }} />
+            </div>
+            <p className="text-[11px] mt-1 font-bold" style={{ color: "var(--accent)" }}>
+              {overallProgress}%
+            </p>
           </div>
 
-          <div className="pt-3 border-t flex items-center gap-2 relative" style={{ borderColor: "var(--card-border)" }}>
+          <div className="flex-1 overflow-y-auto py-3 space-y-2 min-h-0 pb-28 lg:pb-3">
+            {mobileTab === "members" ? (
+              <div className="lg:hidden">{renderMembersPanel()}</div>
+            ) : mobileTab === "tasks" ? (
+              <div className="lg:hidden space-y-3">{renderTaskCards()}</div>
+            ) : (
+              <>
+                {messages.map((msg) => {
+                  const me = msg.fromUid === userProfile.uid;
+                  const profile = memberProfiles.get(msg.fromUid);
+                  return (
+                    <div key={msg.id} className={`flex ${me ? "justify-end" : "justify-start"}`}>
+                      <div
+                        className="max-w-[85%] rounded-xl px-3 py-2"
+                        style={{
+                          background: me ? "var(--accent)" : "var(--muted-bg)",
+                          color: me ? "#fff" : "var(--foreground)",
+                        }}
+                      >
+                        {!me && (
+                          <p className="text-[10px] mb-1" style={{ color: "var(--muted)" }}>
+                            <span className="inline-flex items-center gap-1.5">
+                              <InlineAvatar avatar={profile?.avatar || "👤"} />
+                              {sanitizeDisplayName(profile?.name || msg.fromUid)}
+                            </span>
+                          </p>
+                        )}
+
+                        {msg.type === "image" ? (
+                          <div className="space-y-1">
+                            <img src={msg.content} alt={msg.fileName || "group-image"} className="max-h-64 rounded-lg" />
+                            {msg.fileName && <p className="text-[10px] opacity-80">{msg.fileName}</p>}
+                          </div>
+                        ) : (
+                          <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                        )}
+
+                        <p className="text-[10px] mt-1 opacity-70">
+                          {new Date(msg.createdAt).toLocaleTimeString("ja-JP")}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div ref={messagesEndRef} />
+              </>
+            )}
+          </div>
+
+          <div className="pt-3 border-t items-center gap-2 relative hidden lg:flex" style={{ borderColor: "var(--card-border)" }}>
             <button
               onClick={() => setTaskMenuOpen((prev) => !prev)}
-              className="w-10 h-10 rounded-xl hidden lg:flex items-center justify-center"
+              className="w-10 h-10 rounded-xl flex items-center justify-center"
               style={{ background: "var(--muted-bg)", color: taskMenuOpen ? "var(--accent)" : "var(--muted)" }}
               title="追加"
             >
@@ -705,15 +722,81 @@ export default function GroupConversationPage() {
             >
               送信
             </button>
-
-            <input
-              ref={imageInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => void onPickImage(e)}
-            />
           </div>
+
+          <div className="lg:hidden fixed left-0 right-0 bottom-14 z-30 px-3">
+            <div className="rounded-2xl p-2 border relative" style={{ background: "var(--card-bg)", borderColor: "var(--card-border)" }}>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setTaskMenuOpen((prev) => !prev)}
+                  className="w-9 h-9 rounded-xl flex items-center justify-center"
+                  style={{ background: "var(--muted-bg)", color: taskMenuOpen ? "var(--accent)" : "var(--muted)" }}
+                  title="追加"
+                >
+                  <Plus size={16} />
+                </button>
+
+                <input
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void sendMessage();
+                    }
+                  }}
+                  placeholder="メッセージを入力"
+                  className="flex-1 px-3 py-2 rounded-xl text-sm"
+                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                />
+
+                <button
+                  onClick={sendMessage}
+                  className="px-3 py-2 rounded-xl text-sm font-semibold text-white"
+                  style={{ background: chatInput.trim() ? "#2563eb" : "#94a3b8" }}
+                >
+                  送信
+                </button>
+              </div>
+
+              {taskMenuOpen && (
+                <div
+                  className="absolute bottom-14 left-2 rounded-xl p-2 z-20 space-y-2 w-44"
+                  style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)", boxShadow: "var(--shadow)" }}
+                >
+                  <button
+                    onClick={openCreateTaskDialog}
+                    className="w-full px-3 py-2 rounded-lg text-sm font-semibold text-left"
+                    style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                  >
+                    課題
+                  </button>
+                  <button
+                    onClick={() => imageInputRef.current?.click()}
+                    className="w-full px-3 py-2 rounded-lg text-sm font-semibold text-left"
+                    style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                  >
+                    画像
+                  </button>
+                  <button
+                    onClick={() => alert("ファイル送信は準備中です")}
+                    className="w-full px-3 py-2 rounded-lg text-sm font-semibold text-left"
+                    style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                  >
+                    ファイル
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => void onPickImage(e)}
+          />
         </section>
 
         <aside className="hidden lg:flex glass-card p-4 flex-col min-h-0 overflow-hidden">
@@ -761,14 +844,7 @@ export default function GroupConversationPage() {
           return (
             <button
               key={item.key}
-              onClick={() => {
-                setMobileTab(item.key as MobileTab);
-                if (item.key === "chat") {
-                  setMobileDrawerOpen(false);
-                } else {
-                  setMobileDrawerOpen(true);
-                }
-              }}
+              onClick={() => setMobileTab(item.key as MobileTab)}
               className="flex flex-col items-center text-[10px]"
               style={{ color: active ? "var(--accent)" : "var(--muted)" }}
             >
@@ -778,59 +854,6 @@ export default function GroupConversationPage() {
           );
         })}
       </nav>
-
-      <div className="lg:hidden fixed bottom-16 right-4 z-50">
-        {fabOpen && (
-          <div className="mb-2 flex flex-col items-end gap-2">
-            <button
-              onClick={openCreateTaskDialog}
-              className="px-3 py-2 rounded-full text-xs font-semibold"
-              style={{ background: "var(--card-bg)", color: "var(--foreground)", border: "1px solid var(--card-border)" }}
-            >
-              課題
-            </button>
-            <button
-              onClick={() => imageInputRef.current?.click()}
-              className="px-3 py-2 rounded-full text-xs font-semibold"
-              style={{ background: "var(--card-bg)", color: "var(--foreground)", border: "1px solid var(--card-border)" }}
-            >
-              画像
-            </button>
-          </div>
-        )}
-        <button
-          onClick={() => setFabOpen((prev) => !prev)}
-          className="w-12 h-12 rounded-full flex items-center justify-center text-white"
-          style={{ background: "var(--accent)", boxShadow: "var(--shadow-lg)" }}
-        >
-          {fabOpen ? <X size={18} /> : <Plus size={18} />}
-        </button>
-      </div>
-
-      {mobileDrawerOpen && (
-        <div className="lg:hidden fixed inset-0 z-50">
-          <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.45)" }} onClick={() => setMobileDrawerOpen(false)} />
-          <div className="absolute right-0 top-0 h-full w-[86%] max-w-sm p-3" style={{ background: "var(--card-bg)", borderLeft: "1px solid var(--card-border)" }}>
-            {mobileTab === "members" ? (
-              <>
-                <p className="text-xs font-black mb-2" style={{ color: "var(--muted)" }}>MEMBERS STATUS</p>
-                {renderMembersPanel()}
-              </>
-            ) : (
-              <>
-                <p className="text-xs font-black" style={{ color: "var(--muted)" }}>ALL TASKS PROGRESS</p>
-                <div className="mt-2">
-                  <div className="h-4 rounded-full" style={{ background: "#ffffff22" }}>
-                    <div className="h-4 rounded-full" style={{ width: `${overallProgress}%`, background: "var(--accent)" }} />
-                  </div>
-                  <p className="text-xs font-bold mt-1" style={{ color: "var(--accent)" }}>{overallProgress}%</p>
-                </div>
-                <div className="mt-3 space-y-3 overflow-y-auto h-[calc(100%-80px)]">{renderTaskCards()}</div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
       {taskDialogOpen && (
         <div

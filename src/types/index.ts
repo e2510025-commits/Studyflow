@@ -87,6 +87,38 @@ export interface MissionStatus {
   claimed: boolean;
 }
 
+export type AchievementRarity = "common" | "rare" | "epic" | "legendary";
+export type AchievementTriggerType =
+  | "total_study_hours"
+  | "streak_days"
+  | "subject_study_hours"
+  | "study_sessions"
+  | "focus_sessions"
+  | "special_date";
+
+export interface AchievementCategory {
+  id: string;
+  label: string;
+  order: number;
+}
+
+export interface AchievementTemplate {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  rarity: AchievementRarity;
+  secret?: boolean;
+  isNew?: boolean;
+  active?: boolean;
+  iconBase?: "hex";
+  iconColor?: string;
+  iconSymbol?: string;
+  triggerType: AchievementTriggerType;
+  triggerValue: number;
+  subjectLabel?: string;
+}
+
 /* ─── Friends ──────────────────────────────────────── */
 export interface Friend {
   uid: string;

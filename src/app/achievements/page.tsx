@@ -2,10 +2,10 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/store/useStore";
-import { ACHIEVEMENTS, getAchievementMeta, type AchievementDefinition } from "@/lib/achievements";
+import { ACHIEVEMENTS, DEFAULT_ACHIEVEMENT_CATEGORIES, type AchievementDefinition } from "@/lib/achievements";
 import { fetchPublicProfile, updateEquippedBadges } from "@/lib/firestore/profile";
-
-type ArchiveTab = "total" | "streak" | "subject" | "special";
+import { fetchAchievementCatalog } from "@/lib/firestore/achievementConfig";
+import type { AchievementCategory } from "@/types";
 
 function rarityGlow(rarity: AchievementDefinition["rarity"]): string {
   if (rarity === "legendary") return "0 0 22px #22d3ee88";
@@ -16,10 +16,26 @@ function rarityGlow(rarity: AchievementDefinition["rarity"]): string {
 
 export default function AchievementsPage() {
   const { userProfile, updateUserProfile } = useStore();
-  const [tab, setTab] = useState<ArchiveTab>("total");
+  const [tab, setTab] = useState<string>("total");
   const [owned, setOwned] = useState<string[]>([]);
   const [equipped, setEquipped] = useState<string[]>([]);
   const [unlockMap, setUnlockMap] = useState<Record<string, string>>({});
+  const [definitions, setDefinitions] = useState<AchievementDefinition[]>(ACHIEVEMENTS);
+  const [categories, setCategories] = useState<AchievementCategory[]>(DEFAULT_ACHIEVEMENT_CATEGORIES);
+
+  useEffect(() => {
+    void fetchAchievementCatalog()
+      .then((catalog) => {
+        const rows = (catalog.achievements || []).filter((row) => row.active !== false);
+        if (rows.length > 0) setDefinitions(rows);
+        if ((catalog.categories || []).length > 0) {
+          const sorted = [...catalog.categories].sort((a, b) => a.order - b.order);
+          setCategories(sorted);
+          setTab((prev) => (sorted.some((c) => c.id === prev) ? prev : sorted[0].id));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!userProfile.uid) return;
@@ -37,15 +53,15 @@ export default function AchievementsPage() {
   }, [userProfile.uid]);
 
   const tabs = useMemo(() => {
-    const keys: ArchiveTab[] = ["total", "streak", "subject", "special"];
-    return keys.map((key) => {
-      const all = ACHIEVEMENTS.filter((a) => a.category === key).length;
-      const done = ACHIEVEMENTS.filter((a) => a.category === key && owned.includes(a.id)).length;
-      return { key, all, done, rate: all > 0 ? Math.round((done / all) * 100) : 0 };
+    return categories.map((cat) => {
+      const key = cat.id;
+      const all = definitions.filter((a) => a.category === key).length;
+      const done = definitions.filter((a) => a.category === key && owned.includes(a.id)).length;
+      return { key, label: cat.label, all, done, rate: all > 0 ? Math.round((done / all) * 100) : 0 };
     });
-  }, [owned]);
+  }, [categories, definitions, owned]);
 
-  const rows = useMemo(() => ACHIEVEMENTS.filter((row) => row.category === tab), [tab]);
+  const rows = useMemo(() => definitions.filter((row) => row.category === tab), [definitions, tab]);
 
   const toggleEquip = async (id: string) => {
     if (!owned.includes(id)) return;
@@ -80,7 +96,7 @@ export default function AchievementsPage() {
               }}
             >
               <p className="text-sm font-bold">
-                {t.key === "total" ? "総学習時間" : t.key === "streak" ? "継続記録" : t.key === "subject" ? "科目別熟練度" : "特殊任務"}
+                {t.label}
               </p>
               <p className="text-[11px] mt-0.5" style={{ color: "var(--muted)" }}>
                 達成率 {t.rate}% ({t.done}/{t.all})

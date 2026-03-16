@@ -1,7 +1,8 @@
 import { collection, getDoc, getDocs, query, setDoc, where, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { StudyLog } from "@/types";
-import { evaluateAchievements } from "@/lib/achievements";
+import { ACHIEVEMENTS, evaluateAchievements } from "@/lib/achievements";
+import { fetchAchievementCatalog } from "@/lib/firestore/achievementConfig";
 
 export async function recomputeAndSaveAchievements(userUid: string): Promise<string[]> {
   if (!userUid) return [];
@@ -25,7 +26,9 @@ export async function recomputeAndSaveAchievements(userUid: string): Promise<str
     };
   });
 
-  const badges = evaluateAchievements(logs);
+  const catalog = await fetchAchievementCatalog().catch(() => null);
+  const activeDefinitions = (catalog?.achievements || ACHIEVEMENTS).filter((row) => row.active !== false);
+  const badges = evaluateAchievements(logs, activeDefinitions);
   const profileRef = doc(db, "userProfiles", userUid);
   const profileSnap = await getDoc(profileRef);
   const existingMap = profileSnap.exists()
