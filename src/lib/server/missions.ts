@@ -6,7 +6,6 @@ import {
   query,
   serverTimestamp,
   setDoc,
-  Timestamp,
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -318,20 +317,31 @@ export async function readMissionProgress(params: {
   startAt: Date;
   endAt?: Date;
 }): Promise<number> {
-  const filters = [
-    where("userUid", "==", params.uid),
-    where("createdAt", ">=", Timestamp.fromDate(params.startAt)),
-  ];
-  if (params.endAt) {
-    filters.push(where("createdAt", "<=", Timestamp.fromDate(params.endAt)));
-  }
-  const snap = await getDocs(query(collection(db, "studyLogs"), ...filters));
+  const snap = await getDocs(query(collection(db, "studyLogs"), where("userUid", "==", params.uid)));
+  const startMs = params.startAt.getTime();
+  const endMs = params.endAt ? params.endAt.getTime() : Number.POSITIVE_INFINITY;
+
+  const inRangeDocs = snap.docs.filter((d) => {
+    const createdAt = d.data().createdAt;
+    const createdMs =
+      createdAt && typeof createdAt.toDate === "function"
+        ? createdAt.toDate().getTime()
+        : typeof createdAt === "string"
+        ? new Date(createdAt).getTime()
+        : NaN;
+    if (Number.isNaN(createdMs)) return false;
+    return createdMs >= startMs && createdMs <= endMs;
+  });
 
   if (params.mission.triggerType === "login_days") {
     const daySet = new Set<string>();
-    snap.docs.forEach((d) => {
+    inRangeDocs.forEach((d) => {
       const createdAt = d.data().createdAt;
-      const dt = createdAt instanceof Timestamp ? createdAt.toDate() : null;
+      const dt = createdAt && typeof createdAt.toDate === "function"
+        ? createdAt.toDate()
+        : typeof createdAt === "string"
+        ? new Date(createdAt)
+        : null;
       if (!dt) return;
       daySet.add(dt.toISOString().slice(0, 10));
     });
@@ -339,11 +349,11 @@ export async function readMissionProgress(params: {
   }
 
   if (params.mission.goalType === "study_sessions") {
-    return snap.docs.reduce((count, d) => {
+    return inRangeDocs.reduce((count, d) => {
       const duration = Number(d.data().duration || 0);
       return duration > 0 ? count + 1 : count;
     }, 0);
   }
 
-  return snap.docs.reduce((sum, d) => sum + Number(d.data().duration || 0), 0);
+  return inRangeDocs.reduce((sum, d) => sum + Number(d.data().duration || 0), 0);
 }

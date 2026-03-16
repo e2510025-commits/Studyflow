@@ -6,7 +6,6 @@ import {
   setDoc,
   query,
   where,
-  orderBy,
   onSnapshot,
   serverTimestamp,
   Timestamp,
@@ -27,13 +26,18 @@ export function subscribeStudyLogs(
 ) {
   const q = query(
     collection(db, LOGS_COLLECTION),
-    where("userUid", "==", userUid),
-    orderBy("createdAt", "desc")
+    where("userUid", "==", userUid)
   );
 
   return onSnapshot(q, (snapshot) => {
     const logs: StudyLog[] = snapshot.docs.map((d) => {
       const data = d.data();
+      const createdAtIso =
+        data.createdAt instanceof Timestamp
+          ? data.createdAt.toDate().toISOString()
+          : typeof data.createdAt === "string"
+          ? data.createdAt
+          : new Date().toISOString();
       return {
         id: d.id,
         subjectId: data.subjectId,
@@ -42,12 +46,9 @@ export function subscribeStudyLogs(
         focusRating: data.focusRating,
         focusBonus: data.focusBonus,
         points: data.points,
-        createdAt:
-          data.createdAt instanceof Timestamp
-            ? data.createdAt.toDate().toISOString()
-            : data.createdAt,
+        createdAt: createdAtIso,
       };
-    });
+    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     callback(logs);
   });
 }
