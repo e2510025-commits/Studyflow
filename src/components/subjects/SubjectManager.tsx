@@ -9,6 +9,7 @@ import {
   SUBJECT_ICONS,
   SUBJECT_COLORS,
   SUBJECT_SUGGESTION_MASTER,
+  formatHoursMinutes,
 } from "@/lib/utils";
 import GlassCard from "@/components/ui/GlassCard";
 import EmptyState from "@/components/ui/EmptyState";
@@ -21,7 +22,7 @@ import {
 import type { Subject } from "@/types";
 
 export default function SubjectManager() {
-  const { subjects, userProfile } = useStore();
+  const { subjects, userProfile, studyLogs } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -56,6 +57,31 @@ export default function SubjectManager() {
 
     return Array.from(new Set([...fromMaster, ...fromCatalog, ...fromLocal])).slice(0, 10);
   }, [catalogNames, normalizedInput, subjects]);
+
+  const subjectStatsMap = useMemo(() => {
+    const totals = new Map<string, number>();
+    subjects.forEach((subject) => {
+      totals.set(subject.id, 0);
+    });
+    studyLogs.forEach((log) => {
+      if (!totals.has(log.subjectId)) return;
+      totals.set(log.subjectId, (totals.get(log.subjectId) || 0) + Math.max(0, Number(log.duration || 0)));
+    });
+
+    const ranked = subjects
+      .map((subject) => ({
+        subjectId: subject.id,
+        totalSeconds: totals.get(subject.id) || 0,
+      }))
+      .sort((a, b) => b.totalSeconds - a.totalSeconds);
+
+    const rankMap = new Map<string, number>();
+    ranked.forEach((row, index) => {
+      rankMap.set(row.subjectId, index + 1);
+    });
+
+    return { totals, rankMap };
+  }, [studyLogs, subjects]);
 
   useEffect(() => {
     let cancelled = false;
@@ -328,7 +354,10 @@ export default function SubjectManager() {
       ) : (
         <div className="grid gap-3">
           <AnimatePresence mode="popLayout">
-            {subjects.map((subject, index) => (
+            {subjects.map((subject, index) => {
+              const totalSeconds = subjectStatsMap.totals.get(subject.id) || 0;
+              const rank = subjectStatsMap.rankMap.get(subject.id) || subjects.length;
+              return (
               <motion.div
                 key={subject.id}
                 layout
@@ -363,6 +392,22 @@ export default function SubjectManager() {
                       {subject.color}
                     </span>
                   </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span
+                      className="text-[11px] font-semibold px-2 py-0.5 rounded-md"
+                      style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                      title="この教科の累計学習時間"
+                    >
+                      合計 {formatHoursMinutes(totalSeconds)}
+                    </span>
+                    <span
+                      className="text-[11px] font-semibold px-2 py-0.5 rounded-md"
+                      style={{ background: `${subject.color}20`, color: subject.color }}
+                      title="あなたの教科内ランキング"
+                    >
+                      教科内順位 #{rank}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -393,7 +438,8 @@ export default function SubjectManager() {
                   </button>
                 </div>
               </motion.div>
-            ))}
+              );
+            })}
           </AnimatePresence>
         </div>
       )}
