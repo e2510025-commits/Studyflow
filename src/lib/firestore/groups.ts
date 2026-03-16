@@ -188,7 +188,7 @@ export async function createGroupTaskBundle(params: {
   isPinned: boolean;
   createdBy: string;
 }) {
-  await addDoc(collection(db, GROUP_BUNDLES_COLLECTION), {
+  const created = await addDoc(collection(db, GROUP_BUNDLES_COLLECTION), {
     groupId: params.groupId,
     title: params.title.trim(),
     description: params.description.trim(),
@@ -196,6 +196,7 @@ export async function createGroupTaskBundle(params: {
     createdBy: params.createdBy,
     createdAt: serverTimestamp(),
   });
+  return created.id;
 }
 
 export async function setGroupTaskBundlePinned(bundleId: string, isPinned: boolean) {

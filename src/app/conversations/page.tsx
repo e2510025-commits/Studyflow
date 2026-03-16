@@ -6,7 +6,7 @@ import { useStore } from "@/store/useStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquare, Users, Plus, X, Check } from "lucide-react";
 import { createGroupChat, subscribeMyGroups, type GroupChat } from "@/lib/firestore/groups";
-import { subscribeUnreadDirectMessageCounts } from "@/lib/firestore/chat";
+import { markChatMessagesAsRead, subscribeUnreadDirectMessageCounts } from "@/lib/firestore/chat";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 
 function AvatarPill({ avatar }: { avatar: string }) {
@@ -113,6 +113,11 @@ export default function ConversationsPage() {
                 <Link
                   key={friend.uid}
                   href={`/friends/chat/${friend.uid}`}
+                  onClick={() => {
+                    if (!userProfile.uid) return;
+                    setUnreadByUser((prev) => ({ ...prev, [friend.uid]: 0 }));
+                    void markChatMessagesAsRead(userProfile.uid, friend.uid).catch(() => {});
+                  }}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors"
                   style={{ background: "var(--muted-bg)" }}
                 >

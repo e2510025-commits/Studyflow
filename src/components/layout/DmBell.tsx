@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore } from "@/store/useStore";
 import { Mail, MailOpen } from "lucide-react";
@@ -9,7 +9,6 @@ import { subscribeUnreadDirectMessageCounts } from "@/lib/firestore/chat";
 
 export default function DmBell() {
   const { userProfile, friends } = useStore();
-  const [unreadTotal, setUnreadTotal] = useState(0);
   const [unreadByUser, setUnreadByUser] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -19,16 +18,14 @@ export default function DmBell() {
     });
   }, [userProfile.uid]);
 
-  useEffect(() => {
+  const visibleUnreadTotal = useMemo(() => {
+    if (!userProfile.uid) return 0;
     const friendUids = new Set(friends.map((friend) => friend.uid));
-    const total = Object.entries(unreadByUser).reduce((sum, [uid, count]) => {
+    return Object.entries(unreadByUser).reduce((sum, [uid, count]) => {
       if (!friendUids.has(uid)) return sum;
       return sum + count;
     }, 0);
-    setUnreadTotal(total);
-  }, [friends, unreadByUser]);
-
-  const visibleUnreadTotal = userProfile.uid ? unreadTotal : 0;
+  }, [friends, unreadByUser, userProfile.uid]);
 
   return (
     <motion.div
