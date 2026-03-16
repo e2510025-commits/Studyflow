@@ -80,6 +80,8 @@ export default function GroupConversationPage() {
   const [taskTotalPages, setTaskTotalPages] = useState("");
   const [selectedBundleId, setSelectedBundleId] = useState<string>("");
   const [collapsedPinned, setCollapsedPinned] = useState<Record<string, boolean>>({});
+  const [collapsedCreateBundle, setCollapsedCreateBundle] = useState(true);
+  const [collapsedCreateTask, setCollapsedCreateTask] = useState(true);
 
   useEffect(() => {
     if (!userProfile.uid) return;
@@ -168,14 +170,31 @@ export default function GroupConversationPage() {
 
   const createTask = async () => {
     if (!gid || !effectiveSelectedBundleId || !userProfile.uid || !taskTitle.trim()) return;
+
+    const normalizedTitle = taskTitle.trim();
+    const normalizedDetails = taskDetails.trim();
+    const normalizedTotalPages = taskTotalPages ? Number(taskTotalPages) : null;
+    const selectedBundle = bundles.find((bundle) => bundle.id === effectiveSelectedBundleId);
+
     await createGroupTask({
       groupId: gid,
       bundleId: effectiveSelectedBundleId,
-      title: taskTitle,
-      details: taskDetails,
-      totalPages: taskTotalPages ? Number(taskTotalPages) : null,
+      title: normalizedTitle,
+      details: normalizedDetails,
+      totalPages: normalizedTotalPages,
       createdBy: userProfile.uid,
     });
+
+    const shareLines = [
+      "[課題共有]",
+      `カテゴリ: ${selectedBundle?.title || "未分類"}`,
+      `タイトル: ${normalizedTitle}`,
+      normalizedDetails ? `詳細: ${normalizedDetails}` : "",
+      normalizedTotalPages ? `総ページ数: ${normalizedTotalPages}` : "",
+    ].filter(Boolean);
+
+    await sendGroupTextMessage(gid, userProfile.uid, shareLines.join("\n"));
+
     setTaskTitle("");
     setTaskDetails("");
     setTaskTotalPages("");
@@ -230,8 +249,8 @@ export default function GroupConversationPage() {
         </div>
       </div>
 
-      <div className="grid xl:grid-cols-[1.15fr_0.85fr] gap-5">
-        <section className="space-y-4">
+      <div className="grid xl:grid-cols-[0.8fr_1.2fr] gap-5">
+        <section className="space-y-4 xl:order-2">
           <div className="glass-card p-4">
             <div className="flex items-center gap-2 mb-3">
               <Pin size={16} style={{ color: "var(--accent)" }} />
@@ -434,97 +453,127 @@ export default function GroupConversationPage() {
           </div>
 
           <div className="glass-card p-4 space-y-3">
-            <div>
-              <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
-                課題カテゴリ作成
-              </p>
-              <p className="text-xs" style={{ color: "var(--muted)" }}>
-                例: 春休み課題 / 夏休み課題
-              </p>
-            </div>
-            <input
-              value={bundleTitle}
-              onChange={(e) => setBundleTitle(e.target.value)}
-              placeholder="カテゴリ名"
-              className="w-full px-3 py-2 rounded-xl text-sm"
-              style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-            />
-            <textarea
-              value={bundleDescription}
-              onChange={(e) => setBundleDescription(e.target.value)}
-              placeholder="カテゴリ説明（任意）"
-              rows={2}
-              className="w-full px-3 py-2 rounded-xl text-sm"
-              style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-            />
             <button
-              onClick={createBundle}
-              disabled={!bundleTitle.trim()}
-              className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
-              style={{ background: "var(--accent)" }}
+              onClick={() => setCollapsedCreateBundle((prev) => !prev)}
+              className="w-full flex items-center justify-between"
             >
-              <Plus size={14} className="inline mr-1" />
-              カテゴリ追加（固定）
+              <div className="text-left">
+                <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
+                  課題カテゴリ作成
+                </p>
+                <p className="text-xs" style={{ color: "var(--muted)" }}>
+                  例: 春休み課題 / 夏休み課題
+                </p>
+              </div>
+              {collapsedCreateBundle ? (
+                <ChevronDown size={16} style={{ color: "var(--muted)" }} />
+              ) : (
+                <ChevronUp size={16} style={{ color: "var(--muted)" }} />
+              )}
             </button>
+
+            {!collapsedCreateBundle && (
+              <div className="space-y-3">
+                <input
+                  value={bundleTitle}
+                  onChange={(e) => setBundleTitle(e.target.value)}
+                  placeholder="カテゴリ名"
+                  className="w-full px-3 py-2 rounded-xl text-sm"
+                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                />
+                <textarea
+                  value={bundleDescription}
+                  onChange={(e) => setBundleDescription(e.target.value)}
+                  placeholder="カテゴリ説明（任意）"
+                  rows={2}
+                  className="w-full px-3 py-2 rounded-xl text-sm"
+                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                />
+                <button
+                  onClick={createBundle}
+                  disabled={!bundleTitle.trim()}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
+                  style={{ background: "var(--accent)" }}
+                >
+                  <Plus size={14} className="inline mr-1" />
+                  カテゴリ追加（固定）
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="glass-card p-4 space-y-3">
-            <div>
-              <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
-                課題を追加
-              </p>
-              <p className="text-xs" style={{ color: "var(--muted)" }}>
-                大まかな内容からページ数まで任意で登録
-              </p>
-            </div>
-            <select
-              value={effectiveSelectedBundleId}
-              onChange={(e) => setSelectedBundleId(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl text-sm"
-              style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-            >
-              <option value="">カテゴリを選択</option>
-              {bundles.map((bundle) => (
-                <option key={bundle.id} value={bundle.id}>
-                  {bundle.title}
-                </option>
-              ))}
-            </select>
-            <input
-              value={taskTitle}
-              onChange={(e) => setTaskTitle(e.target.value)}
-              placeholder="課題タイトル"
-              className="w-full px-3 py-2 rounded-xl text-sm"
-              style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-            />
-            <textarea
-              value={taskDetails}
-              onChange={(e) => setTaskDetails(e.target.value)}
-              placeholder="課題詳細（任意）"
-              rows={2}
-              className="w-full px-3 py-2 rounded-xl text-sm"
-              style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-            />
-            <input
-              value={taskTotalPages}
-              onChange={(e) => setTaskTotalPages(e.target.value.replace(/[^0-9]/g, ""))}
-              placeholder="総ページ数（任意）"
-              className="w-full px-3 py-2 rounded-xl text-sm"
-              style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-            />
             <button
-              onClick={createTask}
-              disabled={!effectiveSelectedBundleId || !taskTitle.trim()}
-              className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
-              style={{ background: "var(--accent)" }}
+              onClick={() => setCollapsedCreateTask((prev) => !prev)}
+              className="w-full flex items-center justify-between"
             >
-              <Plus size={14} className="inline mr-1" />
-              課題追加
+              <div className="text-left">
+                <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
+                  課題を追加
+                </p>
+                <p className="text-xs" style={{ color: "var(--muted)" }}>
+                  大まかな内容からページ数まで任意で登録
+                </p>
+              </div>
+              {collapsedCreateTask ? (
+                <ChevronDown size={16} style={{ color: "var(--muted)" }} />
+              ) : (
+                <ChevronUp size={16} style={{ color: "var(--muted)" }} />
+              )}
             </button>
+
+            {!collapsedCreateTask && (
+              <div className="space-y-3">
+                <select
+                  value={effectiveSelectedBundleId}
+                  onChange={(e) => setSelectedBundleId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl text-sm"
+                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                >
+                  <option value="">カテゴリを選択</option>
+                  {bundles.map((bundle) => (
+                    <option key={bundle.id} value={bundle.id}>
+                      {bundle.title}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={taskTitle}
+                  onChange={(e) => setTaskTitle(e.target.value)}
+                  placeholder="課題タイトル"
+                  className="w-full px-3 py-2 rounded-xl text-sm"
+                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                />
+                <textarea
+                  value={taskDetails}
+                  onChange={(e) => setTaskDetails(e.target.value)}
+                  placeholder="課題詳細（任意）"
+                  rows={2}
+                  className="w-full px-3 py-2 rounded-xl text-sm"
+                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                />
+                <input
+                  value={taskTotalPages}
+                  onChange={(e) => setTaskTotalPages(e.target.value.replace(/[^0-9]/g, ""))}
+                  placeholder="総ページ数（任意）"
+                  className="w-full px-3 py-2 rounded-xl text-sm"
+                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                />
+                <button
+                  onClick={createTask}
+                  disabled={!effectiveSelectedBundleId || !taskTitle.trim()}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
+                  style={{ background: "var(--accent)" }}
+                >
+                  <Plus size={14} className="inline mr-1" />
+                  課題追加
+                </button>
+              </div>
+            )}
           </div>
         </section>
 
-        <section className="glass-card p-4 flex flex-col min-h-[560px]">
+        <section className="glass-card p-4 flex flex-col min-h-[660px] xl:order-1">
           <div className="flex items-center gap-2 pb-3 border-b" style={{ borderColor: "var(--card-border)" }}>
             <MessageSquare size={16} style={{ color: "var(--accent)" }} />
             <h2 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>

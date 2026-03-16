@@ -12,7 +12,6 @@ import {
   BookMarked,
   Trophy,
   ClipboardList,
-  Users,
   Shield,
   X,
   Menu,
@@ -24,7 +23,6 @@ const baseNavItems = [
   { href: "/subjects", label: "教科管理", icon: BookMarked },
   { href: "/ranking", label: "ランキング", icon: Trophy },
   { href: "/missions", label: "ミッション", icon: ClipboardList },
-  { href: "/friends", label: "フレンド", icon: Users },
 ];
 
 export default function Sidebar() {

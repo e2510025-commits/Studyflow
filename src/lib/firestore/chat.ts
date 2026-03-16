@@ -239,7 +239,7 @@ export function subscribeUnreadDirectMessageCounts(
       const fromUid = typeof data.fromUid === "string" ? data.fromUid : "";
       const toUid = typeof data.toUid === "string" ? data.toUid : "";
       const readBy = Array.isArray(data.readBy) ? data.readBy : [];
-      const isUnread = fromUid && toUid === myUid && !readBy.includes(myUid);
+      const isUnread = fromUid && fromUid !== myUid && toUid === myUid && !readBy.includes(myUid);
       if (!isUnread) return;
       byUser[fromUid] = (byUser[fromUid] || 0) + 1;
     });
