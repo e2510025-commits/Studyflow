@@ -27,6 +27,9 @@ export interface UserProfile {
   badges?: string[];
   achievementUnlockedAt?: Record<string, string>;
   equippedBadges?: string[];
+  statusMessage?: string;
+  headerImage?: string;
+  deviceLabel?: string;
 }
 
 export type ProfileVisibility = "public" | "friends" | "private";
@@ -45,6 +48,9 @@ export interface PublicProfile {
   badges?: string[];
   achievementUnlockedAt?: Record<string, string>;
   equippedBadges?: string[];
+  statusMessage?: string;
+  headerImage?: string;
+  deviceLabel?: string;
 }
 
 export type MissionScope = "daily" | "weekly" | "season";

@@ -4,13 +4,15 @@ import {
   serverTimestamp,
   getDoc,
   collection,
+  deleteDoc,
   getDocs,
   query,
   where,
+  limit,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
-import type { ProfileVisibility, PublicProfile } from "@/types";
+import type { Friend, ProfileVisibility, PublicProfile } from "@/types";
 
 export async function saveDisplayProfile(params: {
   uid: string;
@@ -23,6 +25,9 @@ export async function saveDisplayProfile(params: {
   bonusPoints?: number;
   profileSetupDone?: boolean;
   equippedBadges?: string[];
+  statusMessage?: string;
+  headerImage?: string;
+  deviceLabel?: string;
 }) {
   const safeName = sanitizeDisplayName(params.name);
   const safeAvatar = sanitizeAvatar(params.avatar);
@@ -42,6 +47,15 @@ export async function saveDisplayProfile(params: {
   }
   if (Array.isArray(params.equippedBadges)) {
     payload.equippedBadges = params.equippedBadges.slice(0, 3);
+  }
+  if (typeof params.statusMessage === "string") {
+    payload.statusMessage = params.statusMessage.trim().slice(0, 120);
+  }
+  if (typeof params.headerImage === "string") {
+    payload.headerImage = params.headerImage.slice(0, 2_000_000);
+  }
+  if (typeof params.deviceLabel === "string") {
+    payload.deviceLabel = params.deviceLabel.trim().slice(0, 40);
   }
 
   await setDoc(
@@ -100,6 +114,9 @@ export async function fetchPublicProfile(uid: string): Promise<PublicProfile | n
     equippedBadges: Array.isArray(data.equippedBadges)
       ? data.equippedBadges.filter((b: unknown) => typeof b === "string").slice(0, 3)
       : [],
+    statusMessage: typeof data.statusMessage === "string" ? data.statusMessage : "",
+    headerImage: typeof data.headerImage === "string" ? data.headerImage : "",
+    deviceLabel: typeof data.deviceLabel === "string" ? data.deviceLabel : "",
   };
 }
 
@@ -150,4 +167,81 @@ export async function fetchUserStudyStats(uid: string): Promise<{
     totalSeconds,
     totalSessions: snap.size,
   };
+}
+
+export async function fetchUserFriendsPreview(uid: string, take = 16): Promise<Friend[]> {
+  const snap = await getDocs(
+    query(collection(db, "friends"), where("ownerUid", "==", uid), limit(Math.max(1, take)))
+  );
+
+  return snap.docs.map((d) => {
+    const data = d.data();
+    return {
+      uid: String(data.uid || ""),
+      name: sanitizeDisplayName(data.name),
+      avatar: sanitizeAvatar(data.avatar),
+      addedAt:
+        typeof data.addedAt?.toDate === "function"
+          ? data.addedAt.toDate().toISOString()
+          : new Date().toISOString(),
+    };
+  });
+}
+
+export async function fetchUserHeatmap(uid: string, days = 84): Promise<Record<string, number>> {
+  const snap = await getDocs(query(collection(db, "studyLogs"), where("userUid", "==", uid)));
+  const now = Date.now();
+  const fromMs = now - Math.max(1, days) * 24 * 60 * 60 * 1000;
+  const map: Record<string, number> = {};
+
+  snap.docs.forEach((d) => {
+    const data = d.data();
+    const raw = data.createdAt;
+    const dt =
+      raw && typeof raw.toDate === "function"
+        ? raw.toDate()
+        : typeof raw === "string"
+        ? new Date(raw)
+        : null;
+    if (!dt) return;
+    const ms = dt.getTime();
+    if (Number.isNaN(ms) || ms < fromMs) return;
+    const key = dt.toISOString().slice(0, 10);
+    map[key] = (map[key] || 0) + Number(data.duration || 0);
+  });
+
+  return map;
+}
+
+function cheerDocId(targetUid: string, fromUid: string): string {
+  return `${targetUid}_${fromUid}`;
+}
+
+export async function fetchProfileCheerSummary(targetUid: string, viewerUid?: string): Promise<{ count: number; cheeredByViewer: boolean }> {
+  const countSnap = await getDocs(query(collection(db, "profileCheers"), where("targetUid", "==", targetUid)));
+  if (!viewerUid) return { count: countSnap.size, cheeredByViewer: false };
+
+  const mySnap = await getDoc(doc(db, "profileCheers", cheerDocId(targetUid, viewerUid)));
+  return {
+    count: countSnap.size,
+    cheeredByViewer: mySnap.exists(),
+  };
+}
+
+export async function setProfileCheer(targetUid: string, fromUid: string, cheer: boolean): Promise<void> {
+  if (!targetUid || !fromUid || targetUid === fromUid) return;
+  const ref = doc(db, "profileCheers", cheerDocId(targetUid, fromUid));
+  if (cheer) {
+    await setDoc(
+      ref,
+      {
+        targetUid,
+        fromUid,
+        createdAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+    return;
+  }
+  await deleteDoc(ref);
 }

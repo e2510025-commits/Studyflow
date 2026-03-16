@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   onSnapshot,
   query,
   serverTimestamp,
@@ -31,6 +32,39 @@ export async function updateUserPresence(userUid: string, isOnline: boolean) {
       updatedAt: serverTimestamp(),
     },
     { merge: true }
+  );
+}
+
+export function subscribeUserPresenceStatus(
+  userUid: string,
+  callback: (state: { isOnline: boolean; updatedAtMs: number }) => void
+) {
+  if (!userUid) {
+    callback({ isOnline: false, updatedAtMs: 0 });
+    return () => {};
+  }
+
+  const ref = doc(db, USER_PRESENCE_COLLECTION, userUid);
+  const emitFromData = (data?: Record<string, unknown>) => {
+    const updatedAt = data?.updatedAt;
+    const updatedAtMs =
+      updatedAt instanceof Timestamp ? updatedAt.toDate().getTime() : 0;
+    callback({
+      isOnline: Boolean(data?.isOnline),
+      updatedAtMs,
+    });
+  };
+
+  void getDoc(ref)
+    .then((snap) => emitFromData((snap.exists() ? (snap.data() as Record<string, unknown>) : undefined)))
+    .catch(() => callback({ isOnline: false, updatedAtMs: 0 }));
+
+  return onSnapshot(
+    ref,
+    (snapshot) => {
+      emitFromData(snapshot.exists() ? (snapshot.data() as Record<string, unknown>) : undefined);
+    },
+    () => callback({ isOnline: false, updatedAtMs: 0 })
   );
 }
 
