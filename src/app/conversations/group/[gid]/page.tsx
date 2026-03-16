@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useStore } from "@/store/useStore";
 import {
+  addMembersToGroup,
   createGroupTask,
   createGroupTaskBundle,
   GroupChat,
@@ -28,9 +29,11 @@ import {
   Pin,
   PinOff,
   Plus,
+  UserPlus,
   ChevronDown,
   ChevronUp,
   Check,
+  X,
 } from "lucide-react";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 
@@ -63,7 +66,7 @@ function InlineAvatar({ avatar }: { avatar: string }) {
 export default function GroupConversationPage() {
   const params = useParams<{ gid?: string | string[] }>();
   const gid = Array.isArray(params.gid) ? params.gid[0] : params.gid || "";
-  const { userProfile } = useStore();
+  const { userProfile, friends } = useStore();
 
   const [groups, setGroups] = useState<GroupChat[]>([]);
   const [messages, setMessages] = useState<GroupMessage[]>([]);
@@ -81,7 +84,9 @@ export default function GroupConversationPage() {
   const [selectedBundleId, setSelectedBundleId] = useState<string>("");
   const [collapsedPinned, setCollapsedPinned] = useState<Record<string, boolean>>({});
   const [collapsedCreateBundle, setCollapsedCreateBundle] = useState(true);
-  const [collapsedCreateTask, setCollapsedCreateTask] = useState(true);
+  const [showTaskComposer, setShowTaskComposer] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteUids, setInviteUids] = useState<string[]>([]);
 
   useEffect(() => {
     if (!userProfile.uid) return;
@@ -141,6 +146,12 @@ export default function GroupConversationPage() {
     return map;
   }, [progressItems]);
 
+  const inviteCandidates = useMemo(() => {
+    if (!currentGroup) return [];
+    const memberUidSet = new Set(currentGroup.memberUids);
+    return friends.filter((friend) => !memberUidSet.has(friend.uid));
+  }, [friends, currentGroup]);
+
   const togglePinnedCollapse = (bundleId: string) => {
     setCollapsedPinned((prev) => ({
       ...prev,
@@ -198,6 +209,25 @@ export default function GroupConversationPage() {
     setTaskTitle("");
     setTaskDetails("");
     setTaskTotalPages("");
+    setShowTaskComposer(false);
+  };
+
+  const toggleInviteUid = (uid: string) => {
+    setInviteUids((prev) =>
+      prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
+    );
+  };
+
+  const inviteMembers = async () => {
+    if (!gid || inviteUids.length === 0) return;
+    await addMembersToGroup(gid, inviteUids);
+    await sendGroupTextMessage(
+      gid,
+      userProfile.uid,
+      `[メンバー招待]\n${inviteUids.length}人をグループに招待しました。`
+    );
+    setInviteUids([]);
+    setShowInviteModal(false);
   };
 
   const updateMyProgress = async (task: GroupTask, options: { completed?: boolean; completedPages?: number }) => {
@@ -247,6 +277,14 @@ export default function GroupConversationPage() {
             </p>
           </div>
         </div>
+        <button
+          onClick={() => setShowInviteModal(true)}
+          className="px-3 py-2 rounded-xl text-sm font-semibold inline-flex items-center gap-1.5"
+          style={{ background: "var(--accent-light)", color: "var(--accent)" }}
+        >
+          <UserPlus size={15} />
+          メンバー招待
+        </button>
       </div>
 
       <div className="grid xl:grid-cols-[0.8fr_1.2fr] gap-5">
@@ -502,75 +540,6 @@ export default function GroupConversationPage() {
             )}
           </div>
 
-          <div className="glass-card p-4 space-y-3">
-            <button
-              onClick={() => setCollapsedCreateTask((prev) => !prev)}
-              className="w-full flex items-center justify-between"
-            >
-              <div className="text-left">
-                <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
-                  課題を追加
-                </p>
-                <p className="text-xs" style={{ color: "var(--muted)" }}>
-                  大まかな内容からページ数まで任意で登録
-                </p>
-              </div>
-              {collapsedCreateTask ? (
-                <ChevronDown size={16} style={{ color: "var(--muted)" }} />
-              ) : (
-                <ChevronUp size={16} style={{ color: "var(--muted)" }} />
-              )}
-            </button>
-
-            {!collapsedCreateTask && (
-              <div className="space-y-3">
-                <select
-                  value={effectiveSelectedBundleId}
-                  onChange={(e) => setSelectedBundleId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl text-sm"
-                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-                >
-                  <option value="">カテゴリを選択</option>
-                  {bundles.map((bundle) => (
-                    <option key={bundle.id} value={bundle.id}>
-                      {bundle.title}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  value={taskTitle}
-                  onChange={(e) => setTaskTitle(e.target.value)}
-                  placeholder="課題タイトル"
-                  className="w-full px-3 py-2 rounded-xl text-sm"
-                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-                />
-                <textarea
-                  value={taskDetails}
-                  onChange={(e) => setTaskDetails(e.target.value)}
-                  placeholder="課題詳細（任意）"
-                  rows={2}
-                  className="w-full px-3 py-2 rounded-xl text-sm"
-                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-                />
-                <input
-                  value={taskTotalPages}
-                  onChange={(e) => setTaskTotalPages(e.target.value.replace(/[^0-9]/g, ""))}
-                  placeholder="総ページ数（任意）"
-                  className="w-full px-3 py-2 rounded-xl text-sm"
-                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-                />
-                <button
-                  onClick={createTask}
-                  disabled={!effectiveSelectedBundleId || !taskTitle.trim()}
-                  className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
-                  style={{ background: "var(--accent)" }}
-                >
-                  <Plus size={14} className="inline mr-1" />
-                  課題追加
-                </button>
-              </div>
-            )}
-          </div>
         </section>
 
         <section className="glass-card p-4 flex flex-col min-h-[660px] xl:order-1">
@@ -610,7 +579,72 @@ export default function GroupConversationPage() {
             })}
           </div>
 
+          {showTaskComposer && (
+            <div className="pt-3 border-t space-y-2" style={{ borderColor: "var(--card-border)" }}>
+              <select
+                value={effectiveSelectedBundleId}
+                onChange={(e) => setSelectedBundleId(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl text-sm"
+                style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+              >
+                <option value="">カテゴリを選択</option>
+                {bundles.map((bundle) => (
+                  <option key={bundle.id} value={bundle.id}>
+                    {bundle.title}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={taskTitle}
+                onChange={(e) => setTaskTitle(e.target.value)}
+                placeholder="課題タイトル"
+                className="w-full px-3 py-2 rounded-xl text-sm"
+                style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+              />
+              <textarea
+                value={taskDetails}
+                onChange={(e) => setTaskDetails(e.target.value)}
+                placeholder="課題詳細（任意）"
+                rows={2}
+                className="w-full px-3 py-2 rounded-xl text-sm"
+                style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+              />
+              <div className="flex items-center gap-2">
+                <input
+                  value={taskTotalPages}
+                  onChange={(e) => setTaskTotalPages(e.target.value.replace(/[^0-9]/g, ""))}
+                  placeholder="総ページ数（任意）"
+                  className="flex-1 px-3 py-2 rounded-xl text-sm"
+                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                />
+                <button
+                  onClick={() => setShowTaskComposer(false)}
+                  className="px-3 py-2 rounded-xl text-sm"
+                  style={{ background: "var(--muted-bg)", color: "var(--muted)" }}
+                >
+                  閉じる
+                </button>
+                <button
+                  onClick={createTask}
+                  disabled={!effectiveSelectedBundleId || !taskTitle.trim()}
+                  className="px-3 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
+                  style={{ background: "var(--accent)" }}
+                >
+                  共有
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="pt-3 border-t flex items-center gap-2" style={{ borderColor: "var(--card-border)" }}>
+            <button
+              onClick={() => setShowTaskComposer((prev) => !prev)}
+              className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{ background: "var(--muted-bg)", color: showTaskComposer ? "var(--accent)" : "var(--muted)" }}
+              title="課題を追加"
+            >
+              <Plus size={18} />
+            </button>
             <input
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
@@ -671,6 +705,73 @@ export default function GroupConversationPage() {
         <Check size={12} className="inline mr-1" />
         完了課題やページ進捗はリアルタイムで共有され、課題全体の進捗率(%)として表示されます。
       </div>
+
+      {showInviteModal && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.55)" }}
+          onClick={() => setShowInviteModal(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl p-5 glass-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
+                メンバー招待
+              </h3>
+              <button onClick={() => setShowInviteModal(false)}>
+                <X size={18} style={{ color: "var(--muted)" }} />
+              </button>
+            </div>
+
+            {inviteCandidates.length === 0 ? (
+              <p className="text-sm" style={{ color: "var(--muted)" }}>
+                招待可能なフレンドがいません
+              </p>
+            ) : (
+              <div className="max-h-64 overflow-y-auto space-y-2">
+                {inviteCandidates.map((friend) => {
+                  const active = inviteUids.includes(friend.uid);
+                  return (
+                    <button
+                      key={friend.uid}
+                      type="button"
+                      onClick={() => toggleInviteUid(friend.uid)}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg"
+                      style={{
+                        background: active ? "var(--accent-light)" : "var(--muted-bg)",
+                        color: active ? "var(--accent)" : "var(--foreground)",
+                      }}
+                    >
+                      <span className="text-sm">{friend.avatar} {sanitizeDisplayName(friend.name)}</span>
+                      {active && <Check size={14} />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowInviteModal(false)}
+                className="px-3 py-2 rounded-xl text-sm"
+                style={{ background: "var(--muted-bg)", color: "var(--muted)" }}
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={inviteMembers}
+                disabled={inviteUids.length === 0}
+                className="px-3 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
+                style={{ background: "var(--accent)" }}
+              >
+                招待する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,15 +8,25 @@ import { motion } from "framer-motion";
 import { subscribeUnreadDirectMessageCounts } from "@/lib/firestore/chat";
 
 export default function DmBell() {
-  const { userProfile } = useStore();
+  const { userProfile, friends } = useStore();
   const [unreadTotal, setUnreadTotal] = useState(0);
+  const [unreadByUser, setUnreadByUser] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!userProfile.uid) return;
     return subscribeUnreadDirectMessageCounts(userProfile.uid, (counts) => {
-      setUnreadTotal(counts.total);
+      setUnreadByUser(counts.byUser);
     });
   }, [userProfile.uid]);
+
+  useEffect(() => {
+    const friendUids = new Set(friends.map((friend) => friend.uid));
+    const total = Object.entries(unreadByUser).reduce((sum, [uid, count]) => {
+      if (!friendUids.has(uid)) return sum;
+      return sum + count;
+    }, 0);
+    setUnreadTotal(total);
+  }, [friends, unreadByUser]);
 
   const visibleUnreadTotal = userProfile.uid ? unreadTotal : 0;
 

@@ -1,5 +1,6 @@
 import {
   addDoc,
+  arrayUnion,
   collection,
   doc,
   onSnapshot,
@@ -7,6 +8,7 @@ import {
   serverTimestamp,
   setDoc,
   Timestamp,
+  updateDoc,
   where,
   deleteDoc,
 } from "firebase/firestore";
@@ -106,6 +108,15 @@ export async function createGroupChat(params: {
     name: params.name.trim(),
     memberUids: deduped,
     createdAt: serverTimestamp(),
+  });
+}
+
+export async function addMembersToGroup(groupId: string, memberUids: string[]) {
+  const targets = Array.from(new Set(memberUids.filter(Boolean)));
+  if (targets.length === 0) return;
+  await updateDoc(doc(db, GROUPS_COLLECTION, groupId), {
+    memberUids: arrayUnion(...targets),
+    updatedAt: serverTimestamp(),
   });
 }
 
