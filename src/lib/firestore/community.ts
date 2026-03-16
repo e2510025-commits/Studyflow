@@ -50,10 +50,12 @@ export function subscribeGlobalStreamMessages(
         merged.set(`u_${d.id}`, {
           id: d.id,
           kind: "user",
+          messageType: data.messageType === "image" ? "image" : "text",
           uid: String(data.uid || ""),
           name: sanitizeDisplayName(data.name || "匿名"),
           avatar: sanitizeAvatar(data.avatar || "👤"),
           body: String(data.body || ""),
+          imageUrl: typeof data.imageUrl === "string" ? data.imageUrl : undefined,
           createdAt: toIso(data.createdAt),
         });
       });
@@ -111,6 +113,28 @@ export async function sendGlobalStreamMessage(params: {
     name: sanitizeDisplayName(params.name || "匿名"),
     avatar: sanitizeAvatar(params.avatar || "👤"),
     body: body.slice(0, 800),
+    messageType: "text",
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function sendGlobalStreamImageMessage(params: {
+  uid: string;
+  name: string;
+  avatar: string;
+  imageUrl: string;
+  caption?: string;
+}) {
+  const imageUrl = params.imageUrl.trim();
+  if (!params.uid || !imageUrl) return;
+
+  await addDoc(collection(db, GLOBAL_STREAM), {
+    uid: params.uid,
+    name: sanitizeDisplayName(params.name || "匿名"),
+    avatar: sanitizeAvatar(params.avatar || "👤"),
+    body: (params.caption || "画像を共有しました").trim().slice(0, 140),
+    messageType: "image",
+    imageUrl: imageUrl.slice(0, 700_000),
     createdAt: serverTimestamp(),
   });
 }

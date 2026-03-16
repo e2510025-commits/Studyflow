@@ -66,10 +66,12 @@ export type BulletinCategory = "qa" | "tips" | "chat" | "ops";
 export interface CommunityStreamMessage {
   id: string;
   kind: "user" | "system";
+  messageType?: "text" | "image";
   uid?: string;
   name: string;
   avatar: string;
   body: string;
+  imageUrl?: string;
   createdAt: string;
 }
 
