@@ -3,9 +3,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import AchievementManager from "@/components/admin/AchievementManager";
+import MissionManager from "@/components/admin/MissionManager";
 import SupportManager from "@/components/admin/SupportManager";
 
-type AdminSection = "overview" | "support" | "announcements" | "missions" | "users";
+type AdminSection = "overview" | "support" | "announcements" | "missions" | "achievements" | "users";
 
 interface AdminOverview {
   users: number;
@@ -279,16 +280,17 @@ export default function AdminPage() {
       <div>
         <h1 className="text-3xl font-black" style={{ color: "var(--foreground)" }}>管理者ページ</h1>
         <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
-          ユーザー管理・警告/利用停止・勲章設定・お知らせ発信
+          ユーザー管理・警告/利用停止・ミッション/勲章設定・お知らせ発信
         </p>
       </div>
 
-      <div className="glass-card p-2 grid grid-cols-2 sm:grid-cols-5 gap-2">
+      <div className="glass-card p-2 grid grid-cols-2 sm:grid-cols-6 gap-2">
         {[
           ["overview", "全体統計"],
           ["support", "お問い合わせ"],
           ["announcements", "お知らせ"],
-          ["missions", "勲章"],
+          ["missions", "ミッション"],
+          ["achievements", "勲章"],
           ["users", "ユーザー管理"],
         ].map(([key, label]) => (
           <button
@@ -482,7 +484,9 @@ export default function AdminPage() {
         </section>
       )}
 
-      {section === "missions" && <AchievementManager />}
+      {section === "missions" && <MissionManager />}
+
+      {section === "achievements" && <AchievementManager />}
 
       {section === "users" && (
         <section className="glass-card p-4 space-y-3">
