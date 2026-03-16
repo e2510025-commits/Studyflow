@@ -21,6 +21,7 @@ import {
   sendFriendRequest,
   subscribeOutgoingFriendRequests,
 } from "@/lib/firestore/friends";
+import { subscribeUsersOnlineStatus } from "@/lib/firestore/presence";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 
 function AvatarPill({ avatar, size = 40 }: { avatar: string; size?: number }) {
@@ -44,6 +45,7 @@ export default function FriendsPage() {
   const [copiedUid, setCopiedUid] = useState(false);
   const [searchResults, setSearchResults] = useState<Array<Omit<Friend, "addedAt">>>([]);
   const [outgoingRequests, setOutgoingRequests] = useState<FriendRequest[]>([]);
+  const [onlineUids, setOnlineUids] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!userProfile.uid) return;
@@ -52,6 +54,17 @@ export default function FriendsPage() {
       unsubOutgoing();
     };
   }, [userProfile.uid]);
+
+  useEffect(() => {
+    if (friends.length === 0) {
+      setOnlineUids(new Set());
+      return;
+    }
+    return subscribeUsersOnlineStatus(
+      friends.map((f) => f.uid),
+      setOnlineUids
+    );
+  }, [friends]);
 
   useEffect(() => {
     let cancelled = false;
@@ -332,9 +345,24 @@ export default function FriendsPage() {
                   <span className="text-sm font-bold block truncate" style={{ color: "var(--foreground)" }}>
                     {safeName}
                   </span>
-                  <span className="text-xs font-mono" style={{ color: "var(--muted)" }}>
-                    UID: {friend.uid}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono" style={{ color: "var(--muted)" }}>
+                      UID: {friend.uid}
+                    </span>
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold inline-flex items-center gap-1"
+                      style={{
+                        background: onlineUids.has(friend.uid) ? "#22c55e22" : "var(--muted-bg)",
+                        color: onlineUids.has(friend.uid) ? "#16a34a" : "var(--muted)",
+                      }}
+                    >
+                      <span
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ background: onlineUids.has(friend.uid) ? "#22c55e" : "#9ca3af" }}
+                      />
+                      {onlineUids.has(friend.uid) ? "オンライン" : "オフライン"}
+                    </span>
+                  </div>
                 </Link>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <Link href={`/friends/chat/${friend.uid}`}>

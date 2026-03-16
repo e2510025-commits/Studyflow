@@ -4,6 +4,8 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useStore } from "@/store/useStore";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  ArrowDown,
+  ArrowUp,
   Trophy,
   Flame,
   Clock,
@@ -17,6 +19,7 @@ import {
 import { formatHoursMinutes } from "@/lib/utils";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 import {
+  fetchDailyRankMap,
   fetchRankingData,
   saveUserProfile,
   getProfilesBatch,
@@ -72,6 +75,7 @@ export default function RankingPage() {
   const [profiles, setProfiles] = useState<
     Map<string, { name: string; avatar: string; isOfficial?: boolean }>
   >(new Map());
+  const [dailyTrend, setDailyTrend] = useState<Map<string, number>>(new Map());
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -96,6 +100,21 @@ export default function RankingPage() {
     try {
       const data = await fetchRankingData(period);
       setRawData(data);
+
+      const [todayRankMap, yesterdayRankMap] = await Promise.all([
+        fetchDailyRankMap(0),
+        fetchDailyRankMap(1),
+      ]);
+      const trendMap = new Map<string, number>();
+      data.forEach((row, idx) => {
+        const todayRank = todayRankMap.get(row.userId) || idx + 1;
+        const yesterdayRank = yesterdayRankMap.get(row.userId);
+        if (yesterdayRank) {
+          // Positive means ranking improved (e.g. 10 -> 7 => +3)
+          trendMap.set(row.userId, yesterdayRank - todayRank);
+        }
+      });
+      setDailyTrend(trendMap);
 
       // Fetch profiles for first page + own uid
       const uids = data.slice(0, PAGE_SIZE).map((u) => u.userId);
@@ -348,6 +367,7 @@ export default function RankingPage() {
               {visibleRanking.map((user) => {
                 const isMe = user.userId === userProfile.uid;
                 const isTop3 = user.rank <= 3;
+                const trend = dailyTrend.get(user.userId) || 0;
 
                 return (
                   <motion.div
@@ -402,6 +422,10 @@ export default function RankingPage() {
                           style={{ color: "var(--muted)" }}
                         >
                           {user.sessions} セッション
+                        </span>
+                        <span className="text-[10px] inline-flex items-center gap-1" style={{ color: trend > 0 ? "#16a34a" : trend < 0 ? "#ef4444" : "var(--muted)" }}>
+                          {trend > 0 ? <ArrowUp size={12} /> : trend < 0 ? <ArrowDown size={12} /> : null}
+                          前日比 {trend > 0 ? `+${trend}` : trend < 0 ? `${trend}` : "±0"}
                         </span>
                       </div>
                     </div>

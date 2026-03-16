@@ -83,28 +83,32 @@ export default function SubjectSelector({
               className="relative flex flex-col items-center gap-2 py-5 px-4 rounded-xl transition-all duration-200"
               style={{
                 background: isSelected
-                  ? `${subject.color}20`
+                  ? `${subject.color}2e`
                   : "var(--muted-bg)",
                 border: isSelected
-                  ? `2px solid ${subject.color}`
+                  ? `3px solid ${subject.color}`
                   : "2px solid transparent",
                 color: isSelected ? subject.color : "var(--muted)",
+                boxShadow: isSelected
+                  ? `0 10px 22px ${subject.color}40`
+                  : "0 0 0 transparent",
               }}
-              whileHover={{ scale: 1.03 }}
+              whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.97 }}
             >
               <div
                 className="w-12 h-12 rounded-full flex items-center justify-center"
                 style={{
                   background: isSelected
-                    ? `${subject.color}30`
+                    ? `${subject.color}46`
                     : "var(--card-bg)",
                   color: isSelected ? subject.color : "var(--muted)",
+                  border: isSelected ? `2px solid ${subject.color}` : "1px solid transparent",
                 }}
               >
                 <SubjectIcon iconName={subject.icon} size={20} />
               </div>
-              <span className="text-sm font-medium truncate w-full text-center">
+              <span className="text-sm font-semibold truncate w-full text-center">
                 {subject.name}
               </span>
             </motion.button>

@@ -113,9 +113,11 @@ export default function Sidebar() {
                 onClick={() => setSidebarOpen(false)}
                 className="relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200"
                 style={{
-                  background: isActive ? "var(--accent-light)" : "transparent",
-                  color: isActive ? "var(--accent)" : "var(--muted)",
-                  fontWeight: isActive ? 600 : 400,
+                  background: isActive ? "color-mix(in srgb, var(--accent) 24%, transparent)" : "transparent",
+                  color: isActive ? "var(--foreground)" : "var(--muted)",
+                  border: isActive ? "1px solid color-mix(in srgb, var(--accent) 55%, transparent)" : "1px solid transparent",
+                  fontWeight: isActive ? 700 : 500,
+                  boxShadow: isActive ? "0 6px 16px rgba(0,0,0,0.14)" : "none",
                 }}
               >
                 {isActive && (

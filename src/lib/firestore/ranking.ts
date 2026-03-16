@@ -7,6 +7,7 @@ import {
   setDoc,
   getDoc,
   Timestamp,
+  QueryConstraint,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
@@ -167,4 +168,71 @@ export async function fetchRankingData(
   return Array.from(userMap.entries())
     .map(([uid, stats]) => ({ userId: uid, ...stats }))
     .sort((a, b) => b.totalPoints - a.totalPoints);
+}
+
+async function fetchRankingDataByDateRange(params: {
+  startAt?: Date;
+  endBefore?: Date;
+}): Promise<AggregatedUser[]> {
+  const logsRef = collection(db, "studyLogs");
+  const rewardsRef = collection(db, "missionRewards");
+
+  const logConstraints: QueryConstraint[] = [];
+  const rewardConstraints: QueryConstraint[] = [];
+  if (params.startAt) {
+    logConstraints.push(where("createdAt", ">=", Timestamp.fromDate(params.startAt)));
+    rewardConstraints.push(where("createdAt", ">=", Timestamp.fromDate(params.startAt)));
+  }
+  if (params.endBefore) {
+    logConstraints.push(where("createdAt", "<", Timestamp.fromDate(params.endBefore)));
+    rewardConstraints.push(where("createdAt", "<", Timestamp.fromDate(params.endBefore)));
+  }
+
+  const [snapshot, rewardSnapshot] = await Promise.all([
+    getDocs(query(logsRef, ...logConstraints)),
+    getDocs(query(rewardsRef, ...rewardConstraints)),
+  ]);
+
+  const userMap = new Map<string, { totalDuration: number; totalPoints: number; sessions: number }>();
+
+  for (const d of snapshot.docs) {
+    const data = d.data();
+    const uid: string | undefined = data.userUid;
+    if (!uid) continue;
+    const existing = userMap.get(uid) || { totalDuration: 0, totalPoints: 0, sessions: 0 };
+    existing.totalDuration += data.duration || 0;
+    existing.totalPoints += data.points ?? Math.floor((data.duration || 0) / 60);
+    existing.sessions += 1;
+    userMap.set(uid, existing);
+  }
+
+  for (const d of rewardSnapshot.docs) {
+    const data = d.data();
+    const uid: string | undefined = data.uid;
+    if (!uid) continue;
+    const existing = userMap.get(uid) || { totalDuration: 0, totalPoints: 0, sessions: 0 };
+    existing.totalPoints += Number(data.points || 0);
+    userMap.set(uid, existing);
+  }
+
+  return Array.from(userMap.entries())
+    .map(([userId, stats]) => ({ userId, ...stats }))
+    .sort((a, b) => b.totalPoints - a.totalPoints);
+}
+
+export async function fetchDailyRankMap(dayOffset: number): Promise<Map<string, number>> {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOffset);
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOffset + 1);
+
+  const rows = await fetchRankingDataByDateRange({
+    startAt: start,
+    endBefore: end,
+  });
+
+  const rankMap = new Map<string, number>();
+  rows.forEach((row, index) => {
+    rankMap.set(row.userId, index + 1);
+  });
+  return rankMap;
 }

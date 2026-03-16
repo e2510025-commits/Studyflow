@@ -23,6 +23,7 @@ import {
   ensureDefaultUserSubjects,
   subscribeUserSubjects,
 } from "@/lib/firestore/userSubjects";
+import { updateUserPresence } from "@/lib/firestore/presence";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { AppNotification } from "@/types";
@@ -191,6 +192,50 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       );
       setCriticalNotice(critical || null);
     });
+  }, [userProfile.uid]);
+
+  useEffect(() => {
+    if (!userProfile.uid) return;
+
+    let disposed = false;
+
+    const upsert = (online: boolean) => {
+      if (disposed) return;
+      void updateUserPresence(userProfile.uid, online).catch(() => {});
+    };
+
+    upsert(true);
+
+    const onVisibility = () => {
+      upsert(document.visibilityState === "visible");
+    };
+    const onFocus = () => upsert(true);
+    const onBlur = () => upsert(false);
+    const onBeforeUnload = () => {
+      void updateUserPresence(userProfile.uid, false).catch(() => {});
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("beforeunload", onBeforeUnload);
+
+    // Heartbeat so active sessions remain online even without user interactions.
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        upsert(true);
+      }
+    }, 45_000);
+
+    return () => {
+      disposed = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      void updateUserPresence(userProfile.uid, false).catch(() => {});
+    };
   }, [userProfile.uid]);
 
   // Apply theme class to <html>
