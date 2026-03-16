@@ -140,6 +140,13 @@ export default function RankingPage() {
   }, [loadRanking]);
 
   useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void loadRanking();
+    }, 30_000);
+    return () => window.clearInterval(intervalId);
+  }, [loadRanking]);
+
+  useEffect(() => {
     if (!userProfile.uid) return;
     return subscribeRivals(userProfile.uid, (rows) => {
       setRivalUids(new Set(rows.map((row) => row.rivalUid)));
