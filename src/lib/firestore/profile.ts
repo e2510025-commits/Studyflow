@@ -56,6 +56,7 @@ export async function saveDisplayProfile(params: {
   showFollowCount?: boolean;
   showFollowerCount?: boolean;
   showFriendCount?: boolean;
+  helpfulReceived?: number;
 }) {
   const safeName = sanitizeDisplayName(params.name);
   const safeAvatar = sanitizeAvatar(params.avatar);
@@ -93,6 +94,9 @@ export async function saveDisplayProfile(params: {
   }
   if (typeof params.showFriendCount === "boolean") {
     payload.showFriendCount = params.showFriendCount;
+  }
+  if (typeof params.helpfulReceived === "number") {
+    payload.helpfulReceived = Math.max(0, Math.floor(params.helpfulReceived));
   }
 
   await setDoc(
@@ -157,6 +161,7 @@ export async function fetchPublicProfile(uid: string): Promise<PublicProfile | n
     showFollowCount: typeof data.showFollowCount === "boolean" ? data.showFollowCount : true,
     showFollowerCount: typeof data.showFollowerCount === "boolean" ? data.showFollowerCount : true,
     showFriendCount: typeof data.showFriendCount === "boolean" ? data.showFriendCount : true,
+    helpfulReceived: typeof data.helpfulReceived === "number" ? data.helpfulReceived : 0,
   };
 }
 

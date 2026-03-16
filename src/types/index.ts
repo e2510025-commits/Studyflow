@@ -33,6 +33,7 @@ export interface UserProfile {
   showFollowCount?: boolean;
   showFollowerCount?: boolean;
   showFriendCount?: boolean;
+  helpfulReceived?: number;
 }
 
 export type ProfileVisibility = "public" | "friends" | "private";
@@ -57,6 +58,31 @@ export interface PublicProfile {
   showFollowCount?: boolean;
   showFollowerCount?: boolean;
   showFriendCount?: boolean;
+  helpfulReceived?: number;
+}
+
+export type BulletinCategory = "qa" | "tips" | "ops";
+
+export interface CommunityStreamMessage {
+  id: string;
+  kind: "user" | "system";
+  uid?: string;
+  name: string;
+  avatar: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface BulletinPost {
+  id: string;
+  uid: string;
+  name: string;
+  avatar: string;
+  title: string;
+  content: string;
+  category: BulletinCategory;
+  helpfulCount: number;
+  createdAt: string;
 }
 
 export type MissionScope = "daily" | "weekly" | "season";

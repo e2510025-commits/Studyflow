@@ -551,6 +551,9 @@ export default function PublicProfilePage() {
         <div className="glass-card p-4">
           <p className="text-xs" style={{ color: "var(--muted)" }}>応援数</p>
           <p className="text-xl font-black" style={{ color: "#f97316" }}>{cheerCount}</p>
+          <p className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>
+            役立った {Math.max(0, Number(profile.helpfulReceived || 0))}
+          </p>
         </div>
         <div className="glass-card p-4">
           <p className="text-xs" style={{ color: "var(--muted)" }}>フレンド</p>
