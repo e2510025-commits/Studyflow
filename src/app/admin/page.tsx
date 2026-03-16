@@ -17,6 +17,13 @@ interface AdminOverview {
   groups: number;
   announcements: number;
   notifications: number;
+  droppingUsers: number;
+  dropAlerts?: Array<{
+    uid: string;
+    prevDuration: number;
+    recentDuration: number;
+    dropRate: number;
+  }>;
 }
 
 interface AdminUser {
@@ -36,6 +43,7 @@ interface AdminAnnouncement {
   body: string;
   createdBy: string;
   createdAt: string;
+  scheduledAt?: string;
 }
 
 export default function AdminPage() {
@@ -49,10 +57,12 @@ export default function AdminPage() {
   const [dmText, setDmText] = useState("運営からの連絡です。");
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementBody, setAnnouncementBody] = useState("");
+  const [announcementScheduledAt, setAnnouncementScheduledAt] = useState("");
   const [announcements, setAnnouncements] = useState<AdminAnnouncement[]>([]);
   const [editingAnnouncementId, setEditingAnnouncementId] = useState("");
   const [editingTitle, setEditingTitle] = useState("");
   const [editingBody, setEditingBody] = useState("");
+  const [editingScheduledAt, setEditingScheduledAt] = useState("");
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [section, setSection] = useState<AdminSection>("overview");
   const [appVersion, setAppVersion] = useState("1.0.0");
@@ -163,7 +173,7 @@ export default function AdminPage() {
     const res = await fetch("/api/admin/announcements", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, body }),
+      body: JSON.stringify({ title, body, scheduledAt: announcementScheduledAt || null }),
     });
 
     if (!res.ok) {
@@ -173,13 +183,15 @@ export default function AdminPage() {
 
     setAnnouncementTitle("");
     setAnnouncementBody("");
+    setAnnouncementScheduledAt("");
     await Promise.all([loadOverview(), loadAnnouncements()]);
-  }, [announcementTitle, announcementBody, loadAnnouncements, loadOverview]);
+  }, [announcementTitle, announcementBody, announcementScheduledAt, loadAnnouncements, loadOverview]);
 
   const startEditAnnouncement = useCallback((row: AdminAnnouncement) => {
     setEditingAnnouncementId(row.id);
     setEditingTitle(row.title);
     setEditingBody(row.body);
+    setEditingScheduledAt(row.scheduledAt ? row.scheduledAt.slice(0, 16) : "");
   }, []);
 
   const saveAnnouncementEdit = useCallback(async () => {
@@ -191,7 +203,7 @@ export default function AdminPage() {
     const res = await fetch("/api/admin/announcements", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: editingAnnouncementId, title, body }),
+      body: JSON.stringify({ id: editingAnnouncementId, title, body, scheduledAt: editingScheduledAt || null }),
     });
     if (!res.ok) {
       alert("お知らせ更新に失敗しました");
@@ -201,6 +213,7 @@ export default function AdminPage() {
     setEditingAnnouncementId("");
     setEditingTitle("");
     setEditingBody("");
+    setEditingScheduledAt("");
     await loadAnnouncements();
   }, [editingAnnouncementId, editingTitle, editingBody, loadAnnouncements]);
 
@@ -234,6 +247,7 @@ export default function AdminPage() {
       ["グループ数", overview.groups],
       ["お知らせ数", overview.announcements],
       ["通知数", overview.notifications],
+      ["学習低下ユーザー", overview.droppingUsers],
     ] as const;
   }, [overview]);
 
@@ -332,6 +346,16 @@ export default function AdminPage() {
             className="w-full px-3 py-2 rounded-xl text-sm"
             style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
           />
+          <div>
+            <label className="text-xs" style={{ color: "var(--muted)" }}>予約投稿日時（任意）</label>
+            <input
+              type="datetime-local"
+              value={announcementScheduledAt}
+              onChange={(e) => setAnnouncementScheduledAt(e.target.value)}
+              className="w-full mt-1 px-3 py-2 rounded-xl text-sm"
+              style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+            />
+          </div>
           <button
             onClick={publishAnnouncement}
             className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
@@ -362,6 +386,13 @@ export default function AdminPage() {
                         className="w-full px-3 py-2 rounded text-sm"
                         style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
                       />
+                      <input
+                        type="datetime-local"
+                        value={editingScheduledAt}
+                        onChange={(e) => setEditingScheduledAt(e.target.value)}
+                        className="w-full px-3 py-2 rounded text-sm"
+                        style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
+                      />
                       <div className="flex gap-2">
                         <button onClick={() => void saveAnnouncementEdit()} className="px-3 py-1.5 rounded text-xs font-bold text-white" style={{ background: "var(--accent)" }}>保存</button>
                         <button onClick={() => setEditingAnnouncementId("")} className="px-3 py-1.5 rounded text-xs font-bold" style={{ background: "#ffffff22", color: "var(--foreground)" }}>キャンセル</button>
@@ -374,6 +405,11 @@ export default function AdminPage() {
                       <p className="text-[10px] mt-1" style={{ color: "var(--muted)" }}>
                         {new Date(row.createdAt).toLocaleString("ja-JP")} / by {row.createdBy}
                       </p>
+                      {row.scheduledAt && (
+                        <p className="text-[10px] mt-1" style={{ color: "#f59e0b" }}>
+                          予約: {new Date(row.scheduledAt).toLocaleString("ja-JP")}
+                        </p>
+                      )}
                       <div className="mt-2 flex gap-2">
                         <button onClick={() => startEditAnnouncement(row)} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "var(--accent-light)", color: "var(--accent)" }}>編集</button>
                         <button onClick={() => void deleteAnnouncement(row.id)} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "#ef444420", color: "#ef4444" }}>削除</button>
@@ -383,6 +419,27 @@ export default function AdminPage() {
                 </div>
               ))
             )}
+          </div>
+        </section>
+      )}
+
+      {section === "overview" && overview?.dropAlerts && overview.dropAlerts.length > 0 && (
+        <section className="glass-card p-4">
+          <h3 className="text-sm font-bold mb-2" style={{ color: "var(--foreground)" }}>
+            学習時間急減ユーザー（前週比）
+          </h3>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {overview.dropAlerts.map((row) => (
+              <div key={row.uid} className="rounded-lg p-2 text-xs" style={{ background: "var(--muted-bg)" }}>
+                <span style={{ color: "var(--foreground)" }}>UID: {row.uid}</span>
+                <span className="ml-3" style={{ color: "var(--muted)" }}>
+                  先週 {Math.round(row.prevDuration / 3600)}h → 今週 {Math.round(row.recentDuration / 3600)}h
+                </span>
+                <span className="ml-3" style={{ color: "#ef4444" }}>
+                  {Math.round(row.dropRate * 100)}% 減
+                </span>
+              </div>
+            ))}
           </div>
         </section>
       )}

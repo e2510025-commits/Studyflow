@@ -17,6 +17,7 @@ export async function GET() {
       body: data.body || "",
       createdBy: data.createdBy || "",
       createdAt: data.createdAt?.toDate?.()?.toISOString?.() || "",
+      scheduledAt: data.scheduledAt?.toDate?.()?.toISOString?.() || "",
     };
   });
   return NextResponse.json({ announcements: rows });
@@ -26,9 +27,10 @@ export async function POST(request: Request) {
   const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
 
-  const body = (await request.json()) as { title?: string; body?: string };
+  const body = (await request.json()) as { title?: string; body?: string; scheduledAt?: string };
   const title = (body.title || "").trim();
   const content = (body.body || "").trim();
+  const scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null;
 
   if (!title || !content) {
     return NextResponse.json({ error: "title/body required" }, { status: 400 });
@@ -39,6 +41,7 @@ export async function POST(request: Request) {
     body: content,
     createdBy: guard.appUid,
     createdAt: serverTimestamp(),
+    scheduledAt: scheduledAt && !Number.isNaN(scheduledAt.getTime()) ? scheduledAt : null,
   });
 
   return NextResponse.json({ ok: true });
@@ -48,10 +51,11 @@ export async function PUT(request: Request) {
   const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
 
-  const body = (await request.json()) as { id?: string; title?: string; body?: string };
+  const body = (await request.json()) as { id?: string; title?: string; body?: string; scheduledAt?: string };
   const id = (body.id || "").trim();
   const title = (body.title || "").trim();
   const content = (body.body || "").trim();
+  const scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null;
   if (!id || !title || !content) {
     return NextResponse.json({ error: "id/title/body required" }, { status: 400 });
   }
@@ -63,6 +67,7 @@ export async function PUT(request: Request) {
       body: content,
       updatedBy: guard.appUid,
       updatedAt: serverTimestamp(),
+      scheduledAt: scheduledAt && !Number.isNaN(scheduledAt.getTime()) ? scheduledAt : null,
     },
     { merge: true }
   );

@@ -24,6 +24,7 @@ export interface UserProfile {
   totalPoints: number;
   bonusPoints?: number;
   profileSetupDone?: boolean;
+  badges?: string[];
 }
 
 export type ProfileVisibility = "public" | "friends" | "private";
@@ -39,6 +40,7 @@ export interface PublicProfile {
   bonusPoints?: number;
   profileSetupDone?: boolean;
   isOfficial?: boolean;
+  badges?: string[];
 }
 
 export type MissionScope = "daily" | "weekly" | "season";
@@ -137,6 +139,7 @@ export interface Announcement {
   body: string;
   createdBy: string;
   createdAt: string;
+  scheduledAt?: string;
 }
 
 export type TimerMode = "stopwatch" | "countdown" | "pomodoro";

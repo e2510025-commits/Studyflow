@@ -21,6 +21,7 @@ import {
   Trophy,
   Maximize2,
   Minimize2,
+  ClipboardList,
 } from "lucide-react";
 import {
   formatTime,
@@ -35,6 +36,12 @@ import FocusRoom from "./FocusRoom";
 import { addStudyLogToFirestore } from "@/lib/firestore/studyLogs";
 import { upsertActiveStudySession } from "@/lib/firestore/focusRoom";
 import { upsertSubjectCatalog } from "@/lib/firestore/subjects";
+import {
+  createUserTodo,
+  markTodoDone,
+  subscribeUserTodos,
+  type UserTodo,
+} from "@/lib/firestore/todos";
 
 /* ─── Sound helper ────────────────────────────────────── */
 function playSound(type: "complete" | "break") {
@@ -97,6 +104,11 @@ export default function StudyTimer() {
   const [showMemo, setShowMemo] = useState(false);
   const [finishedDuration, setFinishedDuration] = useState(0);
   const [showPomSettings, setShowPomSettings] = useState(false);
+  const [todos, setTodos] = useState<UserTodo[]>([]);
+  const [selectedTodoId, setSelectedTodoId] = useState("");
+  const [newTodoTitle, setNewTodoTitle] = useState("");
+  const [newTodoPages, setNewTodoPages] = useState("");
+  const [completeTodoOnSave, setCompleteTodoOnSave] = useState(true);
 
   /* ── Focus Bonus tracking (visibility API) ─────────── */
   const [focusLost, setFocusLost] = useState(false);
@@ -129,6 +141,17 @@ export default function StudyTimer() {
 
   const selectedSubject = subjects.find(
     (s) => s.id === timer.selectedSubjectId
+  );
+
+  useEffect(() => {
+    if (!userProfile.uid) return;
+    return subscribeUserTodos(userProfile.uid, setTodos);
+  }, [userProfile.uid]);
+
+  const activeTodos = useMemo(() => todos.filter((row) => !row.done), [todos]);
+  const selectedTodo = useMemo(
+    () => activeTodos.find((row) => row.id === selectedTodoId),
+    [activeTodos, selectedTodoId]
   );
 
   useEffect(() => {
@@ -283,13 +306,15 @@ export default function StudyTimer() {
       if (timer.selectedSubjectId && finishedDuration > 0 && selectedSubject && userProfile.uid) {
         const basePoints = Math.floor(finishedDuration / 60);
         const points = focusBonusActive ? Math.floor(basePoints * 1.2) : basePoints;
+        const todoTag = selectedTodo ? `TODO: ${selectedTodo.title}` : "";
+        const finalMemo = [todoTag, memo].filter(Boolean).join("\n");
 
         void addStudyLogToFirestore(
           userProfile.uid,
           {
             subjectId: timer.selectedSubjectId,
             duration: finishedDuration,
-            memo,
+            memo: finalMemo,
             focusRating,
             focusBonus: focusBonusActive,
             points,
@@ -301,6 +326,10 @@ export default function StudyTimer() {
         ).catch(() => {});
 
         void upsertSubjectCatalog(selectedSubject.name).catch(() => {});
+        if (selectedTodo && completeTodoOnSave) {
+          void markTodoDone(selectedTodo.id, true).catch(() => {});
+          setSelectedTodoId("");
+        }
       }
       setShowMemo(false);
       if (timer.mode === "pomodoro") {
@@ -320,6 +349,8 @@ export default function StudyTimer() {
       resetTimer,
       pomodoroNextPhase,
       focusBonusActive,
+      selectedTodo,
+      completeTodoOnSave,
     ]
   );
 
@@ -327,13 +358,14 @@ export default function StudyTimer() {
     if (timer.selectedSubjectId && finishedDuration > 0 && selectedSubject && userProfile.uid) {
       const basePoints = Math.floor(finishedDuration / 60);
       const points = focusBonusActive ? Math.floor(basePoints * 1.2) : basePoints;
+      const todoTag = selectedTodo ? `TODO: ${selectedTodo.title}` : "";
 
       void addStudyLogToFirestore(
         userProfile.uid,
         {
           subjectId: timer.selectedSubjectId,
           duration: finishedDuration,
-          memo: "",
+          memo: todoTag,
           focusRating: undefined,
           focusBonus: focusBonusActive,
           points,
@@ -345,6 +377,10 @@ export default function StudyTimer() {
       ).catch(() => {});
 
       void upsertSubjectCatalog(selectedSubject.name).catch(() => {});
+      if (selectedTodo && completeTodoOnSave) {
+        void markTodoDone(selectedTodo.id, true).catch(() => {});
+        setSelectedTodoId("");
+      }
     }
     setShowMemo(false);
     if (timer.mode === "pomodoro") {
@@ -363,6 +399,8 @@ export default function StudyTimer() {
     resetTimer,
     pomodoroNextPhase,
     focusBonusActive,
+    selectedTodo,
+    completeTodoOnSave,
   ]);
 
   const handleFullReset = useCallback(() => {
@@ -1107,6 +1145,74 @@ export default function StudyTimer() {
             selectedId={timer.selectedSubjectId}
             onSelect={(id) => setTimerSubject(id)}
           />
+
+          <div className="mt-4 rounded-xl p-4" style={{ background: "var(--muted-bg)" }}>
+            <div className="flex items-center gap-2 mb-2">
+              <ClipboardList size={15} style={{ color: "var(--accent)" }} />
+              <h4 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
+                ToDoリスト連携
+              </h4>
+            </div>
+
+            <select
+              value={selectedTodoId}
+              onChange={(e) => setSelectedTodoId(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg text-sm"
+              style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
+            >
+              <option value="">このセッションに紐づけるToDo（任意）</option>
+              {activeTodos.map((todo) => (
+                <option key={todo.id} value={todo.id}>
+                  {todo.title}{todo.targetPages ? ` (${todo.targetPages}ページ)` : ""}
+                </option>
+              ))}
+            </select>
+
+            <label className="text-xs mt-2 inline-flex items-center gap-2" style={{ color: "var(--muted)" }}>
+              <input
+                type="checkbox"
+                checked={completeTodoOnSave}
+                onChange={(e) => setCompleteTodoOnSave(e.target.checked)}
+              />
+              セッション終了時にToDoを完了にする
+            </label>
+
+            <div className="mt-3 grid sm:grid-cols-[1fr_120px_auto] gap-2">
+              <input
+                value={newTodoTitle}
+                onChange={(e) => setNewTodoTitle(e.target.value)}
+                placeholder="例: 数学ワーク"
+                className="px-3 py-2 rounded-lg text-sm"
+                style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
+              />
+              <input
+                type="number"
+                min={0}
+                value={newTodoPages}
+                onChange={(e) => setNewTodoPages(e.target.value.replace(/[^0-9]/g, ""))}
+                placeholder="ページ数"
+                className="px-3 py-2 rounded-lg text-sm"
+                style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
+              />
+              <button
+                onClick={() => {
+                  if (!newTodoTitle.trim() || !userProfile.uid) return;
+                  void createUserTodo({
+                    ownerUid: userProfile.uid,
+                    title: newTodoTitle,
+                    subjectId: timer.selectedSubjectId || undefined,
+                    targetPages: newTodoPages ? Number(newTodoPages) : undefined,
+                  }).catch(() => {});
+                  setNewTodoTitle("");
+                  setNewTodoPages("");
+                }}
+                className="px-3 py-2 rounded-lg text-sm font-semibold text-white"
+                style={{ background: "var(--accent)" }}
+              >
+                追加
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

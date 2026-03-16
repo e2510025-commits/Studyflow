@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { StudyLog } from "@/types";
+import { recomputeAndSaveAchievements } from "@/lib/firestore/achievements";
 
 const LOGS_COLLECTION = "studyLogs";
 
@@ -74,6 +75,8 @@ export async function addStudyLogToFirestore(
       { merge: true }
     ).catch(() => {});
   }
+
+  void recomputeAndSaveAchievements(userUid).catch(() => {});
 
   return docRef.id;
 }

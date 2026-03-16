@@ -27,16 +27,23 @@ function toIso(value: unknown): string {
 export function subscribeAnnouncements(callback: (rows: Announcement[]) => void) {
   const q = query(collection(db, ANNOUNCEMENTS_COLLECTION), orderBy("createdAt", "desc"));
   return onSnapshot(q, (snapshot) => {
-    const rows = snapshot.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        title: data.title || "",
-        body: data.body || "",
-        createdBy: data.createdBy || "",
-        createdAt: toIso(data.createdAt),
-      } satisfies Announcement;
-    });
+    const now = Date.now();
+    const rows = snapshot.docs
+      .map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          title: data.title || "",
+          body: data.body || "",
+          createdBy: data.createdBy || "",
+          createdAt: toIso(data.createdAt),
+          scheduledAt: data.scheduledAt ? toIso(data.scheduledAt) : undefined,
+        } satisfies Announcement;
+      })
+      .filter((row) => {
+        if (!row.scheduledAt) return true;
+        return new Date(row.scheduledAt).getTime() <= now;
+      });
     callback(rows);
   });
 }
@@ -98,14 +105,21 @@ export async function markNotificationAsRead(notificationId: string) {
 export async function fetchRecentAnnouncements(limitCount = 20): Promise<Announcement[]> {
   const q = query(collection(db, ANNOUNCEMENTS_COLLECTION), orderBy("createdAt", "desc"), limit(limitCount));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((d) => {
-    const data = d.data();
-    return {
-      id: d.id,
-      title: data.title || "",
-      body: data.body || "",
-      createdBy: data.createdBy || "",
-      createdAt: toIso(data.createdAt),
-    } satisfies Announcement;
-  });
+  const now = Date.now();
+  return snapshot.docs
+    .map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        title: data.title || "",
+        body: data.body || "",
+        createdBy: data.createdBy || "",
+        createdAt: toIso(data.createdAt),
+        scheduledAt: data.scheduledAt ? toIso(data.scheduledAt) : undefined,
+      } satisfies Announcement;
+    })
+    .filter((row) => {
+      if (!row.scheduledAt) return true;
+      return new Date(row.scheduledAt).getTime() <= now;
+    });
 }

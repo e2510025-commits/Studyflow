@@ -15,6 +15,8 @@ import {
   ChevronDown,
   Loader2,
   BadgeCheck,
+  UserPlus,
+  UserMinus,
 } from "lucide-react";
 import { formatHoursMinutes } from "@/lib/utils";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
@@ -25,6 +27,7 @@ import {
   getProfilesBatch,
   type AggregatedUser,
 } from "@/lib/firestore/ranking";
+import { addRival, removeRival, subscribeRivals } from "@/lib/firestore/rivals";
 
 type RankingPeriod = "today" | "week" | "month" | "all";
 
@@ -68,7 +71,7 @@ function Avatar({
 
 export default function RankingPage() {
   const [period, setPeriod] = useState<RankingPeriod>("today");
-  const { userProfile } = useStore();
+  const { userProfile, friends } = useStore();
 
   /* ── State ─────────────────────────────────────── */
   const [rawData, setRawData] = useState<AggregatedUser[]>([]);
@@ -76,6 +79,8 @@ export default function RankingPage() {
     Map<string, { name: string; avatar: string; isOfficial?: boolean }>
   >(new Map());
   const [dailyTrend, setDailyTrend] = useState<Map<string, number>>(new Map());
+  const [rivalUids, setRivalUids] = useState<Set<string>>(new Set());
+  const [rivalOnly, setRivalOnly] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -134,11 +139,21 @@ export default function RankingPage() {
     loadRanking();
   }, [loadRanking]);
 
+  useEffect(() => {
+    if (!userProfile.uid) return;
+    return subscribeRivals(userProfile.uid, (rows) => {
+      setRivalUids(new Set(rows.map((row) => row.rivalUid)));
+    });
+  }, [userProfile.uid]);
+
   /* ── Load more ─────────────────────────────────── */
   const handleLoadMore = useCallback(async () => {
     setLoadingMore(true);
     try {
-      const nextSlice = rawData.slice(visibleCount, visibleCount + PAGE_SIZE);
+      const source = rivalOnly
+        ? rawData.filter((u) => u.userId === userProfile.uid || rivalUids.has(u.userId))
+        : rawData;
+      const nextSlice = source.slice(visibleCount, visibleCount + PAGE_SIZE);
       const newUids = nextSlice
         .map((u) => u.userId)
         .filter((uid) => !profiles.has(uid));
@@ -155,20 +170,24 @@ export default function RankingPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [visibleCount, rawData, profiles]);
+  }, [visibleCount, rawData, rivalOnly, userProfile.uid, rivalUids, profiles]);
 
   /* ── Derived data ──────────────────────────────── */
-  const visibleRanking = rawData.slice(0, visibleCount).map((u, i) => ({
+  const filteredData = rivalOnly
+    ? rawData.filter((u) => u.userId === userProfile.uid || rivalUids.has(u.userId))
+    : rawData;
+
+  const visibleRanking = filteredData.slice(0, visibleCount).map((u, i) => ({
     ...u,
     rank: i + 1,
     name: sanitizeDisplayName(profiles.get(u.userId)?.name || "匿名"),
     avatar: sanitizeAvatar(profiles.get(u.userId)?.avatar || "👤"),
   }));
 
-  const hasMore = visibleCount < rawData.length;
-  const totalUsers = rawData.length;
+  const hasMore = visibleCount < filteredData.length;
+  const totalUsers = filteredData.length;
 
-  const myIndex = rawData.findIndex((u) => u.userId === userProfile.uid);
+  const myIndex = filteredData.findIndex((u) => u.userId === userProfile.uid);
   const myRank = myIndex >= 0 ? myIndex + 1 : totalUsers + 1;
   const myStats =
     myIndex >= 0
@@ -232,6 +251,42 @@ export default function RankingPage() {
             {p.label}
           </button>
         ))}
+      </motion.div>
+
+      <motion.div
+        className="glass-card p-4 space-y-3"
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>ライバル比較</h3>
+          <label className="text-xs inline-flex items-center gap-2" style={{ color: "var(--muted)" }}>
+            <input type="checkbox" checked={rivalOnly} onChange={(e) => setRivalOnly(e.target.checked)} />
+            ライバルのみ表示
+          </label>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {friends.length === 0 && (
+            <p className="text-xs" style={{ color: "var(--muted)" }}>フレンドを追加するとライバル設定できます</p>
+          )}
+          {friends.map((friend) => {
+            const isRival = rivalUids.has(friend.uid);
+            return (
+              <button
+                key={friend.uid}
+                onClick={() => void (isRival ? removeRival(userProfile.uid, friend.uid) : addRival(userProfile.uid, friend.uid))}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1"
+                style={{
+                  background: isRival ? "var(--accent-light)" : "var(--muted-bg)",
+                  color: isRival ? "var(--accent)" : "var(--muted)",
+                }}
+              >
+                {isRival ? <UserMinus size={12} /> : <UserPlus size={12} />}
+                {friend.name}
+              </button>
+            );
+          })}
+        </div>
       </motion.div>
 
       {/* ── My Stats Cards ──────────────────────────── */}
@@ -481,7 +536,7 @@ export default function RankingPage() {
                   <>
                     <ChevronDown size={16} />
                     さらに100件表示（残り{" "}
-                    {rawData.length - visibleCount} 件）
+                    {filteredData.length - visibleCount} 件）
                   </>
                 )}
               </button>

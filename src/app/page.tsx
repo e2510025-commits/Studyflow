@@ -6,6 +6,7 @@ import DailyPieChart from "@/components/dashboard/DailyPieChart";
 import WeeklyBarChart from "@/components/dashboard/WeeklyBarChart";
 import HeatMap from "@/components/dashboard/HeatMap";
 import RecentLogs from "@/components/dashboard/RecentLogs";
+import MotivationPanel from "@/components/dashboard/MotivationPanel";
 import { motion } from "framer-motion";
 
 export default function DashboardPage() {
@@ -49,6 +50,8 @@ export default function DashboardPage() {
           <RecentLogs />
         </div>
       </div>
+
+      <MotivationPanel />
     </div>
   );
 }
