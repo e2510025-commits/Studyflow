@@ -317,22 +317,29 @@ export default function GroupConversationPage() {
           </span>
         </div>
 
-        {activeTasks.length > 0 && (
-          <div className="pt-3 space-y-2 max-h-[230px] overflow-y-auto">
-            {activeTasks.map((task) => {
-              const totalPages = task.totalPages || 0;
-              const saved = myTaskProgress.get(task.id)?.completedPages || 0;
-              const draft = typeof draftPagesByTask[task.id] === "number" ? draftPagesByTask[task.id] : saved;
-              const currentPages = Math.min(Math.max(draft, 0), totalPages);
-              const percent = totalPages > 0 ? Math.round((currentPages / totalPages) * 100) : 0;
-              const endMs = resolveTaskEndMs(task);
-              const dueSoon = endMs - nowMs <= 24 * 60 * 60 * 1000;
+        <div className="flex-1 overflow-y-auto py-3 space-y-2 min-h-0">
+          {(activeTasks.length > 0 || archivedTasks.length > 0) && (
+            <div className="rounded-xl p-2" style={{ background: "#ffffff22" }}>
+              <p className="text-[11px] font-bold" style={{ color: "var(--muted)" }}>
+                課題カード（チャット埋め込み）
+              </p>
+            </div>
+          )}
 
-              const barColor = dueSoon ? "#eab308" : "var(--accent)";
-              const pageLocked = endMs < nowMs;
+          {activeTasks.map((task) => {
+            const totalPages = task.totalPages || 0;
+            const saved = myTaskProgress.get(task.id)?.completedPages || 0;
+            const draft = typeof draftPagesByTask[task.id] === "number" ? draftPagesByTask[task.id] : saved;
+            const currentPages = Math.min(Math.max(draft, 0), totalPages);
+            const percent = totalPages > 0 ? Math.round((currentPages / totalPages) * 100) : 0;
+            const endMs = resolveTaskEndMs(task);
+            const dueSoon = endMs - nowMs <= 24 * 60 * 60 * 1000;
+            const barColor = dueSoon ? "#eab308" : "var(--accent)";
+            const pageLocked = endMs < nowMs;
 
-              return (
-                <div key={task.id} className="rounded-xl p-3" style={{ background: "var(--muted-bg)" }}>
+            return (
+              <div key={task.id} className="flex justify-start">
+                <div className="w-full max-w-[92%] rounded-xl p-3" style={{ background: "var(--muted-bg)" }}>
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-sm font-bold truncate" style={{ color: "var(--foreground)" }}>
@@ -393,45 +400,40 @@ export default function GroupConversationPage() {
                     </p>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        )}
+              </div>
+            );
+          })}
 
-        {archivedTasks.length > 0 && (
-          <div className="pt-3">
-            <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>
-              過去の課題（期限切れ）
-            </p>
-            <div className="space-y-2 max-h-[140px] overflow-y-auto">
-              {archivedTasks.map((task) => {
-                const totalPages = task.totalPages || 0;
-                const saved = myTaskProgress.get(task.id)?.completedPages || 0;
-                const percent = totalPages > 0 ? Math.round((saved / totalPages) * 100) : 0;
-                const incomplete = percent < 100;
-                return (
-                  <div
-                    key={task.id}
-                    className="rounded-xl p-3"
-                    style={{ background: "#80808033", color: "#d1d5db" }}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-bold">{task.title}</p>
-                      {incomplete && (
-                        <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: "#ef444433", color: "#fecaca" }}>
-                          未完了
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] mt-1">{saved}/{totalPages} ({percent}%)</p>
-                  </div>
-                );
-              })}
+          {archivedTasks.length > 0 && (
+            <div className="rounded-xl p-2 mt-1" style={{ background: "#80808022" }}>
+              <p className="text-[11px] font-bold" style={{ color: "var(--muted)" }}>
+                過去の課題（期限切れ）
+              </p>
             </div>
-          </div>
-        )}
+          )}
 
-        <div className="flex-1 overflow-y-auto py-3 space-y-2 min-h-0">
+          {archivedTasks.map((task) => {
+            const totalPages = task.totalPages || 0;
+            const saved = myTaskProgress.get(task.id)?.completedPages || 0;
+            const percent = totalPages > 0 ? Math.round((saved / totalPages) * 100) : 0;
+            const incomplete = percent < 100;
+            return (
+              <div key={task.id} className="flex justify-start">
+                <div className="w-full max-w-[92%] rounded-xl p-3" style={{ background: "#80808033", color: "#d1d5db" }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-bold">{task.title}</p>
+                    {incomplete && (
+                      <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: "#ef444433", color: "#fecaca" }}>
+                        未完了
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] mt-1">{saved}/{totalPages} ({percent}%)</p>
+                </div>
+              </div>
+            );
+          })}
+
           {messages.map((msg) => {
             const me = msg.fromUid === userProfile.uid;
             const profile = memberProfiles.get(msg.fromUid);
