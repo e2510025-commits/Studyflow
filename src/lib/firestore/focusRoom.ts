@@ -76,6 +76,42 @@ export interface ActiveStudyUser {
   userUid: string;
   userName: string;
   userAvatar: string;
+  subjectName?: string;
+}
+
+export function subscribeActiveStudyUsers(
+  callback: (users: ActiveStudyUser[]) => void
+) {
+  const q = query(
+    collection(db, ACTIVE_SESSIONS),
+    where("isActive", "==", true)
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const now = Date.now();
+    const aliveThresholdMs = 1000 * 60 * 10;
+
+    const users = snapshot.docs
+      .map((d) => d.data())
+      .filter((row) => {
+        const updatedAt = row.updatedAt;
+        if (!(updatedAt instanceof Timestamp)) {
+          return false;
+        }
+        return now - updatedAt.toDate().getTime() <= aliveThresholdMs;
+      })
+      .map((row) => ({
+        userUid: String(row.userUid || ""),
+        userName: sanitizeDisplayName(row.userName || "匿名"),
+        userAvatar: sanitizeAvatar(row.userAvatar || "👤"),
+        subjectName: String(row.subjectName || ""),
+      }))
+      .filter((u) => u.userUid);
+
+    callback(users);
+  }, () => {
+    callback([]);
+  });
 }
 
 export function subscribeActiveSubjectRoom(

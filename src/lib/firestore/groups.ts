@@ -32,7 +32,9 @@ export interface GroupMessage {
   id: string;
   groupId: string;
   fromUid: string;
+  type: "text" | "image";
   content: string;
+  fileName?: string;
   createdAt: string;
 }
 
@@ -135,7 +137,9 @@ export function subscribeGroupMessages(groupId: string, callback: (messages: Gro
         id: d.id,
         groupId: data.groupId,
         fromUid: data.fromUid,
+        type: data.type === "image" ? "image" : "text",
         content: data.content,
+        fileName: typeof data.fileName === "string" ? data.fileName : undefined,
         createdAt: toIso(data.createdAt),
       } satisfies GroupMessage;
     }).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
@@ -149,7 +153,29 @@ export async function sendGroupTextMessage(groupId: string, fromUid: string, con
   await addDoc(collection(db, GROUP_MESSAGES_COLLECTION), {
     groupId,
     fromUid,
+    type: "text",
     content,
+    createdAt: serverTimestamp(),
+  });
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("FILE_READ_FAILED"));
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function sendGroupImageMessage(groupId: string, fromUid: string, file: File) {
+  const dataUrl = await fileToDataUrl(file);
+  await addDoc(collection(db, GROUP_MESSAGES_COLLECTION), {
+    groupId,
+    fromUid,
+    type: "image",
+    content: dataUrl,
+    fileName: file.name,
     createdAt: serverTimestamp(),
   });
 }
@@ -269,6 +295,35 @@ export async function createGroupTask(params: {
     createdBy: params.createdBy,
     createdAt: serverTimestamp(),
   });
+}
+
+export async function updateGroupTask(params: {
+  taskId: string;
+  title: string;
+  details: string;
+  totalPages?: number | null;
+  startDate?: string;
+  endDate?: string;
+}) {
+  await setDoc(
+    doc(db, GROUP_TASKS_COLLECTION, params.taskId),
+    {
+      title: params.title.trim(),
+      details: params.details.trim(),
+      totalPages:
+        typeof params.totalPages === "number" && params.totalPages > 0
+          ? params.totalPages
+          : null,
+      startDate: typeof params.startDate === "string" ? params.startDate : "",
+      endDate: typeof params.endDate === "string" ? params.endDate : "",
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
+export async function deleteGroupTask(taskId: string) {
+  await deleteDoc(doc(db, GROUP_TASKS_COLLECTION, taskId));
 }
 
 export function subscribeGroupTaskProgress(
