@@ -6,6 +6,7 @@ import { useStore } from "@/store/useStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquare, Users, Plus, X, Check } from "lucide-react";
 import { createGroupChat, subscribeMyGroups, type GroupChat } from "@/lib/firestore/groups";
+import { subscribeUnreadDirectMessageCounts } from "@/lib/firestore/chat";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 
 function AvatarPill({ avatar }: { avatar: string }) {
@@ -26,11 +27,21 @@ export default function ConversationsPage() {
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [groupName, setGroupName] = useState("");
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [unreadByUser, setUnreadByUser] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!userProfile.uid) return;
     return subscribeMyGroups(userProfile.uid, setGroups);
   }, [userProfile.uid]);
+
+  useEffect(() => {
+    if (!userProfile.uid) return;
+    return subscribeUnreadDirectMessageCounts(userProfile.uid, (counts) => {
+      setUnreadByUser(counts.byUser);
+    });
+  }, [userProfile.uid]);
+
+  const visibleUnreadByUser = userProfile.uid ? unreadByUser : {};
 
   const selectedFriendObjects = useMemo(
     () => friends.filter((f) => selectedMembers.includes(f.uid)),
@@ -97,6 +108,7 @@ export default function ConversationsPage() {
               {friends.map((friend) => {
                 const safeName = sanitizeDisplayName(friend.name);
                 const safeAvatar = sanitizeAvatar(friend.avatar);
+                const unreadCount = visibleUnreadByUser[friend.uid] || 0;
                 return (
                 <Link
                   key={friend.uid}
@@ -105,10 +117,20 @@ export default function ConversationsPage() {
                   style={{ background: "var(--muted-bg)" }}
                 >
                   <AvatarPill avatar={safeAvatar} />
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold truncate" style={{ color: "var(--foreground)" }}>
-                      {safeName}
-                    </p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <p className="text-sm font-bold truncate" style={{ color: "var(--foreground)" }}>
+                        {safeName}
+                      </p>
+                      {unreadCount > 0 && (
+                        <span
+                          className="text-[10px] font-bold px-1.5 h-[18px] rounded-full flex items-center justify-center"
+                          style={{ background: "#ef4444", color: "#fff" }}
+                        >
+                          {unreadCount > 99 ? "99+" : unreadCount}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[11px] font-mono" style={{ color: "var(--muted)" }}>
                       UID: {friend.uid}
                     </p>

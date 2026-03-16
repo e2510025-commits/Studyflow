@@ -13,7 +13,6 @@ import {
   Trophy,
   ClipboardList,
   Users,
-  MessageSquare,
   Shield,
   X,
   Menu,
@@ -26,7 +25,6 @@ const baseNavItems = [
   { href: "/ranking", label: "ランキング", icon: Trophy },
   { href: "/missions", label: "ミッション", icon: ClipboardList },
   { href: "/friends", label: "フレンド", icon: Users },
-  { href: "/conversations", label: "会話", icon: MessageSquare },
 ];
 
 export default function Sidebar() {

@@ -10,6 +10,7 @@ import {
   respondFriendRequest,
 } from "@/lib/firestore/friends";
 import {
+  markNotificationAsRead,
   subscribeAnnouncements,
   subscribeUserNotifications,
 } from "@/lib/firestore/notifications";
@@ -61,9 +62,16 @@ export default function NotificationBell() {
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const unreadIds = personalNotifications.filter((n) => !n.read).map((n) => n.id);
+    if (unreadIds.length === 0) return;
+    void Promise.all(unreadIds.map((id) => markNotificationAsRead(id))).catch(() => {});
+  }, [open, personalNotifications]);
+
   const hasIncoming = useMemo(
-    () => requests.length > 0 || personalNotifications.some((n) => !n.read) || announcements.length > 0,
-    [requests, personalNotifications, announcements]
+    () => requests.length > 0 || personalNotifications.some((n) => !n.read),
+    [requests, personalNotifications]
   );
 
   return (

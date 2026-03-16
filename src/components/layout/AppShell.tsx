@@ -8,6 +8,7 @@ import ThemePicker from "./ThemePicker";
 import HeaderMenu from "./HeaderMenu";
 import RankingBadge from "@/components/ranking/RankingBadge";
 import NotificationBell from "./NotificationBell";
+import DmBell from "./DmBell";
 import { subscribeStudyLogs } from "@/lib/firestore/studyLogs";
 import { saveUserProfile } from "@/lib/firestore/ranking";
 import { subscribeFriends } from "@/lib/firestore/friends";
@@ -270,6 +271,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {!immersiveMode && (
         <>
           <HeaderMenu />
+          <DmBell />
           <NotificationBell />
           <RankingBadge />
         </>

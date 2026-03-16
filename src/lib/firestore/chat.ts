@@ -18,6 +18,11 @@ import type { ChatMessage, ChatMessageType } from "@/types";
 /** Firestoreのチャットメッセージコレクション */
 const CHAT_COLLECTION = "chatMessages";
 
+export interface DirectMessageUnreadCounts {
+  total: number;
+  byUser: Record<string, number>;
+}
+
 function getConversationId(a: string, b: string): string {
   return [a, b].sort().join("__");
 }
@@ -218,6 +223,30 @@ export async function markChatMessagesAsRead(
     });
   });
   await batch.commit();
+}
+
+export function subscribeUnreadDirectMessageCounts(
+  myUid: string,
+  callback: (counts: DirectMessageUnreadCounts) => void
+) {
+  const q = query(collection(db, CHAT_COLLECTION), where("toUid", "==", myUid));
+
+  return onSnapshot(q, (snapshot) => {
+    const byUser: Record<string, number> = {};
+
+    snapshot.docs.forEach((d) => {
+      const data = d.data();
+      const fromUid = typeof data.fromUid === "string" ? data.fromUid : "";
+      const toUid = typeof data.toUid === "string" ? data.toUid : "";
+      const readBy = Array.isArray(data.readBy) ? data.readBy : [];
+      const isUnread = fromUid && toUid === myUid && !readBy.includes(myUid);
+      if (!isUnread) return;
+      byUser[fromUid] = (byUser[fromUid] || 0) + 1;
+    });
+
+    const total = Object.values(byUser).reduce((sum, count) => sum + count, 0);
+    callback({ total, byUser });
+  });
 }
 
 /**
