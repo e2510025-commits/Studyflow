@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useStore } from "@/store/useStore";
 import { motion } from "framer-motion";
-import { User, Copy, Check, Save, Upload, X, ImageIcon } from "lucide-react";
+import { User, Copy, Check, Save, Upload, X, ImageIcon, Trash2 } from "lucide-react";
 import { fetchPublicProfile, saveDisplayProfile } from "@/lib/firestore/profile";
 import type { ProfileVisibility } from "@/types";
 
@@ -23,6 +23,9 @@ export default function SettingsPage() {
   const [showFollowerCount, setShowFollowerCount] = useState(true);
   const [showFriendCount, setShowFriendCount] = useState(true);
   const [nameError, setNameError] = useState("");
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -118,6 +121,38 @@ export default function SettingsPage() {
   };
 
   const isImageAvatar = avatar.startsWith("data:") || avatar.startsWith("http");
+
+  const handleDeleteAccount = async () => {
+    if (deletingAccount) return;
+    if (deleteConfirmText !== "DELETE") {
+      setDeleteError("確認文字に DELETE を入力してください");
+      return;
+    }
+    setDeleteError("");
+    setDeletingAccount(true);
+    try {
+      const response = await fetch("/api/account/delete", {
+        method: "POST",
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error || "account_delete_failed");
+      }
+
+      try {
+        localStorage.removeItem("study-timer-storage");
+      } catch {
+        // ignore local cleanup failure
+      }
+
+      const { signOut } = await import("next-auth/react");
+      await signOut({ callbackUrl: "/login" });
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "アカウント削除に失敗しました");
+      setDeletingAccount(false);
+    }
+  };
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -369,6 +404,47 @@ export default function SettingsPage() {
             フレンド数を表示
           </label>
         </div>
+      </motion.div>
+
+      <motion.div
+        className="glass-card p-5 space-y-3"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.195, duration: 0.4 }}
+        style={{ border: "1px solid rgba(239,68,68,0.35)" }}
+      >
+        <div className="flex items-center gap-2">
+          <Trash2 size={16} style={{ color: "#ef4444" }} />
+          <h2 className="text-base font-bold" style={{ color: "#ef4444" }}>
+            アカウント削除
+          </h2>
+        </div>
+        <p className="text-xs" style={{ color: "var(--muted)" }}>
+          アカウントに関連するデータ（プロフィール、投稿、返信、DM、フレンド、学習記録、通知など）を削除します。この操作は取り消せません。
+        </p>
+        <input
+          value={deleteConfirmText}
+          onChange={(e) => {
+            setDeleteConfirmText(e.target.value);
+            if (deleteError) setDeleteError("");
+          }}
+          placeholder="DELETE と入力"
+          className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+          style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+        />
+        {deleteError && (
+          <p className="text-xs" style={{ color: "#ef4444" }}>
+            {deleteError}
+          </p>
+        )}
+        <button
+          onClick={() => void handleDeleteAccount()}
+          disabled={deletingAccount}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-60"
+          style={{ background: "#ef4444" }}
+        >
+          <Trash2 size={15} /> {deletingAccount ? "削除中..." : "アカウントを削除"}
+        </button>
       </motion.div>
 
       {/* Save button */}

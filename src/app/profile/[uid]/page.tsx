@@ -23,6 +23,7 @@ import {
   type ProfileActivityItem,
 } from "@/lib/firestore/profile";
 import {
+  subscribeMyLikedTimelinePostIds,
   sendTimelineImagePost,
   sendTimelinePost,
   subscribeMyRespectedTimelinePostIds,
@@ -187,7 +188,8 @@ export default function PublicProfilePage() {
   const [timelineRows, setTimelineRows] = useState<CommunityStreamMessage[]>([]);
   const [allTimelineRows, setAllTimelineRows] = useState<CommunityStreamMessage[]>([]);
   const [viewerRespectIds, setViewerRespectIds] = useState<Set<string>>(new Set());
-  const [profileTimelineTab, setProfileTimelineTab] = useState<"posts" | "replies" | "media">("posts");
+  const [viewerLikeIds, setViewerLikeIds] = useState<Set<string>>(new Set());
+  const [profileTimelineTab, setProfileTimelineTab] = useState<"posts" | "reposts" | "replies" | "media" | "likes">("posts");
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [composerText, setComposerText] = useState("");
   const [composerImage, setComposerImage] = useState("");
@@ -329,6 +331,14 @@ export default function PublicProfilePage() {
     return subscribeMyRespectedTimelinePostIds(userProfile.uid, setViewerRespectIds);
   }, [userProfile.uid]);
 
+  useEffect(() => {
+    if (!userProfile.uid) {
+      setViewerLikeIds(new Set());
+      return;
+    }
+    return subscribeMyLikedTimelinePostIds(userProfile.uid, setViewerLikeIds);
+  }, [userProfile.uid]);
+
   const statusColor = useMemo<PresenceColor>(() => {
     if (activeStudySet.has(uid)) return "studying";
     if (!presence.isOnline) return "offline";
@@ -378,19 +388,30 @@ export default function PublicProfilePage() {
           .filter((row) => viewerRespectIds.has(row.id) && row.uid !== uid)
           .map((row) => ({ row, activityType: "spread" as const }))
       : [];
+    const likedItems = isSelf
+      ? allTimelineRows
+          .filter((row) => viewerLikeIds.has(row.id))
+          .map((row) => ({ row, activityType: "like" as const }))
+      : [];
 
-    const merged = [...ownItems, ...spreadItems].sort(
+    const merged = [...ownItems, ...spreadItems, ...likedItems].sort(
       (a, b) => new Date(b.row.createdAt).getTime() - new Date(a.row.createdAt).getTime()
     );
 
+    if (profileTimelineTab === "likes") {
+      return merged.filter((item) => item.activityType === "like");
+    }
+    if (profileTimelineTab === "reposts") {
+      return merged.filter((item) => item.activityType === "spread");
+    }
     if (profileTimelineTab === "media") {
       return merged.filter((item) => item.row.messageType === "image");
     }
     if (profileTimelineTab === "replies") {
-      return merged.filter((item) => Boolean(item.row.replyToId));
+      return merged.filter((item) => item.activityType === "post" && Boolean(item.row.replyToId));
     }
-    return merged.filter((item) => !item.row.replyToId);
-  }, [allTimelineRows, isSelf, profileTimelineTab, timelineRows, uid, viewerRespectIds]);
+    return merged.filter((item) => item.activityType === "post" && !item.row.replyToId);
+  }, [allTimelineRows, isSelf, profileTimelineTab, timelineRows, uid, viewerLikeIds, viewerRespectIds]);
 
   const saveProfileEdit = async () => {
     if (!profile || !isSelf) return;
@@ -794,6 +815,8 @@ export default function PublicProfilePage() {
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {[
             ["posts", "ポスト"],
+            ["reposts", "リポスト"],
+            ["likes", "いいね"],
             ["replies", "返信"],
             ["media", "メディア"],
           ].map(([key, label]) => {
@@ -801,7 +824,9 @@ export default function PublicProfilePage() {
             return (
               <button
                 key={key}
-                onClick={() => setProfileTimelineTab(key as "posts" | "replies" | "media")}
+                onClick={() =>
+                  setProfileTimelineTab(key as "posts" | "reposts" | "replies" | "media" | "likes")
+                }
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold"
                 style={{
                   background: active ? "var(--accent-light)" : "var(--muted-bg)",
@@ -833,7 +858,7 @@ export default function PublicProfilePage() {
                     {item.activityType === "spread" ? <span>・拡散</span> : null}
                   </p>
                   <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: "var(--foreground)" }}>
-                    {row.body}
+                    {row.isDeleted ? "この投稿は削除されました" : row.body}
                   </p>
                   {row.messageType === "image" && row.imageUrl && (
                     <img
