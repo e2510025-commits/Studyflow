@@ -60,6 +60,7 @@ export interface PublicProfile {
   showFollowerCount?: boolean;
   showFriendCount?: boolean;
   helpfulReceived?: number;
+  updatedAt?: string;
 }
 
 export type BulletinCategory = "qa" | "tips" | "chat" | "ops";

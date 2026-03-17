@@ -544,8 +544,12 @@ export default function PublicProfilePage() {
     );
   }
 
-  const headerBackground = profile.headerImage
-    ? `url(${profile.headerImage}) center/cover`
+  const headerImageSrc =
+    profile.headerImage && !profile.headerImage.startsWith("data:")
+      ? `${profile.headerImage}${profile.headerImage.includes("?") ? "&" : "?"}v=${encodeURIComponent(profile.updatedAt || "0")}`
+      : profile.headerImage;
+  const headerBackground = headerImageSrc
+    ? `url(${headerImageSrc}) center/cover`
     : "linear-gradient(135deg, #082f49, #0f172a 45%, #1e293b)";
   const canShowFollowing = isSelf || profile.showFollowCount !== false;
   const canShowFollowers = isSelf || profile.showFollowerCount !== false;
@@ -555,19 +559,19 @@ export default function PublicProfilePage() {
     <div className="max-w-6xl mx-auto space-y-5">
       <section className="glass-card overflow-hidden">
         <div className="relative">
-          <div className="h-44 sm:h-52" style={{ background: headerBackground }} />
-          <div className="absolute left-5 sm:left-7 -bottom-12">
+          <div className="h-[170px] sm:h-[250px]" style={{ background: headerBackground }} />
+          <div className="absolute left-5 sm:left-7 -bottom-[50px]">
             <div className="relative">
               {isImageAvatar ? (
                 <img
                   src={profile.avatar}
                   alt={profile.name}
-                  className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover border-[5px] shadow-xl"
+                  className="w-[100px] h-[100px] sm:w-[110px] sm:h-[110px] rounded-full object-cover border-[5px] shadow-xl"
                   style={{ borderColor: "#ffffff" }}
                 />
               ) : (
                 <div
-                  className="w-24 h-24 sm:w-28 sm:h-28 rounded-full flex items-center justify-center text-4xl border-[5px] shadow-xl"
+                  className="w-[100px] h-[100px] sm:w-[110px] sm:h-[110px] rounded-full flex items-center justify-center text-4xl border-[5px] shadow-xl"
                   style={{ borderColor: "#ffffff", background: "var(--accent-light)" }}
                 >
                   {profile.avatar}
@@ -582,7 +586,7 @@ export default function PublicProfilePage() {
           </div>
         </div>
 
-        <div className="px-5 sm:px-6 pt-16 pb-5">
+        <div className="px-5 sm:px-6 pt-[62px] pb-5">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="min-w-0 flex-1 space-y-2">
               <div className="flex flex-col md:flex-row md:items-end md:gap-4">
@@ -653,53 +657,6 @@ export default function PublicProfilePage() {
                 </span>
               </div>
 
-              {isSelf && (
-                <div className="mt-2 rounded-2xl p-3" style={{ background: "var(--muted-bg)" }}>
-                  <p className="text-xs font-semibold" style={{ color: "var(--muted)" }}>いまどうしてる？</p>
-                  <textarea
-                    value={composerText}
-                    onChange={(e) => setComposerText(e.target.value.slice(0, 1200))}
-                    rows={3}
-                    placeholder="いまの学習や気づきを投稿しよう"
-                    className="mt-2 w-full px-3 py-2 rounded-xl text-sm resize-none"
-                    style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
-                  />
-                  {composerImage && (
-                    <img src={composerImage} alt="compose" className="mt-2 rounded-xl max-h-56 object-cover" />
-                  )}
-                  <input
-                    id="profile-composer-image"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      void onPickComposerImage(file);
-                      e.currentTarget.value = "";
-                    }}
-                  />
-                  <div className="mt-2 flex items-center justify-between">
-                    <button
-                      onClick={() => {
-                        const el = document.getElementById("profile-composer-image") as HTMLInputElement | null;
-                        el?.click();
-                      }}
-                      className="px-2.5 py-1.5 rounded-lg text-xs font-semibold"
-                      style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
-                    >
-                      画像を追加
-                    </button>
-                    <button
-                      onClick={() => void submitTimelinePost()}
-                      disabled={postingTimeline || (!composerText.trim() && !composerImage)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
-                      style={{ background: "var(--accent)" }}
-                    >
-                      {postingTimeline ? "投稿中..." : "投稿"}
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
 
             {isSelf ? (
@@ -757,6 +714,54 @@ export default function PublicProfilePage() {
           </p>
         </div>
       </section>
+
+      {isSelf && (
+        <section className="glass-card p-4" style={{ borderTop: "1px solid var(--card-border)", borderBottom: "1px solid var(--card-border)" }}>
+          <p className="text-xs font-semibold" style={{ color: "var(--muted)" }}>いまどうしてる？</p>
+          <textarea
+            value={composerText}
+            onChange={(e) => setComposerText(e.target.value.slice(0, 1200))}
+            rows={3}
+            placeholder="いまの学習や気づきを投稿しよう"
+            className="mt-2 w-full px-3 py-2 rounded-xl text-sm resize-none"
+            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+          />
+          {composerImage && (
+            <img src={composerImage} alt="compose" className="mt-2 rounded-xl max-h-56 object-cover" />
+          )}
+          <input
+            id="profile-composer-image"
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              void onPickComposerImage(file);
+              e.currentTarget.value = "";
+            }}
+          />
+          <div className="mt-2 flex items-center justify-between">
+            <button
+              onClick={() => {
+                const el = document.getElementById("profile-composer-image") as HTMLInputElement | null;
+                el?.click();
+              }}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold"
+              style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
+            >
+              画像を追加
+            </button>
+            <button
+              onClick={() => void submitTimelinePost()}
+              disabled={postingTimeline || (!composerText.trim() && !composerImage)}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
+              style={{ background: "var(--accent)" }}
+            >
+              {postingTimeline ? "投稿中..." : "投稿"}
+            </button>
+          </div>
+        </section>
+      )}
 
       <section className="glass-card p-4">
         <div className="flex items-center justify-between gap-2 flex-wrap">

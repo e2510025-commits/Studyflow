@@ -283,36 +283,74 @@ export function subscribeUserTimelinePosts(uid: string, callback: (rows: Communi
     return () => {};
   }
 
-  const q = query(collection(db, TIMELINE_POSTS), where("uid", "==", uid), orderBy("createdAt", "desc"), limit(120));
-  return onSnapshot(
-    q,
+  const toRow = (d: { id: string; data: () => Record<string, unknown> }) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      kind: "user" as const,
+      messageType: (data.messageType === "image" ? "image" : "text") as "image" | "text",
+      uid: String(data.uid || data.userId || ""),
+      name: sanitizeDisplayName(String(data.name || "匿名")),
+      avatar: sanitizeAvatar(String(data.avatar || "👤")),
+      isOfficial: Boolean(data.isOfficial),
+      body: String(data.body || ""),
+      imageUrl: typeof data.imageUrl === "string" ? data.imageUrl : undefined,
+      replyToId: typeof data.replyToId === "string" ? data.replyToId : undefined,
+      replyCount: Math.max(0, Number(data.replyCount || 0)),
+      repostCount: Math.max(0, Number(data.repostCount || 0)),
+      respectCount: Math.max(0, Number(data.respectCount || 0)),
+      likeCount: Math.max(0, Number(data.likeCount || 0)),
+      editedAt: typeof data.editedAt === "string" ? data.editedAt : undefined,
+      isDeleted: Boolean(data.isDeleted),
+      createdAt: toIso(data.createdAt),
+    } satisfies CommunityStreamMessage;
+  };
+
+  let uidRows = new Map<string, CommunityStreamMessage>();
+  let userIdRows = new Map<string, CommunityStreamMessage>();
+
+  const emit = () => {
+    const merged = new Map<string, CommunityStreamMessage>();
+    userIdRows.forEach((row, id) => merged.set(id, row));
+    uidRows.forEach((row, id) => merged.set(id, row));
+    callback(
+      Array.from(merged.values()).sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+    );
+  };
+
+  const uidQuery = query(collection(db, TIMELINE_POSTS), where("uid", "==", uid), orderBy("createdAt", "desc"), limit(120));
+  const userIdQuery = query(collection(db, TIMELINE_POSTS), where("userId", "==", uid), orderBy("createdAt", "desc"), limit(120));
+
+  const unsubUid = onSnapshot(
+    uidQuery,
     (snapshot) => {
-      const rows = snapshot.docs.map((d) => {
-        const data = d.data();
-        return {
-          id: d.id,
-          kind: "user" as const,
-          messageType: (data.messageType === "image" ? "image" : "text") as "image" | "text",
-          uid: String(data.uid || ""),
-          name: sanitizeDisplayName(data.name || "匿名"),
-          avatar: sanitizeAvatar(data.avatar || "👤"),
-          isOfficial: Boolean(data.isOfficial),
-          body: String(data.body || ""),
-          imageUrl: typeof data.imageUrl === "string" ? data.imageUrl : undefined,
-          replyToId: typeof data.replyToId === "string" ? data.replyToId : undefined,
-          replyCount: Math.max(0, Number(data.replyCount || 0)),
-          repostCount: Math.max(0, Number(data.repostCount || 0)),
-          respectCount: Math.max(0, Number(data.respectCount || 0)),
-          likeCount: Math.max(0, Number(data.likeCount || 0)),
-          editedAt: typeof data.editedAt === "string" ? data.editedAt : undefined,
-          isDeleted: Boolean(data.isDeleted),
-          createdAt: toIso(data.createdAt),
-        };
-      });
-      callback(rows);
+      uidRows = new Map(snapshot.docs.map((d) => [d.id, toRow(d)]));
+      emit();
     },
-    () => callback([])
+    () => {
+      uidRows = new Map();
+      emit();
+    }
   );
+
+  const unsubUserId = onSnapshot(
+    userIdQuery,
+    (snapshot) => {
+      userIdRows = new Map(snapshot.docs.map((d) => [d.id, toRow(d)]));
+      emit();
+    },
+    () => {
+      userIdRows = new Map();
+      emit();
+    }
+  );
+
+  return () => {
+    unsubUid();
+    unsubUserId();
+  };
 }
 
 export function subscribeTimelinePosts(callback: (rows: CommunityStreamMessage[]) => void) {
@@ -359,6 +397,7 @@ export async function sendTimelinePost(params: {
   const isOfficial = await fetchIsOfficial(params.uid);
   await addDoc(collection(db, TIMELINE_POSTS), {
     uid: params.uid,
+    userId: params.uid,
     name: sanitizeDisplayName(params.name || "匿名"),
     avatar: sanitizeAvatar(params.avatar || "👤"),
     isOfficial,
@@ -384,6 +423,7 @@ export async function sendTimelineImagePost(params: {
   const isOfficial = await fetchIsOfficial(params.uid);
   await addDoc(collection(db, TIMELINE_POSTS), {
     uid: params.uid,
+    userId: params.uid,
     name: sanitizeDisplayName(params.name || "匿名"),
     avatar: sanitizeAvatar(params.avatar || "👤"),
     isOfficial,

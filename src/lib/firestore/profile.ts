@@ -81,7 +81,9 @@ export async function saveDisplayProfile(params: {
     payload.statusMessage = params.statusMessage.trim().slice(0, 120);
   }
   if (typeof params.headerImage === "string") {
-    payload.headerImage = params.headerImage.slice(0, 2_000_000);
+    const safeHeader = params.headerImage.slice(0, 2_000_000);
+    payload.headerImage = safeHeader;
+    payload.headerImageUrl = safeHeader;
   }
   if (typeof params.deviceLabel === "string") {
     payload.deviceLabel = params.deviceLabel.trim().slice(0, 40);
@@ -156,7 +158,18 @@ export async function fetchPublicProfile(uid: string): Promise<PublicProfile | n
       ? data.equippedBadges.filter((b: unknown) => typeof b === "string").slice(0, 3)
       : [],
     statusMessage: typeof data.statusMessage === "string" ? data.statusMessage : "",
-    headerImage: typeof data.headerImage === "string" ? data.headerImage : "",
+    headerImage:
+      typeof data.headerImage === "string"
+        ? data.headerImage
+        : typeof data.headerImageUrl === "string"
+        ? data.headerImageUrl
+        : "",
+    updatedAt:
+      typeof data.updatedAt?.toDate === "function"
+        ? data.updatedAt.toDate().toISOString()
+        : typeof data.updatedAt === "string"
+        ? data.updatedAt
+        : undefined,
     deviceLabel: typeof data.deviceLabel === "string" ? data.deviceLabel : "",
     showFollowCount: typeof data.showFollowCount === "boolean" ? data.showFollowCount : true,
     showFollowerCount: typeof data.showFollowerCount === "boolean" ? data.showFollowerCount : true,
