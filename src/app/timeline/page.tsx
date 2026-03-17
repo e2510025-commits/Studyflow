@@ -151,12 +151,18 @@ export default function TimelinePage() {
                     href={`/profile/${row.uid}`}
                     className="w-9 h-9 rounded-full overflow-hidden inline-flex items-center justify-center"
                     style={{ background: "var(--accent-light)" }}
+                    onClick={(e) => e.stopPropagation()}
                   >
                     {isAvatarImage ? <img src={row.avatar} alt={row.name} className="w-full h-full object-cover" /> : row.avatar}
                   </Link>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 text-xs" style={{ color: "var(--muted)" }}>
-                      <Link href={`/profile/${row.uid}`} className="font-semibold hover:underline" style={{ color: "var(--foreground)" }}>
+                      <Link
+                        href={`/profile/${row.uid}`}
+                        className="font-semibold hover:underline"
+                        style={{ color: "var(--foreground)" }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {row.name}
                       </Link>
                       <OfficialMark uid={row.uid} isOfficial={row.isOfficial} size={13} />
@@ -170,7 +176,10 @@ export default function TimelinePage() {
                         src={row.imageUrl}
                         alt="timeline"
                         className="mt-2 rounded-lg max-h-72 object-cover cursor-zoom-in"
-                        onClick={() => setLightboxUrl(row.imageUrl || null)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLightboxUrl(row.imageUrl || null);
+                        }}
                       />
                     )}
                     <div className="mt-2 flex items-center justify-between text-xs">
@@ -252,11 +261,23 @@ export default function TimelinePage() {
       </button>
 
       {composeOpen && (
-        <div className="fixed inset-0 z-50 bg-black/45 grid place-items-center p-4" onClick={() => setComposeOpen(false)}>
+        <div
+          className="fixed inset-0 z-50 bg-black/45 grid place-items-center p-4"
+          onClick={() => {
+            setComposeOpen(false);
+            setQuoteTarget(null);
+          }}
+        >
           <div className="w-full max-w-lg rounded-2xl p-4 space-y-3" style={{ background: "var(--card-bg)" }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="text-base font-black" style={{ color: "var(--foreground)" }}>新しいポスト</h3>
-              <button onClick={() => setComposeOpen(false)} style={{ color: "var(--muted)" }}>
+              <button
+                onClick={() => {
+                  setComposeOpen(false);
+                  setQuoteTarget(null);
+                }}
+                style={{ color: "var(--muted)" }}
+              >
                 <X size={16} />
               </button>
             </div>
