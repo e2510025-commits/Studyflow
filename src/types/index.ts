@@ -34,6 +34,7 @@ export interface UserProfile {
   showFollowerCount?: boolean;
   showFriendCount?: boolean;
   helpfulReceived?: number;
+  isOfficial?: boolean;
 }
 
 export type ProfileVisibility = "public" | "friends" | "private";
@@ -70,11 +71,14 @@ export interface CommunityStreamMessage {
   uid?: string;
   name: string;
   avatar: string;
+  isOfficial?: boolean;
   body: string;
   imageUrl?: string;
   replyToId?: string;
   respectCount?: number;
   respectedByMe?: boolean;
+  editedAt?: string;
+  isDeleted?: boolean;
   createdAt: string;
 }
 
@@ -83,6 +87,7 @@ export interface BulletinPost {
   uid: string;
   name: string;
   avatar: string;
+  isOfficial?: boolean;
   title: string;
   content: string;
   category: BulletinCategory;
@@ -90,6 +95,20 @@ export interface BulletinPost {
   replyCount: number;
   resolved: boolean;
   createdAt: string;
+  updatedAt?: string;
+}
+
+export interface BulletinThreadMessage {
+  id: string;
+  postId: string;
+  uid: string;
+  name: string;
+  avatar: string;
+  isOfficial?: boolean;
+  body: string;
+  createdAt: string;
+  editedAt?: string;
+  isDeleted?: boolean;
 }
 
 export type MissionScope = "daily" | "weekly" | "season";
@@ -169,6 +188,7 @@ export interface Friend {
   uid: string;
   name: string;
   avatar: string;
+  isOfficial?: boolean;
   addedAt: string; // ISO string
 }
 

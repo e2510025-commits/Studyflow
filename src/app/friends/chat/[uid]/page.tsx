@@ -19,6 +19,7 @@ import {
   ListTodo,
 } from "lucide-react";
 import QuickProfileCard from "@/components/profile/QuickProfileCard";
+import VerifiedBadge from "@/components/ui/VerifiedBadge";
 import {
   subscribeChatMessages,
   sendTextMessage,
@@ -88,6 +89,7 @@ export default function ChatPage() {
     uid: string;
     name: string;
     avatar: string;
+    isOfficial?: boolean;
   } | null>(null);
   const friend = friends.find((f) => f.uid === friendUid) || friendFallback;
   const safeFriendName = sanitizeDisplayName(friend?.name || "匿名");
@@ -382,10 +384,11 @@ export default function ChatPage() {
         <div className="flex-1 min-w-0">
           <Link
             href={`/profile/${friend.uid}`}
-            className="text-sm font-bold block truncate hover:underline"
+            className="text-sm font-bold truncate hover:underline inline-flex items-center gap-1"
             style={{ color: "var(--foreground)" }}
           >
             {safeFriendName}
+            <VerifiedBadge show={friend.isOfficial} size={13} />
           </Link>
           <span className="text-xs font-mono" style={{ color: "var(--muted)" }}>
             UID: {friend.uid}

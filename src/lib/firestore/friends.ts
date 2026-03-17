@@ -48,6 +48,7 @@ export function subscribeFriends(
         uid,
         name: sanitizeDisplayName(data.name),
         avatar: sanitizeAvatar(data.avatar),
+        isOfficial: Boolean(data.isOfficial),
         addedAt,
       };
       const prev = byUid.get(uid);
@@ -225,6 +226,7 @@ export async function respondFriendRequest(
       uid: data.toUid,
       name: sanitizeDisplayName(toProfile?.name || "匿名"),
       avatar: sanitizeAvatar(toProfile?.avatar || "👤"),
+      isOfficial: Boolean(toProfile?.isOfficial),
       addedAt: serverTimestamp(),
     });
     batch.set(toRef, {
@@ -232,6 +234,7 @@ export async function respondFriendRequest(
       uid: data.fromUid,
       name: sanitizeDisplayName(fromProfile?.name || data.fromName || "匿名"),
       avatar: sanitizeAvatar(fromProfile?.avatar || data.fromAvatar || "👤"),
+      isOfficial: Boolean(fromProfile?.isOfficial),
       addedAt: serverTimestamp(),
     });
   }
@@ -312,5 +315,6 @@ export async function getUserProfileByUid(
     uid,
     name: sanitizeDisplayName(d.name),
     avatar: sanitizeAvatar(d.avatar),
+    isOfficial: Boolean(d.isOfficial),
   };
 }

@@ -288,6 +288,56 @@ export function subscribeFriendCount(uid: string, callback: (count: number) => v
   );
 }
 
+export function subscribeUserOfficialStatus(uid: string, callback: (official: boolean) => void) {
+  if (!uid) {
+    callback(false);
+    return () => {};
+  }
+
+  return onSnapshot(
+    doc(db, "userProfiles", uid),
+    (snapshot) => {
+      callback(snapshot.exists() ? Boolean(snapshot.data().isOfficial) : false);
+    },
+    () => callback(false)
+  );
+}
+
+export function subscribeUsersOfficialStatus(
+  uids: string[],
+  callback: (officialByUid: Record<string, boolean>) => void
+) {
+  const uniqueUids = Array.from(new Set(uids.filter(Boolean)));
+  if (uniqueUids.length === 0) {
+    callback({});
+    return () => {};
+  }
+
+  const officialByUid: Record<string, boolean> = {};
+  uniqueUids.forEach((uid) => {
+    officialByUid[uid] = false;
+  });
+  callback({ ...officialByUid });
+
+  const unsubs = uniqueUids.map((uid) =>
+    onSnapshot(
+      doc(db, "userProfiles", uid),
+      (snapshot) => {
+        officialByUid[uid] = snapshot.exists() ? Boolean(snapshot.data().isOfficial) : false;
+        callback({ ...officialByUid });
+      },
+      () => {
+        officialByUid[uid] = false;
+        callback({ ...officialByUid });
+      }
+    )
+  );
+
+  return () => {
+    unsubs.forEach((unsub) => unsub());
+  };
+}
+
 async function fetchProfilesByUids(uids: string[]): Promise<Map<string, { name: string; avatar: string }>> {
   const map = new Map<string, { name: string; avatar: string }>();
   if (uids.length === 0) return map;

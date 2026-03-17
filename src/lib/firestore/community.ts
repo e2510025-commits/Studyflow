@@ -1,7 +1,9 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -11,17 +13,24 @@ import {
   serverTimestamp,
   setDoc,
   Timestamp,
+  updateDoc,
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 import { getAchievementMeta } from "@/lib/achievements";
-import type { BulletinCategory, BulletinPost, CommunityStreamMessage } from "@/types";
+import type {
+  BulletinCategory,
+  BulletinPost,
+  BulletinThreadMessage,
+  CommunityStreamMessage,
+} from "@/types";
 
 const GLOBAL_STREAM = "globalStreamMessages";
 const GLOBAL_SYSTEM_EVENTS = "globalSystemEvents";
 const BULLETIN_POSTS = "bulletinPosts";
 const BULLETIN_HELPFULS = "bulletinHelpfuls";
+const BULLETIN_THREADS = "bulletinThreadMessages";
 const GLOBAL_STREAM_RESPECTS = "globalStreamRespects";
 const BULLETIN_ALLOWED_CATEGORIES: BulletinCategory[] = ["qa", "tips", "chat", "ops"];
 
@@ -29,6 +38,16 @@ function toIso(value: unknown): string {
   if (value instanceof Timestamp) return value.toDate().toISOString();
   if (typeof value === "string") return value;
   return new Date().toISOString();
+}
+
+async function fetchIsOfficial(uid: string): Promise<boolean> {
+  if (!uid) return false;
+  try {
+    const snap = await getDoc(doc(db, "userProfiles", uid));
+    return snap.exists() ? Boolean(snap.data().isOfficial) : false;
+  } catch {
+    return false;
+  }
 }
 
 export function subscribeGlobalStreamMessages(
@@ -55,10 +74,13 @@ export function subscribeGlobalStreamMessages(
           uid: String(data.uid || ""),
           name: sanitizeDisplayName(data.name || "匿名"),
           avatar: sanitizeAvatar(data.avatar || "👤"),
+          isOfficial: Boolean(data.isOfficial),
           body: String(data.body || ""),
           imageUrl: typeof data.imageUrl === "string" ? data.imageUrl : undefined,
           replyToId: typeof data.replyToId === "string" ? data.replyToId : undefined,
           respectCount: Math.max(0, Number(data.respectCount || 0)),
+          editedAt: typeof data.editedAt === "string" ? data.editedAt : undefined,
+          isDeleted: Boolean(data.isDeleted),
           createdAt: toIso(data.createdAt),
         });
       });
@@ -112,11 +134,13 @@ export async function sendGlobalStreamMessage(params: {
 }) {
   const body = params.body.trim();
   if (!params.uid || !body) return;
+  const isOfficial = await fetchIsOfficial(params.uid);
   await addDoc(collection(db, GLOBAL_STREAM), {
     uid: params.uid,
     name: sanitizeDisplayName(params.name || "匿名"),
     avatar: sanitizeAvatar(params.avatar || "👤"),
     body: body.slice(0, 800),
+    isOfficial,
     messageType: "text",
     replyToId: params.replyToId || "",
     respectCount: 0,
@@ -133,16 +157,65 @@ export async function sendGlobalStreamImageMessage(params: {
 }) {
   const imageUrl = params.imageUrl.trim();
   if (!params.uid || !imageUrl) return;
+  const isOfficial = await fetchIsOfficial(params.uid);
 
   await addDoc(collection(db, GLOBAL_STREAM), {
     uid: params.uid,
     name: sanitizeDisplayName(params.name || "匿名"),
     avatar: sanitizeAvatar(params.avatar || "👤"),
     body: (params.caption || "画像を共有しました").trim().slice(0, 140),
+    isOfficial,
     messageType: "image",
     imageUrl: imageUrl.slice(0, 700_000),
     respectCount: 0,
     createdAt: serverTimestamp(),
+  });
+}
+
+export async function editGlobalStreamMessage(params: {
+  postId: string;
+  uid: string;
+  body: string;
+}) {
+  const trimmed = params.body.trim();
+  if (!params.postId || !params.uid || !trimmed) return;
+  const ref = doc(db, GLOBAL_STREAM, params.postId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  if (String(data.uid || "") !== params.uid) {
+    throw new Error("forbidden");
+  }
+  await updateDoc(ref, {
+    body: trimmed.slice(0, 800),
+    editedAt: new Date().toISOString(),
+    isDeleted: false,
+  });
+}
+
+export async function deleteGlobalStreamMessage(params: {
+  postId: string;
+  uid: string;
+  mode?: "soft" | "hard";
+}) {
+  if (!params.postId || !params.uid) return;
+  const ref = doc(db, GLOBAL_STREAM, params.postId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  if (String(data.uid || "") !== params.uid) {
+    throw new Error("forbidden");
+  }
+
+  if ((params.mode || "soft") === "hard") {
+    await deleteDoc(ref);
+    return;
+  }
+  await updateDoc(ref, {
+    body: "",
+    imageUrl: "",
+    isDeleted: true,
+    editedAt: new Date().toISOString(),
   });
 }
 
@@ -220,10 +293,13 @@ export function subscribeUserTimelinePosts(uid: string, callback: (rows: Communi
           uid: String(data.uid || ""),
           name: sanitizeDisplayName(data.name || "匿名"),
           avatar: sanitizeAvatar(data.avatar || "👤"),
+          isOfficial: Boolean(data.isOfficial),
           body: String(data.body || ""),
           imageUrl: typeof data.imageUrl === "string" ? data.imageUrl : undefined,
           replyToId: typeof data.replyToId === "string" ? data.replyToId : undefined,
           respectCount: Math.max(0, Number(data.respectCount || 0)),
+          editedAt: typeof data.editedAt === "string" ? data.editedAt : undefined,
+          isDeleted: Boolean(data.isDeleted),
           createdAt: toIso(data.createdAt),
         };
       });
@@ -303,6 +379,7 @@ export function subscribeBulletinPosts(
             uid: String(data.uid || ""),
             name: sanitizeDisplayName(data.name || "匿名"),
             avatar: sanitizeAvatar(data.avatar || "👤"),
+            isOfficial: Boolean(data.isOfficial),
             title: String(data.title || "無題").slice(0, 120),
             content: String(data.content || ""),
             category: (BULLETIN_ALLOWED_CATEGORIES.includes(data.category as BulletinCategory)
@@ -312,6 +389,10 @@ export function subscribeBulletinPosts(
             replyCount: Math.max(0, Number(data.replyCount || 0)),
             resolved: Boolean(data.resolved),
             createdAt: toIso(data.createdAt),
+            updatedAt:
+              data.updatedAt instanceof Timestamp || typeof data.updatedAt === "string"
+                ? toIso(data.updatedAt)
+                : undefined,
           };
         })
         .filter((row) => (category === "all" ? true : row.category === category));
@@ -363,6 +444,135 @@ export async function updateBulletinResolved(params: {
     const body = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error || "bulletin_update_failed");
   }
+}
+
+export async function editBulletinPost(params: {
+  postId: string;
+  title: string;
+  content: string;
+}) {
+  const response = await fetch("/api/bulletin", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "edit",
+      postId: params.postId,
+      title: params.title.trim().slice(0, 120),
+      content: params.content.trim().slice(0, 6000),
+    }),
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error || "bulletin_edit_failed");
+  }
+}
+
+export async function deleteBulletinPost(params: { postId: string }) {
+  const response = await fetch("/api/bulletin", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ postId: params.postId }),
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error || "bulletin_delete_failed");
+  }
+}
+
+export function subscribeBulletinThreadMessages(
+  postId: string,
+  callback: (rows: BulletinThreadMessage[]) => void
+) {
+  if (!postId) {
+    callback([]);
+    return () => {};
+  }
+
+  const q = query(
+    collection(db, BULLETIN_THREADS),
+    where("postId", "==", postId),
+    orderBy("createdAt", "asc"),
+    limit(200)
+  );
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const rows = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          postId: String(data.postId || ""),
+          uid: String(data.uid || ""),
+          name: sanitizeDisplayName(data.name || "匿名"),
+          avatar: sanitizeAvatar(data.avatar || "👤"),
+          isOfficial: Boolean(data.isOfficial),
+          body: String(data.body || ""),
+          createdAt: toIso(data.createdAt),
+          editedAt: typeof data.editedAt === "string" ? data.editedAt : undefined,
+          isDeleted: Boolean(data.isDeleted),
+        } satisfies BulletinThreadMessage;
+      });
+      callback(rows);
+    },
+    () => callback([])
+  );
+}
+
+export async function sendBulletinThreadMessage(params: {
+  postId: string;
+  uid: string;
+  name: string;
+  avatar: string;
+  body: string;
+}) {
+  const body = params.body.trim();
+  if (!params.postId || !params.uid || !body) return;
+  const isOfficial = await fetchIsOfficial(params.uid);
+  await addDoc(collection(db, BULLETIN_THREADS), {
+    postId: params.postId,
+    uid: params.uid,
+    name: sanitizeDisplayName(params.name || "匿名"),
+    avatar: sanitizeAvatar(params.avatar || "👤"),
+    isOfficial,
+    body: body.slice(0, 1000),
+    isDeleted: false,
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function editBulletinThreadMessage(params: {
+  messageId: string;
+  uid: string;
+  body: string;
+}) {
+  const body = params.body.trim();
+  if (!params.messageId || !params.uid || !body) return;
+  const ref = doc(db, BULLETIN_THREADS, params.messageId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  if (String(snap.data().uid || "") !== params.uid) throw new Error("forbidden");
+  await updateDoc(ref, {
+    body: body.slice(0, 1000),
+    editedAt: new Date().toISOString(),
+    isDeleted: false,
+  });
+}
+
+export async function deleteBulletinThreadMessage(params: {
+  messageId: string;
+  uid: string;
+}) {
+  if (!params.messageId || !params.uid) return;
+  const ref = doc(db, BULLETIN_THREADS, params.messageId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  if (String(snap.data().uid || "") !== params.uid) throw new Error("forbidden");
+  await updateDoc(ref, {
+    body: "",
+    isDeleted: true,
+    editedAt: new Date().toISOString(),
+  });
 }
 
 function helpfulDocId(postId: string, uid: string) {

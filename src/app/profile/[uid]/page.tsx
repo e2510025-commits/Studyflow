@@ -31,7 +31,8 @@ import { subscribeActiveStudyUsers } from "@/lib/firestore/focusRoom";
 import { subscribeUserPresenceStatus, subscribeUsersOnlineStatus } from "@/lib/firestore/presence";
 import { getAchievementMeta } from "@/lib/achievements";
 import { formatHoursMinutes } from "@/lib/utils";
-import { BadgeCheck, Flame, PenLine, Search, Send, Sparkles, UserRound } from "lucide-react";
+import { Flame, PenLine, Search, Send, Sparkles, UserRound } from "lucide-react";
+import VerifiedBadge from "@/components/ui/VerifiedBadge";
 import type { CommunityStreamMessage } from "@/types";
 
 type PresenceColor = "online" | "away" | "offline" | "studying";
@@ -182,7 +183,8 @@ export default function PublicProfilePage() {
   const [timelineRows, setTimelineRows] = useState<CommunityStreamMessage[]>([]);
   const [viewerRespectIds, setViewerRespectIds] = useState<Set<string>>(new Set());
   const [profileLikedPostIds, setProfileLikedPostIds] = useState<Set<string>>(new Set());
-  const [profileTimelineTab, setProfileTimelineTab] = useState<"posts" | "replies" | "media" | "likes">("posts");
+  const [profileTimelineTab, setProfileTimelineTab] = useState<"posts" | "media" | "likes">("posts");
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const headerInputRef = useRef<HTMLInputElement>(null);
@@ -369,9 +371,6 @@ export default function PublicProfilePage() {
     if (profileTimelineTab === "media") {
       return timelineRows.filter((row) => row.messageType === "image");
     }
-    if (profileTimelineTab === "replies") {
-      return timelineRows.filter((row) => Boolean(row.replyToId));
-    }
     return timelineRows;
   }, [profileLikedPostIds, profileTimelineTab, timelineRows]);
 
@@ -536,7 +535,7 @@ export default function PublicProfilePage() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <h1 className="text-2xl font-black flex items-center gap-1" style={{ color: "var(--foreground)" }}>
                     {profile.name}
-                    {profile.isOfficial ? <BadgeCheck size={18} style={{ color: "#38bdf8" }} /> : null}
+                    <VerifiedBadge show={profile.isOfficial} size={18} />
                   </h1>
                   {(canShowFollowing || canShowFollowers) && <span className="text-xs" style={{ color: "var(--card-border)" }}>|</span>}
                   {canShowFollowing ? (
@@ -680,7 +679,6 @@ export default function PublicProfilePage() {
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {[
             ["posts", "投稿"],
-            ["replies", "返信"],
             ["media", "メディア"],
             ["likes", "いいね"],
           ].map(([key, label]) => {
@@ -688,7 +686,7 @@ export default function PublicProfilePage() {
             return (
               <button
                 key={key}
-                onClick={() => setProfileTimelineTab(key as "posts" | "replies" | "media" | "likes")}
+                onClick={() => setProfileTimelineTab(key as "posts" | "media" | "likes")}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold"
                 style={{
                   background: active ? "var(--accent-light)" : "var(--muted-bg)",
@@ -717,7 +715,12 @@ export default function PublicProfilePage() {
                     {row.body}
                   </p>
                   {row.messageType === "image" && row.imageUrl && (
-                    <img src={row.imageUrl} alt="timeline-media" className="mt-2 rounded-lg max-h-64 object-cover" />
+                    <img
+                      src={row.imageUrl}
+                      alt="timeline-media"
+                      className="mt-2 rounded-lg max-h-64 object-cover cursor-zoom-in"
+                      onClick={() => setLightboxUrl(row.imageUrl || null)}
+                    />
                   )}
                   <button
                     onClick={() => void toggleGlobalStreamRespect({ postId: row.id, uid: userProfile.uid })}
@@ -1066,6 +1069,12 @@ export default function PublicProfilePage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {lightboxUrl && (
+        <div className="fixed inset-0 z-[120] bg-black/90 grid place-items-center p-4" onClick={() => setLightboxUrl(null)}>
+          <img src={lightboxUrl} alt="preview" className="max-w-full max-h-full object-contain" />
         </div>
       )}
     </div>

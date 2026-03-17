@@ -10,6 +10,7 @@ import { createGroupChat, subscribeMyGroups, type GroupChat } from "@/lib/firest
 import { markChatMessagesAsRead, subscribeUnreadDirectMessageCounts } from "@/lib/firestore/chat";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 import QuickProfileCard from "@/components/profile/QuickProfileCard";
+import VerifiedBadge from "@/components/ui/VerifiedBadge";
 
 function AvatarPill({ avatar }: { avatar: string }) {
   const isImage = avatar.startsWith("http") || avatar.startsWith("data:");
@@ -147,6 +148,7 @@ export default function ConversationsPage() {
                       <p className="text-sm font-bold truncate" style={{ color: "var(--foreground)" }}>
                         {safeName}
                       </p>
+                      <VerifiedBadge show={friend.isOfficial} size={13} />
                       {unreadCount > 0 && (
                         <span
                           className="text-[10px] font-bold px-1.5 h-[18px] rounded-full flex items-center justify-center"

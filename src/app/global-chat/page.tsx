@@ -6,6 +6,8 @@ import { motion } from "framer-motion";
 import { BookPlus, ImagePlus, Loader2, Plus, RadioTower, Send, Sparkles } from "lucide-react";
 import {
   createBulletinPost,
+  deleteGlobalStreamMessage,
+  editGlobalStreamMessage,
   sendGlobalStreamImageMessage,
   sendGlobalStreamMessage,
   subscribeMyRespectedGlobalPostIds,
@@ -13,6 +15,7 @@ import {
   syncAchievementSystemEvents,
   toggleGlobalStreamRespect,
 } from "@/lib/firestore/community";
+import VerifiedBadge from "@/components/ui/VerifiedBadge";
 import type { BulletinCategory, CommunityStreamMessage } from "@/types";
 
 function formatTime(iso: string): string {
@@ -54,6 +57,9 @@ export default function GlobalChatPage() {
   const [forwardTitle, setForwardTitle] = useState("");
   const [forwardCategory, setForwardCategory] = useState<BulletinCategory>("tips");
   const [forwarding, setForwarding] = useState(false);
+  const [editingId, setEditingId] = useState("");
+  const [editingBody, setEditingBody] = useState("");
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   useEffect(() => {
     return subscribeGlobalStreamMessages(setRows);
@@ -207,6 +213,34 @@ export default function GlobalChatPage() {
     setMenuMessageId("");
   };
 
+  const startEdit = (message: CommunityStreamMessage) => {
+    setEditingId(message.id);
+    setEditingBody(message.body || "");
+    setMenuMessageId("");
+  };
+
+  const saveEdit = async () => {
+    if (!editingId || !editingBody.trim()) return;
+    setErrorText("");
+    try {
+      await editGlobalStreamMessage({ postId: editingId, uid: userProfile.uid, body: editingBody });
+      setEditingId("");
+      setEditingBody("");
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : "編集に失敗しました");
+    }
+  };
+
+  const removePost = async (postId: string) => {
+    setErrorText("");
+    try {
+      await deleteGlobalStreamMessage({ postId, uid: userProfile.uid, mode: "soft" });
+      setMenuMessageId("");
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : "削除に失敗しました");
+    }
+  };
+
   const forwardToBulletin = async () => {
     if (!forwardSource || !forwardTitle.trim() || forwarding) return;
     setForwarding(true);
@@ -231,9 +265,9 @@ export default function GlobalChatPage() {
       <div className="flex items-center gap-3">
         <RadioTower size={24} style={{ color: "var(--accent)" }} />
         <div>
-          <h1 className="text-3xl font-black" style={{ color: "var(--foreground)" }}>StudyFlow Stream</h1>
+          <h1 className="text-3xl font-black" style={{ color: "var(--foreground)" }}>全体チャット</h1>
           <p className="text-sm" style={{ color: "var(--muted)" }}>
-            学習ログと会話が流れる Global Timeline
+            学習ログと会話をリアルタイムで共有
           </p>
         </div>
       </div>
@@ -253,6 +287,7 @@ export default function GlobalChatPage() {
               Math.abs(new Date(row.createdAt).getTime() - new Date(prev.createdAt).getTime()) < 5 * 60_000;
             const mentionMe = !isSystem && isMentioned(row.body, userProfile.uid, userProfile.name);
             const respectedByMe = myRespectIds.has(row.id);
+            const isMine = row.uid === userProfile.uid;
             return (
               <motion.div
                 key={`${row.kind}_${row.id}`}
@@ -291,21 +326,49 @@ export default function GlobalChatPage() {
                         }}
                       >
                         {isSystem ? "SYSTEM" : row.name}
+                        {!isSystem && <VerifiedBadge show={row.isOfficial} size={12} className="ml-1 inline" />}
                         <span className="ml-2 text-[10px]" style={{ color: "var(--muted)" }}>{formatTime(row.createdAt)}</span>
                       </p>
                     )}
-                    <p
-                      className="text-sm whitespace-pre-wrap break-words leading-5"
-                      style={{
-                        color: "var(--foreground)",
-                        fontFamily: isSystem ? "ui-monospace, SFMono-Regular, Menlo, monospace" : undefined,
-                        opacity: isSystem ? 0.92 : 1,
-                      }}
-                    >
-                      {row.body}
-                    </p>
-                    {row.messageType === "image" && row.imageUrl && (
-                      <img src={row.imageUrl} alt="shared" className="mt-1.5 rounded-lg max-h-56 object-cover border" style={{ borderColor: "var(--border)" }} />
+                    {editingId === row.id ? (
+                      <div className="mt-1 space-y-2">
+                        <textarea
+                          value={editingBody}
+                          onChange={(e) => setEditingBody(e.target.value.slice(0, 800))}
+                          rows={2}
+                          className="w-full px-2 py-1.5 rounded-lg text-sm"
+                          style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
+                        />
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => void saveEdit()} className="px-2 py-1 rounded-md text-[11px] font-semibold" style={{ background: "var(--accent)", color: "white" }}>
+                            保存
+                          </button>
+                          <button onClick={() => { setEditingId(""); setEditingBody(""); }} className="px-2 py-1 rounded-md text-[11px] font-semibold" style={{ background: "var(--card-bg)", color: "var(--muted)" }}>
+                            キャンセル
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p
+                        className="text-sm whitespace-pre-wrap break-words leading-5"
+                        style={{
+                          color: "var(--foreground)",
+                          fontFamily: isSystem ? "ui-monospace, SFMono-Regular, Menlo, monospace" : undefined,
+                          opacity: isSystem ? 0.92 : 1,
+                        }}
+                      >
+                        {row.isDeleted ? "この投稿は削除されました" : row.body}
+                        {row.editedAt && !row.isDeleted ? <span className="ml-1 text-[10px]" style={{ color: "var(--muted)" }}>(編集済み)</span> : null}
+                      </p>
+                    )}
+                    {row.messageType === "image" && row.imageUrl && !row.isDeleted && (
+                      <img
+                        src={row.imageUrl}
+                        alt="shared"
+                        className="mt-1.5 rounded-lg max-h-56 object-cover border cursor-zoom-in"
+                        style={{ borderColor: "var(--border)" }}
+                        onClick={() => setLightboxUrl(row.imageUrl || null)}
+                      />
                     )}
                     {!isSystem && (
                       <div className="mt-1.5 flex items-center gap-1">
@@ -323,6 +386,24 @@ export default function GlobalChatPage() {
                     )}
                     {!isSystem && menuMessageId === row.id && (
                       <div className="mt-1 flex items-center gap-1">
+                        {isMine && !row.isDeleted && (
+                          <button
+                            onClick={() => startEdit(row)}
+                            className="px-2 py-1 rounded-md text-[11px] font-semibold"
+                            style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
+                          >
+                            編集
+                          </button>
+                        )}
+                        {isMine && (
+                          <button
+                            onClick={() => void removePost(row.id)}
+                            className="px-2 py-1 rounded-md text-[11px] font-semibold"
+                            style={{ background: "rgba(239,68,68,0.14)", color: "#ef4444" }}
+                          >
+                            削除
+                          </button>
+                        )}
                         <button
                           onClick={() => openForwardModal(row)}
                           className="px-2 py-1 rounded-md text-[11px] font-semibold"
@@ -444,6 +525,12 @@ export default function GlobalChatPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {lightboxUrl && (
+        <div className="fixed inset-0 z-30 bg-black/90 grid place-items-center p-4" onClick={() => setLightboxUrl(null)}>
+          <img src={lightboxUrl} alt="preview" className="max-w-full max-h-full object-contain" />
         </div>
       )}
     </div>
