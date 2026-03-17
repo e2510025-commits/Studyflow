@@ -28,6 +28,9 @@ import type {
 
 const GLOBAL_STREAM = "globalStreamMessages";
 const GLOBAL_SYSTEM_EVENTS = "globalSystemEvents";
+const TIMELINE_POSTS = "timelinePosts";
+const TIMELINE_POST_RESPECTS = "timelinePostRespects";
+const TIMELINE_POST_LIKES = "timelinePostLikes";
 const BULLETIN_POSTS = "bulletinPosts";
 const BULLETIN_HELPFULS = "bulletinHelpfuls";
 const BULLETIN_THREADS = "bulletinThreadMessages";
@@ -280,7 +283,7 @@ export function subscribeUserTimelinePosts(uid: string, callback: (rows: Communi
     return () => {};
   }
 
-  const q = query(collection(db, GLOBAL_STREAM), where("uid", "==", uid), orderBy("createdAt", "desc"), limit(120));
+  const q = query(collection(db, TIMELINE_POSTS), where("uid", "==", uid), orderBy("createdAt", "desc"), limit(120));
   return onSnapshot(
     q,
     (snapshot) => {
@@ -297,7 +300,10 @@ export function subscribeUserTimelinePosts(uid: string, callback: (rows: Communi
           body: String(data.body || ""),
           imageUrl: typeof data.imageUrl === "string" ? data.imageUrl : undefined,
           replyToId: typeof data.replyToId === "string" ? data.replyToId : undefined,
+          replyCount: Math.max(0, Number(data.replyCount || 0)),
+          repostCount: Math.max(0, Number(data.repostCount || 0)),
           respectCount: Math.max(0, Number(data.respectCount || 0)),
+          likeCount: Math.max(0, Number(data.likeCount || 0)),
           editedAt: typeof data.editedAt === "string" ? data.editedAt : undefined,
           isDeleted: Boolean(data.isDeleted),
           createdAt: toIso(data.createdAt),
@@ -307,6 +313,173 @@ export function subscribeUserTimelinePosts(uid: string, callback: (rows: Communi
     },
     () => callback([])
   );
+}
+
+export function subscribeTimelinePosts(callback: (rows: CommunityStreamMessage[]) => void) {
+  const q = query(collection(db, TIMELINE_POSTS), orderBy("createdAt", "desc"), limit(140));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const rows = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          kind: "user" as const,
+          messageType: (data.messageType === "image" ? "image" : "text") as "image" | "text",
+          uid: String(data.uid || ""),
+          name: sanitizeDisplayName(data.name || "匿名"),
+          avatar: sanitizeAvatar(data.avatar || "👤"),
+          isOfficial: Boolean(data.isOfficial),
+          body: String(data.body || ""),
+          imageUrl: typeof data.imageUrl === "string" ? data.imageUrl : undefined,
+          replyToId: typeof data.replyToId === "string" ? data.replyToId : undefined,
+          replyCount: Math.max(0, Number(data.replyCount || 0)),
+          repostCount: Math.max(0, Number(data.repostCount || 0)),
+          respectCount: Math.max(0, Number(data.respectCount || 0)),
+          likeCount: Math.max(0, Number(data.likeCount || 0)),
+          editedAt: typeof data.editedAt === "string" ? data.editedAt : undefined,
+          isDeleted: Boolean(data.isDeleted),
+          createdAt: toIso(data.createdAt),
+        } satisfies CommunityStreamMessage;
+      });
+      callback(rows);
+    },
+    () => callback([])
+  );
+}
+
+export async function sendTimelinePost(params: {
+  uid: string;
+  name: string;
+  avatar: string;
+  body: string;
+}) {
+  const body = params.body.trim();
+  if (!params.uid || !body) return;
+  const isOfficial = await fetchIsOfficial(params.uid);
+  await addDoc(collection(db, TIMELINE_POSTS), {
+    uid: params.uid,
+    name: sanitizeDisplayName(params.name || "匿名"),
+    avatar: sanitizeAvatar(params.avatar || "👤"),
+    isOfficial,
+    body: body.slice(0, 1200),
+    messageType: "text",
+    replyCount: 0,
+    repostCount: 0,
+    respectCount: 0,
+    likeCount: 0,
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function sendTimelineImagePost(params: {
+  uid: string;
+  name: string;
+  avatar: string;
+  imageUrl: string;
+  caption?: string;
+}) {
+  const imageUrl = params.imageUrl.trim();
+  if (!params.uid || !imageUrl) return;
+  const isOfficial = await fetchIsOfficial(params.uid);
+  await addDoc(collection(db, TIMELINE_POSTS), {
+    uid: params.uid,
+    name: sanitizeDisplayName(params.name || "匿名"),
+    avatar: sanitizeAvatar(params.avatar || "👤"),
+    isOfficial,
+    body: (params.caption || "").trim().slice(0, 1200),
+    imageUrl: imageUrl.slice(0, 700_000),
+    messageType: "image",
+    replyCount: 0,
+    repostCount: 0,
+    respectCount: 0,
+    likeCount: 0,
+    createdAt: serverTimestamp(),
+  });
+}
+
+function timelineReactDocId(postId: string, uid: string) {
+  return `${postId}_${uid}`;
+}
+
+export function subscribeMyRespectedTimelinePostIds(uid: string, callback: (ids: Set<string>) => void) {
+  if (!uid) {
+    callback(new Set());
+    return () => {};
+  }
+
+  const q = query(collection(db, TIMELINE_POST_RESPECTS), where("uid", "==", uid));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const ids = new Set<string>();
+      snapshot.docs.forEach((d) => {
+        const postId = String(d.data().postId || "");
+        if (postId) ids.add(postId);
+      });
+      callback(ids);
+    },
+    () => callback(new Set())
+  );
+}
+
+export function subscribeMyLikedTimelinePostIds(uid: string, callback: (ids: Set<string>) => void) {
+  if (!uid) {
+    callback(new Set());
+    return () => {};
+  }
+
+  const q = query(collection(db, TIMELINE_POST_LIKES), where("uid", "==", uid));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const ids = new Set<string>();
+      snapshot.docs.forEach((d) => {
+        const postId = String(d.data().postId || "");
+        if (postId) ids.add(postId);
+      });
+      callback(ids);
+    },
+    () => callback(new Set())
+  );
+}
+
+export async function toggleTimelineRespect(params: { postId: string; uid: string }) {
+  if (!params.postId || !params.uid) return;
+  const postRef = doc(db, TIMELINE_POSTS, params.postId);
+  const reactRef = doc(db, TIMELINE_POST_RESPECTS, timelineReactDocId(params.postId, params.uid));
+
+  await runTransaction(db, async (tx) => {
+    const [postSnap, reactSnap] = await Promise.all([tx.get(postRef), tx.get(reactRef)]);
+    if (!postSnap.exists()) return;
+    const current = Math.max(0, Number(postSnap.data().respectCount || 0));
+    if (reactSnap.exists()) {
+      tx.delete(reactRef);
+      tx.set(postRef, { respectCount: Math.max(0, current - 1) }, { merge: true });
+      return;
+    }
+    tx.set(reactRef, { postId: params.postId, uid: params.uid, createdAt: serverTimestamp() });
+    tx.set(postRef, { respectCount: current + 1 }, { merge: true });
+  });
+}
+
+export async function toggleTimelineLike(params: { postId: string; uid: string }) {
+  if (!params.postId || !params.uid) return;
+  const postRef = doc(db, TIMELINE_POSTS, params.postId);
+  const reactRef = doc(db, TIMELINE_POST_LIKES, timelineReactDocId(params.postId, params.uid));
+
+  await runTransaction(db, async (tx) => {
+    const [postSnap, reactSnap] = await Promise.all([tx.get(postRef), tx.get(reactRef)]);
+    if (!postSnap.exists()) return;
+    const current = Math.max(0, Number(postSnap.data().likeCount || 0));
+    if (reactSnap.exists()) {
+      tx.delete(reactRef);
+      tx.set(postRef, { likeCount: Math.max(0, current - 1) }, { merge: true });
+      return;
+    }
+    tx.set(reactRef, { postId: params.postId, uid: params.uid, createdAt: serverTimestamp() });
+    tx.set(postRef, { likeCount: current + 1 }, { merge: true });
+  });
 }
 
 export async function createAutoStudyTimelinePost(params: {
@@ -320,7 +493,7 @@ export async function createAutoStudyTimelinePost(params: {
   const hour = Math.floor(minutes / 60);
   const minute = minutes % 60;
   const durationText = hour > 0 ? `${hour}時間${minute}分` : `${minute}分`;
-  await sendGlobalStreamMessage({
+  await sendTimelinePost({
     uid: params.uid,
     name: params.name,
     avatar: params.avatar,

@@ -75,7 +75,10 @@ export interface CommunityStreamMessage {
   body: string;
   imageUrl?: string;
   replyToId?: string;
+  replyCount?: number;
+  repostCount?: number;
   respectCount?: number;
+  likeCount?: number;
   respectedByMe?: boolean;
   editedAt?: string;
   isDeleted?: boolean;

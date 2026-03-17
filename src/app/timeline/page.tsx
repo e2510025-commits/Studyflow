@@ -3,12 +3,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Clock3, Sparkles, Waves } from "lucide-react";
+import { Clock3, Flame, ImagePlus, MessageCircle, Plus, Repeat2, Send, Waves, X } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import {
-  subscribeGlobalStreamMessages,
-  subscribeMyRespectedGlobalPostIds,
-  toggleGlobalStreamRespect,
+  sendTimelineImagePost,
+  sendTimelinePost,
+  subscribeMyLikedTimelinePostIds,
+  subscribeMyRespectedTimelinePostIds,
+  subscribeTimelinePosts,
+  toggleTimelineLike,
+  toggleTimelineRespect,
 } from "@/lib/firestore/community";
 import VerifiedBadge from "@/components/ui/VerifiedBadge";
 import type { CommunityStreamMessage } from "@/types";
@@ -24,21 +28,85 @@ export default function TimelinePage() {
   const { userProfile } = useStore();
   const [rows, setRows] = useState<CommunityStreamMessage[]>([]);
   const [respectIds, setRespectIds] = useState<Set<string>>(new Set());
+  const [likeIds, setLikeIds] = useState<Set<string>>(new Set());
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [fabBootLog, setFabBootLog] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeBody, setComposeBody] = useState("");
+  const [composeImage, setComposeImage] = useState("");
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    return subscribeGlobalStreamMessages((next) => setRows(next.filter((row) => row.kind === "user")));
+    return subscribeTimelinePosts((next) => setRows(next.filter((row) => row.kind === "user")));
   }, []);
 
   useEffect(() => {
     if (!userProfile.uid) return;
-    return subscribeMyRespectedGlobalPostIds(userProfile.uid, setRespectIds);
+    return subscribeMyRespectedTimelinePostIds(userProfile.uid, setRespectIds);
+  }, [userProfile.uid]);
+
+  useEffect(() => {
+    if (!userProfile.uid) return;
+    return subscribeMyLikedTimelinePostIds(userProfile.uid, setLikeIds);
   }, [userProfile.uid]);
 
   const feed = useMemo(() => [...rows].slice(0, 120), [rows]);
 
+  const openComposer = () => {
+    setFabBootLog(true);
+    window.setTimeout(() => {
+      setFabBootLog(false);
+      setComposeOpen(true);
+    }, 650);
+  };
+
+  const onSelectImage = async (file?: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return;
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("IMAGE_READ_FAILED"));
+      reader.readAsDataURL(file);
+    });
+    if (dataUrl.length > 700_000) {
+      alert("画像サイズが大きすぎます (700KB相当以下)");
+      return;
+    }
+    setComposeImage(dataUrl);
+  };
+
+  const submitPost = async () => {
+    if (sending || !userProfile.uid) return;
+    if (!composeBody.trim() && !composeImage) return;
+    setSending(true);
+    try {
+      if (composeImage) {
+        await sendTimelineImagePost({
+          uid: userProfile.uid,
+          name: userProfile.name,
+          avatar: userProfile.avatar,
+          imageUrl: composeImage,
+          caption: composeBody,
+        });
+      } else {
+        await sendTimelinePost({
+          uid: userProfile.uid,
+          name: userProfile.name,
+          avatar: userProfile.avatar,
+          body: composeBody,
+        });
+      }
+      setComposeBody("");
+      setComposeImage("");
+      setComposeOpen(false);
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
+    <div className="max-w-[600px] mx-auto space-y-4 px-2 sm:px-0">
       <div className="flex items-center gap-3">
         <Waves size={24} style={{ color: "var(--accent)" }} />
         <div>
@@ -54,6 +122,7 @@ export default function TimelinePage() {
           feed.map((row) => {
             const isAvatarImage = row.avatar.startsWith("http") || row.avatar.startsWith("data:");
             const respectedByMe = respectIds.has(row.id);
+            const likedByMe = likeIds.has(row.id);
             return (
               <motion.article
                 key={row.id}
@@ -85,16 +154,25 @@ export default function TimelinePage() {
                         onClick={() => setLightboxUrl(row.imageUrl || null)}
                       />
                     )}
-                    <button
-                      onClick={() => void toggleGlobalStreamRespect({ postId: row.id, uid: userProfile.uid })}
-                      className="mt-2 px-2.5 py-1 rounded-lg text-xs font-semibold inline-flex items-center gap-1"
-                      style={{
-                        background: respectedByMe ? "rgba(14,165,233,0.18)" : "var(--card-bg)",
-                        color: respectedByMe ? "#0284c7" : "var(--muted)",
-                      }}
-                    >
-                      <Sparkles size={12} /> Respect {Math.max(0, Number(row.respectCount || 0))}
-                    </button>
+                    <div className="mt-2 flex items-center justify-between text-xs">
+                      <button className="inline-flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
+                        <MessageCircle size={14} /> {Math.max(0, Number(row.replyCount || 0))}
+                      </button>
+                      <button
+                        onClick={() => void toggleTimelineRespect({ postId: row.id, uid: userProfile.uid })}
+                        className="inline-flex items-center gap-1.5"
+                        style={{ color: respectedByMe ? "#0284c7" : "var(--muted)" }}
+                      >
+                        <Repeat2 size={14} /> {Math.max(0, Number(row.respectCount || 0))}
+                      </button>
+                      <button
+                        onClick={() => void toggleTimelineLike({ postId: row.id, uid: userProfile.uid })}
+                        className="inline-flex items-center gap-1.5"
+                        style={{ color: likedByMe ? "#f97316" : "var(--muted)" }}
+                      >
+                        <Flame size={14} /> {Math.max(0, Number(row.likeCount || 0))}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </motion.article>
@@ -106,6 +184,76 @@ export default function TimelinePage() {
       {lightboxUrl && (
         <div className="fixed inset-0 z-30 bg-black/90 grid place-items-center p-4" onClick={() => setLightboxUrl(null)}>
           <img src={lightboxUrl} alt="preview" className="max-w-full max-h-full object-contain" />
+        </div>
+      )}
+
+      <input
+        id="timeline-image-input"
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0] || null;
+          void onSelectImage(file);
+          e.currentTarget.value = "";
+        }}
+      />
+
+      {fabBootLog && (
+        <div className="fixed right-5 bottom-24 z-40 px-3 py-2 rounded-lg text-xs font-mono" style={{ background: "rgba(15,23,42,0.92)", color: "#22d3ee" }}>
+          INITIALIZING POST INTERFACE...
+        </div>
+      )}
+
+      <button
+        onClick={openComposer}
+        className="fixed right-5 bottom-5 z-40 w-14 h-14 rounded-full text-white grid place-items-center shadow-xl"
+        style={{ background: "linear-gradient(135deg,#8b5cf6,#7c3aed)" }}
+      >
+        <Plus size={24} />
+      </button>
+
+      {composeOpen && (
+        <div className="fixed inset-0 z-50 bg-black/45 grid place-items-center p-4" onClick={() => setComposeOpen(false)}>
+          <div className="w-full max-w-lg rounded-2xl p-4 space-y-3" style={{ background: "var(--card-bg)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-black" style={{ color: "var(--foreground)" }}>新しいポスト</h3>
+              <button onClick={() => setComposeOpen(false)} style={{ color: "var(--muted)" }}>
+                <X size={16} />
+              </button>
+            </div>
+            <textarea
+              value={composeBody}
+              onChange={(e) => setComposeBody(e.target.value.slice(0, 1200))}
+              rows={5}
+              placeholder="いまどうしてる？"
+              className="w-full px-3 py-2 rounded-xl text-sm resize-none"
+              style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+            />
+            {composeImage && (
+              <img src={composeImage} alt="compose" className="rounded-xl max-h-64 object-cover" />
+            )}
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => {
+                  const el = document.getElementById("timeline-image-input") as HTMLInputElement | null;
+                  el?.click();
+                }}
+                className="px-3 py-2 rounded-lg text-sm inline-flex items-center gap-1"
+                style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+              >
+                <ImagePlus size={15} /> 画像
+              </button>
+              <button
+                onClick={() => void submitPost()}
+                disabled={sending || (!composeBody.trim() && !composeImage)}
+                className="px-3 py-2 rounded-lg text-sm font-semibold text-white inline-flex items-center gap-1 disabled:opacity-50"
+                style={{ background: "var(--accent)" }}
+              >
+                <Send size={14} /> 投稿
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

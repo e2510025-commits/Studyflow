@@ -23,9 +23,10 @@ import {
   type ProfileActivityItem,
 } from "@/lib/firestore/profile";
 import {
-  subscribeMyRespectedGlobalPostIds,
+  subscribeMyLikedTimelinePostIds,
+  subscribeMyRespectedTimelinePostIds,
   subscribeUserTimelinePosts,
-  toggleGlobalStreamRespect,
+  toggleTimelineRespect,
 } from "@/lib/firestore/community";
 import { subscribeActiveStudyUsers } from "@/lib/firestore/focusRoom";
 import { subscribeUserPresenceStatus, subscribeUsersOnlineStatus } from "@/lib/firestore/presence";
@@ -311,7 +312,7 @@ export default function PublicProfilePage() {
       setViewerRespectIds(new Set());
       return;
     }
-    return subscribeMyRespectedGlobalPostIds(userProfile.uid, setViewerRespectIds);
+    return subscribeMyRespectedTimelinePostIds(userProfile.uid, setViewerRespectIds);
   }, [userProfile.uid]);
 
   useEffect(() => {
@@ -319,7 +320,7 @@ export default function PublicProfilePage() {
       setProfileLikedPostIds(new Set());
       return;
     }
-    return subscribeMyRespectedGlobalPostIds(uid, setProfileLikedPostIds);
+    return subscribeMyLikedTimelinePostIds(uid, setProfileLikedPostIds);
   }, [uid]);
 
   const statusColor = useMemo<PresenceColor>(() => {
@@ -723,7 +724,7 @@ export default function PublicProfilePage() {
                     />
                   )}
                   <button
-                    onClick={() => void toggleGlobalStreamRespect({ postId: row.id, uid: userProfile.uid })}
+                    onClick={() => void toggleTimelineRespect({ postId: row.id, uid: userProfile.uid })}
                     className="mt-2 px-2.5 py-1 rounded-lg text-xs font-semibold inline-flex items-center gap-1"
                     style={{
                       background: respectedByMe ? "rgba(14,165,233,0.18)" : "var(--card-bg)",

@@ -53,6 +53,23 @@ export default function ConversationsPage() {
     [friends, selectedMembers]
   );
 
+  const dedupedFriends = useMemo(() => {
+    const byUid = new Map<string, (typeof friends)[number]>();
+    friends.forEach((friend) => {
+      const prev = byUid.get(friend.uid);
+      if (!prev) {
+        byUid.set(friend.uid, friend);
+        return;
+      }
+      const prevAt = new Date(prev.addedAt).getTime();
+      const nextAt = new Date(friend.addedAt).getTime();
+      if (Number.isNaN(prevAt) || nextAt >= prevAt) {
+        byUid.set(friend.uid, friend);
+      }
+    });
+    return Array.from(byUid.values());
+  }, [friends]);
+
   const toggleMember = (uid: string) => {
     setSelectedMembers((prev) =>
       prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
@@ -104,13 +121,13 @@ export default function ConversationsPage() {
             </h2>
           </div>
 
-          {friends.length === 0 ? (
+          {dedupedFriends.length === 0 ? (
             <p className="text-sm" style={{ color: "var(--muted)" }}>
               フレンドを追加するとここに表示されます
             </p>
           ) : (
             <div className="space-y-2">
-              {friends.map((friend) => {
+              {dedupedFriends.map((friend) => {
                 const safeName = sanitizeDisplayName(friend.name);
                 const safeAvatar = sanitizeAvatar(friend.avatar);
                 const unreadCount = visibleUnreadByUser[friend.uid] || 0;
