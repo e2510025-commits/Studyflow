@@ -4,6 +4,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  DocumentReference,
   getDocs,
   query,
   serverTimestamp,
@@ -30,7 +31,7 @@ async function collectRefs(plan: DeletePlan) {
   return snap.docs.map((d) => d.ref);
 }
 
-async function deleteRefs(refs: Array<{ path: string; id: string; parent: { path: string } }>) {
+async function deleteRefs(refs: Array<DocumentReference>) {
   for (const ref of refs) {
     await deleteDoc(ref);
   }
@@ -47,9 +48,9 @@ export async function POST() {
   const email = sessionUser.email || "";
   const rawSessionId = String(session?.user?.id || "");
 
-  const refsToDelete: Array<{ path: string; id: string; parent: { path: string } }> = [];
+  const refsToDelete: Array<DocumentReference> = [];
   const visitedPath = new Set<string>();
-  const addRefs = (refs: Array<{ path: string; id: string; parent: { path: string } }>) => {
+  const addRefs = (refs: Array<DocumentReference>) => {
     refs.forEach((ref) => {
       if (visitedPath.has(ref.path)) return;
       visitedPath.add(ref.path);
