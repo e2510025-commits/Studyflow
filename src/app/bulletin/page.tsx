@@ -3,16 +3,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore } from "@/store/useStore";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { isAdminUid } from "@/lib/admin";
 import {
   BookText,
   CheckCircle2,
   Flame,
+  ImagePlus,
   Loader2,
   MessageCircleQuestion,
   PencilLine,
   Sparkles,
+  X,
 } from "lucide-react";
 import {
   createBulletinPost,
@@ -27,7 +29,7 @@ import {
   toggleBulletinHelpful,
   updateBulletinResolved,
 } from "@/lib/firestore/community";
-import VerifiedBadge from "@/components/ui/VerifiedBadge";
+import OfficialMark from "@/components/ui/OfficialMark";
 import type { BulletinCategory, BulletinPost, BulletinThreadMessage } from "@/types";
 
 const CATEGORY_LABEL: Record<BulletinCategory, string> = {
@@ -128,6 +130,8 @@ export default function BulletinPage() {
   const [category, setCategory] = useState<BulletinCategory>("tips");
   const [preview, setPreview] = useState(false);
   const [posting, setPosting] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeImage, setComposeImage] = useState("");
   const [togglingResolvedId, setTogglingResolvedId] = useState("");
   const [errorText, setErrorText] = useState("");
   const [editingPostId, setEditingPostId] = useState("");
@@ -236,6 +240,52 @@ export default function BulletinPage() {
     }
   };
 
+  const onSelectComposeImage = async (file?: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setErrorText("画像ファイルを選択してください");
+      return;
+    }
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("画像読み込みに失敗しました"));
+        reader.readAsDataURL(file);
+      });
+      if (dataUrl.length > 700_000) {
+        throw new Error("画像サイズが大きすぎます (700KB相当以下)");
+      }
+      setComposeImage(dataUrl);
+      setErrorText("");
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : "画像追加に失敗しました");
+    }
+  };
+
+  const submitPost = async () => {
+    if (!userProfile.uid || posting || !title.trim() || !content.trim()) return;
+    setErrorText("");
+    setPosting(true);
+    try {
+      const imageSuffix = composeImage ? `\n\n![bulletin-image](${composeImage})` : "";
+      await createBulletinPost({
+        title,
+        content: `${content}${imageSuffix}`,
+        category,
+      });
+      setTitle("");
+      setContent("");
+      setComposeImage("");
+      setComposeOpen(false);
+      setPreview(false);
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : "投稿に失敗しました");
+    } finally {
+      setPosting(false);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-4">
       <div className="flex items-center gap-3">
@@ -269,98 +319,6 @@ export default function BulletinPage() {
               </div>
             ))}
           </div>
-        )}
-      </section>
-
-      <section id="bulletin-compose" className="glass-card p-4 space-y-3">
-        <h2 className="text-sm font-black" style={{ color: "var(--foreground)" }}>新規投稿</h2>
-        <div className="grid md:grid-cols-[180px_1fr] gap-2">
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value as BulletinCategory)}
-            className="px-3 py-2 rounded-xl text-sm"
-            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-          >
-            {selectableCategories.map((key) => (
-              <option key={key} value={key}>{CATEGORY_LABEL[key]}</option>
-            ))}
-          </select>
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value.slice(0, 120))}
-            placeholder="タイトル"
-            className="px-3 py-2 rounded-xl text-sm"
-            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-          />
-        </div>
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value.slice(0, 6000))}
-          rows={6}
-          placeholder="Markdown対応: **太字** `code` - 箇条書き / TeX風: $x^2$ や $$\\int_0^1 x dx$$"
-          className="w-full px-3 py-2 rounded-xl text-sm"
-          style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-        />
-        <div className="flex items-center gap-2 text-xs">
-          <button
-            onClick={() => setPreview(false)}
-            className="px-2.5 py-1 rounded-lg font-semibold"
-            style={{ background: !preview ? "var(--accent-light)" : "var(--muted-bg)", color: !preview ? "var(--accent)" : "var(--muted)" }}
-          >
-            エディタ
-          </button>
-          <button
-            onClick={() => setPreview(true)}
-            className="px-2.5 py-1 rounded-lg font-semibold"
-            style={{ background: preview ? "var(--accent-light)" : "var(--muted-bg)", color: preview ? "var(--accent)" : "var(--muted)" }}
-          >
-            プレビュー
-          </button>
-          {!isAdmin && (
-            <span style={{ color: "var(--muted)" }}>※運営カテゴリは管理者のみ投稿できます</span>
-          )}
-        </div>
-        {preview && (
-          <div className="rounded-xl px-3 py-2 min-h-[110px]" style={{ background: "var(--muted-bg)" }}>
-            {content.trim() ? (
-              <div className="space-y-1">{renderMarkdown(content)}</div>
-            ) : (
-              <p className="text-sm" style={{ color: "var(--muted)" }}>ここにプレビューが表示されます。</p>
-            )}
-          </div>
-        )}
-        <div className="flex items-center justify-between">
-          <p className="text-xs" style={{ color: "var(--muted)" }}>
-            Markdown/TeX風表記に対応。役立った数は投稿者プロフィール統計に反映されます。
-          </p>
-          <button
-            onClick={async () => {
-              if (!userProfile.uid || posting || !title.trim() || !content.trim()) return;
-              setErrorText("");
-              setPosting(true);
-              try {
-                await createBulletinPost({
-                  title,
-                  content,
-                  category,
-                });
-                setTitle("");
-                setContent("");
-              } catch (error) {
-                setErrorText(error instanceof Error ? error.message : "投稿に失敗しました");
-              } finally {
-                setPosting(false);
-              }
-            }}
-            disabled={posting || !title.trim() || !content.trim()}
-            className="px-3 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50 inline-flex items-center gap-1"
-            style={{ background: "var(--accent)" }}
-          >
-            {posting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} 投稿
-          </button>
-        </div>
-        {errorText && (
-          <p className="text-xs" style={{ color: "#ef4444" }}>{errorText}</p>
         )}
       </section>
 
@@ -398,26 +356,47 @@ export default function BulletinPage() {
               return (
                 <motion.article
                   key={row.id}
-                  className="rounded-xl p-3"
+                  className="rounded-2xl p-4 cursor-pointer"
                   style={{ background: "var(--muted-bg)" }}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
+                  onClick={() => setThreadPost(row)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setThreadPost(row);
+                    }
+                  }}
                 >
                   <div className="flex items-start gap-3">
-                    <span className="w-8 h-8 rounded-full overflow-hidden inline-flex items-center justify-center" style={{ background: "var(--accent-light)" }}>
+                    <Link
+                      href={`/profile/${row.uid}`}
+                      className="w-10 h-10 rounded-full overflow-hidden inline-flex items-center justify-center shrink-0"
+                      style={{ background: "var(--accent-light)" }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {isImage ? <img src={row.avatar} alt={row.name} className="w-full h-full object-cover" /> : row.avatar}
-                    </span>
+                    </Link>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-semibold" style={{ color: "var(--muted)" }}>
-                        {CATEGORY_LABEL[row.category]} ・
-                        <Link href={`/profile/${row.uid}`} className="hover:underline ml-1 inline-flex items-center gap-1" style={{ color: "var(--foreground)" }}>
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold" style={{ color: "var(--muted)" }}>
+                        <Link
+                          href={`/profile/${row.uid}`}
+                          className="hover:underline inline-flex items-center gap-1"
+                          style={{ color: "var(--foreground)" }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           {row.name}
-                          <VerifiedBadge show={row.isOfficial} size={12} />
+                          <OfficialMark uid={row.uid} isOfficial={row.isOfficial} size={13} />
                         </Link>
-                        <span className="ml-2">{formatRelativeOrDate(row.createdAt)}</span>
-                      </p>
+                        <span>・{formatRelativeOrDate(row.createdAt)}</span>
+                        <span className="px-2 py-0.5 rounded-full" style={{ background: "var(--card-bg)", color: "var(--muted)" }}>
+                          {CATEGORY_LABEL[row.category]}
+                        </span>
+                      </div>
                       <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                        <h3 className="text-base font-black" style={{ color: "var(--foreground)" }}>
+                        <h3 className="text-lg font-black" style={{ color: "var(--foreground)" }}>
                           {editingPostId === row.id ? "投稿を編集中" : row.title}
                         </h3>
                         {row.category === "qa" && row.resolved && (
@@ -443,14 +422,18 @@ export default function BulletinPage() {
                           />
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => void savePostEdit()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void savePostEdit();
+                              }}
                               className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white"
                               style={{ background: "var(--accent)" }}
                             >
                               保存
                             </button>
                             <button
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setEditingPostId("");
                                 setEditingTitle("");
                                 setEditingContent("");
@@ -465,30 +448,34 @@ export default function BulletinPage() {
                       ) : (
                         <div className="mt-2 space-y-1">{renderMarkdown(row.content)}</div>
                       )}
-                      <div className="mt-3 flex items-center gap-2">
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
                         <button
-                          onClick={() => void toggleBulletinHelpful({ postId: row.id, postAuthorUid: row.uid, uid: userProfile.uid })}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void toggleBulletinHelpful({ postId: row.id, postAuthorUid: row.uid, uid: userProfile.uid });
+                          }}
                           className="px-2.5 py-1 rounded-lg text-xs font-semibold"
                           style={{
                             background: helped ? "rgba(34,197,94,0.18)" : "var(--card-bg)",
                             color: helped ? "#16a34a" : "var(--muted)",
                           }}
                         >
-                          役立った {row.helpfulCount}
+                          🔥 応援 {row.helpfulCount}
                         </button>
-                        <span className="text-xs px-2 py-1 rounded-lg" style={{ background: "var(--card-bg)", color: "var(--muted)" }}>
-                          返信 {row.replyCount}
-                        </span>
                         <button
-                          onClick={() => setThreadPost(row)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setThreadPost(row);
+                          }}
                           className="px-2.5 py-1 rounded-lg text-xs font-semibold"
                           style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
                         >
-                          スレッドを開く
+                          💬 返信 {row.replyCount}
                         </button>
                         {row.category === "qa" && (row.uid === userProfile.uid || isAdmin) && (
                           <button
-                            onClick={async () => {
+                            onClick={async (e) => {
+                              e.stopPropagation();
                               setErrorText("");
                               setTogglingResolvedId(row.id);
                               try {
@@ -508,7 +495,10 @@ export default function BulletinPage() {
                         )}
                         {(row.uid === userProfile.uid || isAdmin) && (
                           <button
-                            onClick={() => startEditPost(row)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startEditPost(row);
+                            }}
                             className="px-2.5 py-1 rounded-lg text-xs font-semibold"
                             style={{ background: "var(--card-bg)", color: "var(--muted)" }}
                           >
@@ -517,7 +507,10 @@ export default function BulletinPage() {
                         )}
                         {(row.uid === userProfile.uid || isAdmin) && (
                           <button
-                            onClick={() => void removePost(row.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void removePost(row.id);
+                            }}
                             className="px-2.5 py-1 rounded-lg text-xs font-semibold"
                             style={{ background: "rgba(239,68,68,0.12)", color: "#ef4444" }}
                           >
@@ -538,9 +531,28 @@ export default function BulletinPage() {
         )}
       </section>
 
-      {threadPost && (
-        <div className="fixed inset-0 z-40 bg-black/45 grid place-items-center p-4" onClick={() => setThreadPost(null)}>
-          <div className="w-full max-w-2xl rounded-2xl p-4 space-y-3 max-h-[86vh] overflow-hidden" style={{ background: "var(--card-bg)" }} onClick={(e) => e.stopPropagation()}>
+      {errorText && (
+        <p className="text-xs" style={{ color: "#ef4444" }}>{errorText}</p>
+      )}
+
+      <AnimatePresence>
+        {threadPost && (
+          <motion.div
+            className="fixed inset-0 z-40 bg-black/45"
+            onClick={() => setThreadPost(null)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="absolute right-0 top-0 h-full w-full max-w-2xl p-4 space-y-3 overflow-hidden"
+              style={{ background: "var(--card-bg)" }}
+              onClick={(e) => e.stopPropagation()}
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", stiffness: 280, damping: 28 }}
+            >
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-base font-black" style={{ color: "var(--foreground)" }}>{threadPost.title}</h3>
@@ -561,13 +573,19 @@ export default function BulletinPage() {
                   return (
                     <div key={msg.id} className="rounded-lg p-2" style={{ background: "var(--card-bg)" }}>
                       <div className="flex items-start gap-2">
-                        <span className="w-7 h-7 rounded-full overflow-hidden inline-flex items-center justify-center" style={{ background: "var(--accent-light)" }}>
+                        <Link
+                          href={`/profile/${msg.uid}`}
+                          className="w-7 h-7 rounded-full overflow-hidden inline-flex items-center justify-center"
+                          style={{ background: "var(--accent-light)" }}
+                        >
                           {avatarIsImage ? <img src={msg.avatar} alt={msg.name} className="w-full h-full object-cover" /> : msg.avatar}
-                        </span>
+                        </Link>
                         <div className="min-w-0 flex-1">
                           <p className="text-[11px] inline-flex items-center gap-1" style={{ color: "var(--muted)" }}>
-                            <span style={{ color: "var(--foreground)" }}>{msg.name}</span>
-                            <VerifiedBadge show={msg.isOfficial} size={11} />
+                            <Link href={`/profile/${msg.uid}`} className="hover:underline" style={{ color: "var(--foreground)" }}>
+                              {msg.name}
+                            </Link>
+                            <OfficialMark uid={msg.uid} isOfficial={msg.isOfficial} size={11} />
                             <span>{formatRelativeOrDate(msg.createdAt)}</span>
                           </p>
                           {editingThreadId === msg.id ? (
@@ -641,19 +659,125 @@ export default function BulletinPage() {
                 送信
               </button>
             </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <input
+        id="bulletin-image-input"
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0] || null;
+          void onSelectComposeImage(file);
+          e.currentTarget.value = "";
+        }}
+      />
+
+      <button
+        onClick={() => setComposeOpen(true)}
+        className="fixed right-5 bottom-5 z-40 w-14 h-14 rounded-full text-white grid place-items-center shadow-xl"
+        style={{ background: "linear-gradient(135deg,#8b5cf6,#7c3aed)" }}
+      >
+        <PencilLine size={16} />
+      </button>
+
+      {composeOpen && (
+        <div className="fixed inset-0 z-50 bg-black/45 grid place-items-center p-4" onClick={() => setComposeOpen(false)}>
+          <div className="w-full max-w-2xl rounded-2xl p-4 space-y-3" style={{ background: "var(--card-bg)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-black" style={{ color: "var(--foreground)" }}>新規投稿</h2>
+              <button onClick={() => setComposeOpen(false)} style={{ color: "var(--muted)" }}>
+                <X size={16} />
+              </button>
+            </div>
+            <div className="grid md:grid-cols-[180px_1fr] gap-2">
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value as BulletinCategory)}
+                className="px-3 py-2 rounded-xl text-sm"
+                style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+              >
+                {selectableCategories.map((key) => (
+                  <option key={key} value={key}>{CATEGORY_LABEL[key]}</option>
+                ))}
+              </select>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value.slice(0, 120))}
+                placeholder="タイトル"
+                className="px-3 py-2 rounded-xl text-sm"
+                style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+              />
+            </div>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value.slice(0, 6000))}
+              rows={6}
+              placeholder="Markdown対応: **太字** `code` - 箇条書き / TeX風: $x^2$ や $$\\int_0^1 x dx$$"
+              className="w-full px-3 py-2 rounded-xl text-sm"
+              style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+            />
+            <div className="flex items-center gap-2 text-xs">
+              <button
+                onClick={() => setPreview(false)}
+                className="px-2.5 py-1 rounded-lg font-semibold"
+                style={{ background: !preview ? "var(--accent-light)" : "var(--muted-bg)", color: !preview ? "var(--accent)" : "var(--muted)" }}
+              >
+                エディタ
+              </button>
+              <button
+                onClick={() => setPreview(true)}
+                className="px-2.5 py-1 rounded-lg font-semibold"
+                style={{ background: preview ? "var(--accent-light)" : "var(--muted-bg)", color: preview ? "var(--accent)" : "var(--muted)" }}
+              >
+                プレビュー
+              </button>
+              <button
+                onClick={() => {
+                  const el = document.getElementById("bulletin-image-input") as HTMLInputElement | null;
+                  el?.click();
+                }}
+                className="px-2.5 py-1 rounded-lg font-semibold inline-flex items-center gap-1"
+                style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+              >
+                <ImagePlus size={13} /> 画像
+              </button>
+              {!isAdmin && (
+                <span style={{ color: "var(--muted)" }}>※運営カテゴリは管理者のみ投稿できます</span>
+              )}
+            </div>
+            {composeImage && (
+              <img src={composeImage} alt="compose" className="rounded-xl max-h-64 object-cover" />
+            )}
+            {preview && (
+              <div className="rounded-xl px-3 py-2 min-h-[110px]" style={{ background: "var(--muted-bg)" }}>
+                {content.trim() ? (
+                  <div className="space-y-1">{renderMarkdown(content)}</div>
+                ) : (
+                  <p className="text-sm" style={{ color: "var(--muted)" }}>ここにプレビューが表示されます。</p>
+                )}
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <p className="text-xs" style={{ color: "var(--muted)" }}>
+                Markdown/TeX風表記に対応。画像は投稿本文の末尾に添付されます。
+              </p>
+              <button
+                onClick={() => void submitPost()}
+                disabled={posting || !title.trim() || !content.trim()}
+                className="px-3 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50 inline-flex items-center gap-1"
+                style={{ background: "var(--accent)" }}
+              >
+                {posting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} 投稿
+                <Sparkles size={14} />
+              </button>
+            </div>
           </div>
         </div>
       )}
-
-      <a
-        href="#bulletin-compose"
-        className="fixed right-5 bottom-5 px-4 py-2.5 rounded-full text-sm font-semibold text-white shadow-lg inline-flex items-center gap-2"
-        style={{ background: "linear-gradient(90deg, var(--accent), #0ea5e9)" }}
-      >
-        <PencilLine size={16} />
-        投稿する
-        <Sparkles size={14} />
-      </a>
     </div>
   );
 }

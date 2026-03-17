@@ -14,7 +14,7 @@ import {
   toggleTimelineLike,
   toggleTimelineRespect,
 } from "@/lib/firestore/community";
-import VerifiedBadge from "@/components/ui/VerifiedBadge";
+import OfficialMark from "@/components/ui/OfficialMark";
 import type { CommunityStreamMessage } from "@/types";
 
 function formatTime(iso: string) {
@@ -132,15 +132,19 @@ export default function TimelinePage() {
                 animate={{ opacity: 1, y: 0 }}
               >
                 <div className="flex items-start gap-3">
-                  <span className="w-9 h-9 rounded-full overflow-hidden inline-flex items-center justify-center" style={{ background: "var(--accent-light)" }}>
+                  <Link
+                    href={`/profile/${row.uid}`}
+                    className="w-9 h-9 rounded-full overflow-hidden inline-flex items-center justify-center"
+                    style={{ background: "var(--accent-light)" }}
+                  >
                     {isAvatarImage ? <img src={row.avatar} alt={row.name} className="w-full h-full object-cover" /> : row.avatar}
-                  </span>
+                  </Link>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 text-xs" style={{ color: "var(--muted)" }}>
                       <Link href={`/profile/${row.uid}`} className="font-semibold hover:underline" style={{ color: "var(--foreground)" }}>
                         {row.name}
                       </Link>
-                      <VerifiedBadge show={row.isOfficial} size={13} />
+                      <OfficialMark uid={row.uid} isOfficial={row.isOfficial} size={13} />
                       <span className="inline-flex items-center gap-1"><Clock3 size={12} /> {formatTime(row.createdAt)}</span>
                     </div>
                     <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: "var(--foreground)" }}>

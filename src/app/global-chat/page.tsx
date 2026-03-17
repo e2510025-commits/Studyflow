@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useStore } from "@/store/useStore";
 import { motion } from "framer-motion";
 import { BookPlus, ImagePlus, Loader2, Plus, RadioTower, Send, Sparkles } from "lucide-react";
@@ -15,7 +16,7 @@ import {
   syncAchievementSystemEvents,
   toggleGlobalStreamRespect,
 } from "@/lib/firestore/community";
-import VerifiedBadge from "@/components/ui/VerifiedBadge";
+import OfficialMark from "@/components/ui/OfficialMark";
 import type { BulletinCategory, CommunityStreamMessage } from "@/types";
 
 function formatTime(iso: string): string {
@@ -310,9 +311,19 @@ export default function GlobalChatPage() {
               >
                 <div className="flex items-start gap-2">
                   {!isContinuation ? (
-                    <span className="w-7 h-7 rounded-full overflow-hidden inline-flex items-center justify-center mt-0.5 shrink-0" style={{ background: "var(--accent-light)" }}>
-                      {isImage ? <img src={row.avatar} alt={row.name} className="w-full h-full object-cover" /> : row.avatar}
-                    </span>
+                    isSystem || !row.uid ? (
+                      <span className="w-7 h-7 rounded-full overflow-hidden inline-flex items-center justify-center mt-0.5 shrink-0" style={{ background: "var(--accent-light)" }}>
+                        {isImage ? <img src={row.avatar} alt={row.name} className="w-full h-full object-cover" /> : row.avatar}
+                      </span>
+                    ) : (
+                      <Link
+                        href={`/profile/${row.uid}`}
+                        className="w-7 h-7 rounded-full overflow-hidden inline-flex items-center justify-center mt-0.5 shrink-0"
+                        style={{ background: "var(--accent-light)" }}
+                      >
+                        {isImage ? <img src={row.avatar} alt={row.name} className="w-full h-full object-cover" /> : row.avatar}
+                      </Link>
+                    )
                   ) : (
                     <span className="w-7 shrink-0" />
                   )}
@@ -325,8 +336,12 @@ export default function GlobalChatPage() {
                           fontFamily: isSystem ? "ui-monospace, SFMono-Regular, Menlo, monospace" : undefined,
                         }}
                       >
-                        {isSystem ? "SYSTEM" : row.name}
-                        {!isSystem && <VerifiedBadge show={row.isOfficial} size={12} className="ml-1 inline" />}
+                        {isSystem ? "SYSTEM" : (
+                          <Link href={`/profile/${row.uid}`} className="hover:underline">
+                            {row.name}
+                          </Link>
+                        )}
+                        {!isSystem && <OfficialMark uid={row.uid} isOfficial={row.isOfficial} size={12} className="ml-1 inline" />}
                         <span className="ml-2 text-[10px]" style={{ color: "var(--muted)" }}>{formatTime(row.createdAt)}</span>
                       </p>
                     )}
