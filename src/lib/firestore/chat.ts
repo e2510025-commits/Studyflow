@@ -3,6 +3,7 @@ import {
   addDoc,
   deleteDoc,
   doc,
+  updateDoc,
   query,
   where,
   onSnapshot,
@@ -78,6 +79,11 @@ export function subscribeChatMessages(
           data.readAt instanceof Timestamp
             ? data.readAt.toDate().toISOString()
             : data.readAt,
+        editedAt:
+          data.editedAt instanceof Timestamp
+            ? data.editedAt.toDate().toISOString()
+            : data.editedAt,
+        isDeleted: Boolean(data.isDeleted),
         createdAt: createdAtIso,
       };
     }).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
@@ -221,6 +227,19 @@ export async function markChatMessagesAsRead(
   await batch.commit();
 }
 
+export async function editChatMessageInFirestore(
+  messageId: string,
+  content: string
+): Promise<void> {
+  const trimmed = content.trim();
+  if (!messageId || !trimmed) return;
+  await updateDoc(doc(db, CHAT_COLLECTION, messageId), {
+    content: trimmed.slice(0, 4000),
+    editedAt: serverTimestamp(),
+    isDeleted: false,
+  });
+}
+
 export function subscribeUnreadDirectMessageCounts(
   myUid: string,
   callback: (counts: DirectMessageUnreadCounts) => void
@@ -250,12 +269,27 @@ export function subscribeUnreadDirectMessageCounts(
  */
 export async function deleteChatMessageFromFirestore(
   messageId: string,
-  storagePath?: string
+  options?: {
+    storagePath?: string;
+    mode?: "soft" | "hard";
+  }
 ): Promise<void> {
-  await deleteDoc(doc(db, CHAT_COLLECTION, messageId));
-  if (storagePath) {
+  const mode = options?.mode || "soft";
+  if (mode === "soft") {
+    await updateDoc(doc(db, CHAT_COLLECTION, messageId), {
+      isDeleted: true,
+      content: "",
+      fileName: "",
+      storagePath: "",
+      editedAt: serverTimestamp(),
+    });
+  } else {
+    await deleteDoc(doc(db, CHAT_COLLECTION, messageId));
+  }
+
+  if (options?.storagePath) {
     try {
-      await deleteObject(ref(storage, storagePath));
+      await deleteObject(ref(storage, options.storagePath));
     } catch {
       // ファイルが存在しない場合は無視
     }

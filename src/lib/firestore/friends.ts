@@ -33,18 +33,32 @@ export function subscribeFriends(
   );
 
   return onSnapshot(q, (snapshot) => {
-    const friends: Friend[] = snapshot.docs.map((d) => {
+    const byUid = new Map<string, Friend>();
+    snapshot.docs.forEach((d) => {
       const data = d.data();
-      return {
-        uid: data.uid,
+      const uid = String(data.uid || "");
+      if (!uid) return;
+      const addedAt =
+        data.addedAt instanceof Timestamp
+          ? data.addedAt.toDate().toISOString()
+          : typeof data.addedAt === "string"
+          ? data.addedAt
+          : new Date(0).toISOString();
+      const candidate: Friend = {
+        uid,
         name: sanitizeDisplayName(data.name),
         avatar: sanitizeAvatar(data.avatar),
-        addedAt:
-          data.addedAt instanceof Timestamp
-            ? data.addedAt.toDate().toISOString()
-            : data.addedAt,
+        addedAt,
       };
+      const prev = byUid.get(uid);
+      if (!prev || new Date(candidate.addedAt).getTime() > new Date(prev.addedAt).getTime()) {
+        byUid.set(uid, candidate);
+      }
     });
+
+    const friends = Array.from(byUid.values()).sort(
+      (a, b) => new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime()
+    );
     callback(friends);
   });
 }

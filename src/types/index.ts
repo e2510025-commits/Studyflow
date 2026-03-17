@@ -72,6 +72,9 @@ export interface CommunityStreamMessage {
   avatar: string;
   body: string;
   imageUrl?: string;
+  replyToId?: string;
+  respectCount?: number;
+  respectedByMe?: boolean;
   createdAt: string;
 }
 
@@ -183,6 +186,8 @@ export interface ChatMessage {
   createdAt: string; // ISO string
   readBy?: string[];
   readAt?: string;
+  editedAt?: string;
+  isDeleted?: boolean;
 }
 
 export type FriendRequestStatus = "pending" | "accepted" | "declined";

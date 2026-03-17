@@ -48,6 +48,7 @@ import {
   subscribePomodoroPresets,
   type PomodoroPreset,
 } from "@/lib/firestore/pomodoroPresets";
+import { createAutoStudyTimelinePost } from "@/lib/firestore/community";
 
 /* ─── Sound helper ────────────────────────────────────── */
 function playSound(type: "complete" | "break") {
@@ -117,6 +118,7 @@ export default function StudyTimer() {
   const [completeTodoOnSave, setCompleteTodoOnSave] = useState(true);
   const [presetName, setPresetName] = useState("");
   const [presets, setPresets] = useState<PomodoroPreset[]>([]);
+  const [autoTimelinePost, setAutoTimelinePost] = useState(true);
 
   /* ── Focus Bonus tracking (visibility API) ─────────── */
   const [focusLost, setFocusLost] = useState(false);
@@ -232,6 +234,15 @@ export default function StudyTimer() {
     if (!userProfile.uid) return;
     return subscribePomodoroPresets(userProfile.uid, setPresets);
   }, [userProfile.uid]);
+
+  useEffect(() => {
+    const raw = window.localStorage.getItem("studyflow:autoTimelinePost");
+    if (raw === "0") setAutoTimelinePost(false);
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("studyflow:autoTimelinePost", autoTimelinePost ? "1" : "0");
+  }, [autoTimelinePost]);
 
   const activeTodos = useMemo(() => todos.filter((row) => !row.done), [todos]);
   const selectedTodo = useMemo(
@@ -448,6 +459,15 @@ export default function StudyTimer() {
           void markTodoDone(selectedTodo.id, true).catch(() => {});
           setSelectedTodoId("");
         }
+        if (autoTimelinePost) {
+          void createAutoStudyTimelinePost({
+            uid: userProfile.uid,
+            name: userProfile.name,
+            avatar: userProfile.avatar,
+            subjectName: selectedSubject.name,
+            durationSeconds: finishedDuration,
+          }).catch(() => {});
+        }
       }
       setShowMemo(false);
       if (timer.mode === "pomodoro") {
@@ -468,6 +488,7 @@ export default function StudyTimer() {
       pomodoroNextPhase,
       selectedTodo,
       completeTodoOnSave,
+      autoTimelinePost,
       persistElapsedProgress,
     ]
   );
@@ -486,6 +507,15 @@ export default function StudyTimer() {
       if (selectedTodo && completeTodoOnSave) {
         void markTodoDone(selectedTodo.id, true).catch(() => {});
         setSelectedTodoId("");
+      }
+      if (autoTimelinePost) {
+        void createAutoStudyTimelinePost({
+          uid: userProfile.uid,
+          name: userProfile.name,
+          avatar: userProfile.avatar,
+          subjectName: selectedSubject.name,
+          durationSeconds: finishedDuration,
+        }).catch(() => {});
       }
     }
     setShowMemo(false);
@@ -506,6 +536,7 @@ export default function StudyTimer() {
     pomodoroNextPhase,
     selectedTodo,
     completeTodoOnSave,
+    autoTimelinePost,
     persistElapsedProgress,
   ]);
 
@@ -1348,6 +1379,15 @@ export default function StudyTimer() {
                 onChange={(e) => setCompleteTodoOnSave(e.target.checked)}
               />
               セッション終了時にToDoを完了にする
+            </label>
+
+            <label className="text-xs mt-2 inline-flex items-center gap-2" style={{ color: "var(--muted)" }}>
+              <input
+                type="checkbox"
+                checked={autoTimelinePost}
+                onChange={(e) => setAutoTimelinePost(e.target.checked)}
+              />
+              学習終了時にタイムラインへ自動投稿する
             </label>
 
             <div className="mt-3 grid sm:grid-cols-[1fr_120px_auto] gap-2">

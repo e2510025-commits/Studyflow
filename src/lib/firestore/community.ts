@@ -22,6 +22,7 @@ const GLOBAL_STREAM = "globalStreamMessages";
 const GLOBAL_SYSTEM_EVENTS = "globalSystemEvents";
 const BULLETIN_POSTS = "bulletinPosts";
 const BULLETIN_HELPFULS = "bulletinHelpfuls";
+const GLOBAL_STREAM_RESPECTS = "globalStreamRespects";
 const BULLETIN_ALLOWED_CATEGORIES: BulletinCategory[] = ["qa", "tips", "chat", "ops"];
 
 function toIso(value: unknown): string {
@@ -56,6 +57,8 @@ export function subscribeGlobalStreamMessages(
           avatar: sanitizeAvatar(data.avatar || "👤"),
           body: String(data.body || ""),
           imageUrl: typeof data.imageUrl === "string" ? data.imageUrl : undefined,
+          replyToId: typeof data.replyToId === "string" ? data.replyToId : undefined,
+          respectCount: Math.max(0, Number(data.respectCount || 0)),
           createdAt: toIso(data.createdAt),
         });
       });
@@ -105,6 +108,7 @@ export async function sendGlobalStreamMessage(params: {
   name: string;
   avatar: string;
   body: string;
+  replyToId?: string;
 }) {
   const body = params.body.trim();
   if (!params.uid || !body) return;
@@ -114,6 +118,8 @@ export async function sendGlobalStreamMessage(params: {
     avatar: sanitizeAvatar(params.avatar || "👤"),
     body: body.slice(0, 800),
     messageType: "text",
+    replyToId: params.replyToId || "",
+    respectCount: 0,
     createdAt: serverTimestamp(),
   });
 }
@@ -135,7 +141,114 @@ export async function sendGlobalStreamImageMessage(params: {
     body: (params.caption || "画像を共有しました").trim().slice(0, 140),
     messageType: "image",
     imageUrl: imageUrl.slice(0, 700_000),
+    respectCount: 0,
     createdAt: serverTimestamp(),
+  });
+}
+
+function respectDocId(postId: string, uid: string) {
+  return `${postId}_${uid}`;
+}
+
+export async function toggleGlobalStreamRespect(params: {
+  postId: string;
+  uid: string;
+}) {
+  if (!params.postId || !params.uid) return;
+
+  const postRef = doc(db, GLOBAL_STREAM, params.postId);
+  const respectRef = doc(db, GLOBAL_STREAM_RESPECTS, respectDocId(params.postId, params.uid));
+
+  await runTransaction(db, async (tx) => {
+    const [postSnap, respectSnap] = await Promise.all([tx.get(postRef), tx.get(respectRef)]);
+    if (!postSnap.exists()) return;
+
+    const currentRespect = Math.max(0, Number(postSnap.data().respectCount || 0));
+    if (respectSnap.exists()) {
+      tx.delete(respectRef);
+      tx.set(postRef, { respectCount: Math.max(0, currentRespect - 1) }, { merge: true });
+      return;
+    }
+
+    tx.set(respectRef, {
+      postId: params.postId,
+      uid: params.uid,
+      createdAt: serverTimestamp(),
+    });
+    tx.set(postRef, { respectCount: currentRespect + 1 }, { merge: true });
+  });
+}
+
+export function subscribeMyRespectedGlobalPostIds(uid: string, callback: (ids: Set<string>) => void) {
+  if (!uid) {
+    callback(new Set());
+    return () => {};
+  }
+
+  const q = query(collection(db, GLOBAL_STREAM_RESPECTS), where("uid", "==", uid));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const ids = new Set<string>();
+      snapshot.docs.forEach((d) => {
+        const data = d.data();
+        const postId = String(data.postId || "");
+        if (postId) ids.add(postId);
+      });
+      callback(ids);
+    },
+    () => callback(new Set())
+  );
+}
+
+export function subscribeUserTimelinePosts(uid: string, callback: (rows: CommunityStreamMessage[]) => void) {
+  if (!uid) {
+    callback([]);
+    return () => {};
+  }
+
+  const q = query(collection(db, GLOBAL_STREAM), where("uid", "==", uid), orderBy("createdAt", "desc"), limit(120));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const rows = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          kind: "user" as const,
+          messageType: (data.messageType === "image" ? "image" : "text") as "image" | "text",
+          uid: String(data.uid || ""),
+          name: sanitizeDisplayName(data.name || "匿名"),
+          avatar: sanitizeAvatar(data.avatar || "👤"),
+          body: String(data.body || ""),
+          imageUrl: typeof data.imageUrl === "string" ? data.imageUrl : undefined,
+          replyToId: typeof data.replyToId === "string" ? data.replyToId : undefined,
+          respectCount: Math.max(0, Number(data.respectCount || 0)),
+          createdAt: toIso(data.createdAt),
+        };
+      });
+      callback(rows);
+    },
+    () => callback([])
+  );
+}
+
+export async function createAutoStudyTimelinePost(params: {
+  uid: string;
+  name: string;
+  avatar: string;
+  subjectName: string;
+  durationSeconds: number;
+}) {
+  const minutes = Math.max(1, Math.round(params.durationSeconds / 60));
+  const hour = Math.floor(minutes / 60);
+  const minute = minutes % 60;
+  const durationText = hour > 0 ? `${hour}時間${minute}分` : `${minute}分`;
+  await sendGlobalStreamMessage({
+    uid: params.uid,
+    name: params.name,
+    avatar: params.avatar,
+    body: `学習完了: ${params.subjectName} を ${durationText} 勉強しました!`,
   });
 }
 

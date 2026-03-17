@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import Cropper, { type Area } from "react-easy-crop";
 import { useStore } from "@/store/useStore";
 import {
   canViewProfile,
@@ -21,11 +22,17 @@ import {
   type FollowListUser,
   type ProfileActivityItem,
 } from "@/lib/firestore/profile";
+import {
+  subscribeMyRespectedGlobalPostIds,
+  subscribeUserTimelinePosts,
+  toggleGlobalStreamRespect,
+} from "@/lib/firestore/community";
 import { subscribeActiveStudyUsers } from "@/lib/firestore/focusRoom";
 import { subscribeUserPresenceStatus, subscribeUsersOnlineStatus } from "@/lib/firestore/presence";
 import { getAchievementMeta } from "@/lib/achievements";
 import { formatHoursMinutes } from "@/lib/utils";
-import { BadgeCheck, Flame, PenLine, Search, Send, UserRound } from "lucide-react";
+import { BadgeCheck, Flame, PenLine, Search, Send, Sparkles, UserRound } from "lucide-react";
+import type { CommunityStreamMessage } from "@/types";
 
 type PresenceColor = "online" | "away" | "offline" | "studying";
 
@@ -85,6 +92,42 @@ function polarPoint(center: number, radius: number, ratio: number, axis: number,
   };
 }
 
+const SafeCropper = Cropper as unknown as React.ComponentType<Record<string, unknown>>;
+
+async function buildCroppedImageDataUrl(params: {
+  source: string;
+  area: Area;
+  width: number;
+  height: number;
+}): Promise<string> {
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("IMAGE_LOAD_FAILED"));
+    img.src = params.source;
+  });
+
+  const canvas = document.createElement("canvas");
+  canvas.width = params.width;
+  canvas.height = params.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("CANVAS_CONTEXT_UNAVAILABLE");
+
+  ctx.drawImage(
+    image,
+    params.area.x,
+    params.area.y,
+    params.area.width,
+    params.area.height,
+    0,
+    0,
+    params.width,
+    params.height
+  );
+
+  return canvas.toDataURL("image/webp", 0.86);
+}
+
 export default function PublicProfilePage() {
   const params = useParams<{ uid?: string | string[] }>();
   const uid = useMemo(() => {
@@ -130,6 +173,16 @@ export default function PublicProfilePage() {
   const [editAvatar, setEditAvatar] = useState("");
   const [editHeader, setEditHeader] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropSource, setCropSource] = useState("");
+  const [cropKind, setCropKind] = useState<"avatar" | "header">("avatar");
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const [timelineRows, setTimelineRows] = useState<CommunityStreamMessage[]>([]);
+  const [viewerRespectIds, setViewerRespectIds] = useState<Set<string>>(new Set());
+  const [profileLikedPostIds, setProfileLikedPostIds] = useState<Set<string>>(new Set());
+  const [profileTimelineTab, setProfileTimelineTab] = useState<"posts" | "replies" | "media" | "likes">("posts");
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const headerInputRef = useRef<HTMLInputElement>(null);
@@ -246,6 +299,27 @@ export default function PublicProfilePage() {
     return subscribeFollowState(userProfile.uid, uid, setIsFollowingUser);
   }, [isSelf, uid, userProfile.uid]);
 
+  useEffect(() => {
+    if (!uid) return;
+    return subscribeUserTimelinePosts(uid, setTimelineRows);
+  }, [uid]);
+
+  useEffect(() => {
+    if (!userProfile.uid) {
+      setViewerRespectIds(new Set());
+      return;
+    }
+    return subscribeMyRespectedGlobalPostIds(userProfile.uid, setViewerRespectIds);
+  }, [userProfile.uid]);
+
+  useEffect(() => {
+    if (!uid) {
+      setProfileLikedPostIds(new Set());
+      return;
+    }
+    return subscribeMyRespectedGlobalPostIds(uid, setProfileLikedPostIds);
+  }, [uid]);
+
   const statusColor = useMemo<PresenceColor>(() => {
     if (activeStudySet.has(uid)) return "studying";
     if (!presence.isOnline) return "offline";
@@ -288,6 +362,19 @@ export default function PublicProfilePage() {
     return keys[0] || "----/--/--";
   }, [heatmap]);
 
+  const profileTimelineRows = useMemo(() => {
+    if (profileTimelineTab === "likes") {
+      return timelineRows.filter((row) => profileLikedPostIds.has(row.id));
+    }
+    if (profileTimelineTab === "media") {
+      return timelineRows.filter((row) => row.messageType === "image");
+    }
+    if (profileTimelineTab === "replies") {
+      return timelineRows.filter((row) => Boolean(row.replyToId));
+    }
+    return timelineRows;
+  }, [profileLikedPostIds, profileTimelineTab, timelineRows]);
+
   const saveProfileEdit = async () => {
     if (!profile || !isSelf) return;
     setSavingProfile(true);
@@ -327,37 +414,41 @@ export default function PublicProfilePage() {
 
   const updateImage = (kind: "avatar" | "header", file: File) => {
     if (!file.type.startsWith("image/")) return;
-    if (file.size > 3 * 1024 * 1024) {
-      alert("画像サイズは3MB以下にしてください");
+    if (file.size > 8 * 1024 * 1024) {
+      alert("画像サイズは8MB以下にしてください");
       return;
     }
 
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const isHeader = kind === "header";
-        const width = isHeader ? 1200 : 160;
-        const height = isHeader ? 360 : 160;
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-
-        const ratio = Math.max(width / img.width, height / img.height);
-        const w = img.width * ratio;
-        const h = img.height * ratio;
-        const x = (width - w) / 2;
-        const y = (height - h) / 2;
-        ctx.drawImage(img, x, y, w, h);
-        const dataUrl = canvas.toDataURL("image/webp", 0.82);
-        if (kind === "header") setEditHeader(dataUrl);
-        else setEditAvatar(dataUrl);
-      };
-      img.src = String(ev.target?.result || "");
+      const result = String(ev.target?.result || "");
+      if (!result) return;
+      setCropKind(kind);
+      setCropSource(result);
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+      setCroppedAreaPixels(null);
+      setCropModalOpen(true);
     };
     reader.readAsDataURL(file);
+  };
+
+  const applyCrop = async () => {
+    if (!cropSource || !croppedAreaPixels) return;
+    try {
+      const isHeader = cropKind === "header";
+      const dataUrl = await buildCroppedImageDataUrl({
+        source: cropSource,
+        area: croppedAreaPixels,
+        width: isHeader ? 1500 : 160,
+        height: isHeader ? 500 : 160,
+      });
+      if (cropKind === "header") setEditHeader(dataUrl);
+      else setEditAvatar(dataUrl);
+      setCropModalOpen(false);
+    } catch {
+      alert("画像の切り抜きに失敗しました");
+    }
   };
 
   const toggleCheer = async () => {
@@ -512,9 +603,25 @@ export default function PublicProfilePage() {
                   {statusStyle.label}
                   {profile.deviceLabel ? ` / ${profile.deviceLabel}` : ""}
                 </p>
-                {profile.statusMessage ? (
-                  <p className="text-sm mt-1" style={{ color: "var(--foreground)" }}>{profile.statusMessage}</p>
-                ) : null}
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  {profile.statusMessage ? (
+                    <span
+                      className="px-2.5 py-1 rounded-full text-xs"
+                      style={{ background: "rgba(14,165,233,0.12)", color: "#0369a1" }}
+                    >
+                      {profile.statusMessage}
+                    </span>
+                  ) : null}
+                  <span className="text-[11px]" style={{ color: "var(--muted)" }}>
+                    Active Since: {activeSince}
+                  </span>
+                </div>
+                <p
+                  className="mt-2 px-3 py-2 rounded-2xl text-sm max-w-[520px]"
+                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                >
+                  {profile.bio || "一言メッセージはまだ設定されていません"}
+                </p>
               </div>
             </div>
             {isSelf ? (
@@ -564,6 +671,72 @@ export default function PublicProfilePage() {
       </section>
 
       <section className="glass-card p-4">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <h2 className="text-base font-black" style={{ color: "var(--foreground)" }}>StudyFlow Timeline</h2>
+          <div className="text-[10px] font-mono" style={{ color: "var(--muted)" }}>
+            SYS.TIMELINE/{profile.uid}
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {[
+            ["posts", "投稿"],
+            ["replies", "返信"],
+            ["media", "メディア"],
+            ["likes", "いいね"],
+          ].map(([key, label]) => {
+            const active = profileTimelineTab === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setProfileTimelineTab(key as "posts" | "replies" | "media" | "likes")}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                style={{
+                  background: active ? "var(--accent-light)" : "var(--muted-bg)",
+                  color: active ? "var(--accent)" : "var(--muted)",
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-3 space-y-2">
+          {profileTimelineRows.length === 0 ? (
+            <p className="text-sm" style={{ color: "var(--muted)" }}>該当する投稿はありません</p>
+          ) : (
+            profileTimelineRows.slice(0, 60).map((row) => {
+              const respectedByMe = viewerRespectIds.has(row.id);
+              return (
+                <article key={row.id} className="rounded-xl p-3" style={{ background: "var(--muted-bg)" }}>
+                  <p className="text-[11px]" style={{ color: "var(--muted)" }}>
+                    {formatRelativeTime(row.createdAt)}
+                    {row.replyToId ? " ・返信" : ""}
+                  </p>
+                  <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: "var(--foreground)" }}>
+                    {row.body}
+                  </p>
+                  {row.messageType === "image" && row.imageUrl && (
+                    <img src={row.imageUrl} alt="timeline-media" className="mt-2 rounded-lg max-h-64 object-cover" />
+                  )}
+                  <button
+                    onClick={() => void toggleGlobalStreamRespect({ postId: row.id, uid: userProfile.uid })}
+                    className="mt-2 px-2.5 py-1 rounded-lg text-xs font-semibold inline-flex items-center gap-1"
+                    style={{
+                      background: respectedByMe ? "rgba(14,165,233,0.18)" : "var(--card-bg)",
+                      color: respectedByMe ? "#0284c7" : "var(--muted)",
+                    }}
+                  >
+                    <Sparkles size={12} /> Respect {Math.max(0, Number(row.respectCount || 0))}
+                  </button>
+                </article>
+              );
+            })
+          )}
+        </div>
+      </section>
+
+      <section className="glass-card p-4">
         <h2 className="text-base font-black" style={{ color: "var(--foreground)" }}>装備中の勲章</h2>
         <div className="mt-3 flex flex-wrap gap-3">
           {equipped.length === 0 ? (
@@ -593,37 +766,23 @@ export default function PublicProfilePage() {
         </div>
       </section>
 
-      <section className="grid lg:grid-cols-[1.1fr_0.9fr] gap-4">
-        <div className="glass-card p-5">
-          <h3 className="text-base font-black" style={{ color: "var(--foreground)" }}>自己紹介</h3>
-          <p className="text-sm mt-2 whitespace-pre-wrap leading-relaxed" style={{ color: "var(--foreground)" }}>
-            {profile.bio || "自己紹介はまだ設定されていません"}
-          </p>
-          <div className="mt-4 text-xs space-y-1" style={{ color: "var(--muted)" }}>
-            <p>System Status: Certified Scholar</p>
-            <p>Active Since: {activeSince}</p>
-            <p>Device: {profile.deviceLabel || "Unknown"}</p>
-          </div>
-        </div>
-
-        <div className="glass-card p-5">
-          <h3 className="text-sm font-black" style={{ color: "var(--foreground)" }}>アクティビティ</h3>
-          <div className="mt-3 space-y-2">
-            {activities.length === 0 ? (
-              <p className="text-sm" style={{ color: "var(--muted)" }}>最近のアクティビティはまだありません</p>
-            ) : (
-              activities.map((item) => (
-                <div key={item.id} className="rounded-xl px-3 py-2" style={{ background: "var(--muted-bg)" }}>
-                  <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                    {item.type === "badge" ? "勲章" : "学習"}・{item.label}
-                  </p>
-                  <p className="text-xs" style={{ color: "var(--muted)" }}>
-                    {item.detail || ""} {formatRelativeTime(item.createdAt)}
-                  </p>
-                </div>
-              ))
-            )}
-          </div>
+      <section className="glass-card p-5">
+        <h3 className="text-sm font-black" style={{ color: "var(--foreground)" }}>アクティビティ</h3>
+        <div className="mt-3 space-y-2">
+          {activities.length === 0 ? (
+            <p className="text-sm" style={{ color: "var(--muted)" }}>最近のアクティビティはまだありません</p>
+          ) : (
+            activities.map((item) => (
+              <div key={item.id} className="rounded-xl px-3 py-2" style={{ background: "var(--muted-bg)" }}>
+                <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                  {item.type === "badge" ? "勲章" : "学習"}・{item.label}
+                </p>
+                <p className="text-xs" style={{ color: "var(--muted)" }}>
+                  {item.detail || ""} {formatRelativeTime(item.createdAt)}
+                </p>
+              </div>
+            ))
+          )}
         </div>
       </section>
 
@@ -783,6 +942,65 @@ export default function PublicProfilePage() {
         </div>
       )}
 
+      {cropModalOpen && (
+        <div className="fixed inset-0 z-[119] flex items-center justify-center p-4" style={{ background: "rgba(2,6,23,0.72)" }}>
+          <div className="w-full max-w-2xl rounded-2xl p-4 glass-card">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-base font-black" style={{ color: "var(--foreground)" }}>
+                {cropKind === "header" ? "ヘッダー画像を調整" : "アイコン画像を調整"}
+              </h3>
+              <button onClick={() => setCropModalOpen(false)} className="text-sm" style={{ color: "var(--muted)" }}>
+                閉じる
+              </button>
+            </div>
+            <div className="mt-3 relative w-full overflow-hidden rounded-xl" style={{ background: "#0b1120", height: 360 }}>
+              <SafeCropper
+                image={cropSource}
+                crop={crop}
+                zoom={zoom}
+                aspect={cropKind === "header" ? 3 : 1}
+                cropShape={cropKind === "avatar" ? "round" : "rect"}
+                showGrid={cropKind === "header"}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={(_: Area, areaPixels: Area) => setCroppedAreaPixels(areaPixels)}
+              />
+            </div>
+            <div className="mt-3">
+              <p className="text-xs" style={{ color: "var(--muted)" }}>ズーム</p>
+              <input
+                type="range"
+                min={1}
+                max={3}
+                step={0.01}
+                value={zoom}
+                onChange={(e) => setZoom(Number(e.target.value))}
+                className="w-full"
+              />
+              <p className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>
+                {cropKind === "header" ? "出力サイズ: 1500 x 500" : "出力サイズ: 160 x 160"}
+              </p>
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setCropModalOpen(false)}
+                className="px-3 py-2 rounded-lg text-sm"
+                style={{ background: "var(--muted-bg)", color: "var(--muted)" }}
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={() => void applyCrop()}
+                className="px-3 py-2 rounded-lg text-sm font-semibold text-white"
+                style={{ background: "var(--accent)" }}
+              >
+                この範囲で保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editOpen && isSelf && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.55)" }}>
           <div className="w-full max-w-2xl rounded-2xl p-5 glass-card max-h-[92vh] overflow-y-auto">
@@ -853,3 +1071,5 @@ export default function PublicProfilePage() {
     </div>
   );
 }
+
+

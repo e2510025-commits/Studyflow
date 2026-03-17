@@ -3,13 +3,15 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/store/useStore";
 import { motion } from "framer-motion";
-import { BookPlus, ImagePlus, Loader2, Plus, RadioTower, Send } from "lucide-react";
+import { BookPlus, ImagePlus, Loader2, Plus, RadioTower, Send, Sparkles } from "lucide-react";
 import {
   createBulletinPost,
   sendGlobalStreamImageMessage,
   sendGlobalStreamMessage,
+  subscribeMyRespectedGlobalPostIds,
   subscribeGlobalStreamMessages,
   syncAchievementSystemEvents,
+  toggleGlobalStreamRespect,
 } from "@/lib/firestore/community";
 import type { BulletinCategory, CommunityStreamMessage } from "@/types";
 
@@ -47,6 +49,7 @@ export default function GlobalChatPage() {
   const [quickOpen, setQuickOpen] = useState(false);
   const [errorText, setErrorText] = useState("");
   const [menuMessageId, setMenuMessageId] = useState("");
+  const [myRespectIds, setMyRespectIds] = useState<Set<string>>(new Set());
   const [forwardSource, setForwardSource] = useState<CommunityStreamMessage | null>(null);
   const [forwardTitle, setForwardTitle] = useState("");
   const [forwardCategory, setForwardCategory] = useState<BulletinCategory>("tips");
@@ -55,6 +58,11 @@ export default function GlobalChatPage() {
   useEffect(() => {
     return subscribeGlobalStreamMessages(setRows);
   }, []);
+
+  useEffect(() => {
+    if (!userProfile.uid) return;
+    return subscribeMyRespectedGlobalPostIds(userProfile.uid, setMyRespectIds);
+  }, [userProfile.uid]);
 
   useEffect(() => {
     void syncAchievementSystemEvents().catch(() => {});
@@ -225,7 +233,7 @@ export default function GlobalChatPage() {
         <div>
           <h1 className="text-3xl font-black" style={{ color: "var(--foreground)" }}>StudyFlow Stream</h1>
           <p className="text-sm" style={{ color: "var(--muted)" }}>
-            学習ログと会話が流れる全体チャット
+            学習ログと会話が流れる Global Timeline
           </p>
         </div>
       </div>
@@ -244,6 +252,7 @@ export default function GlobalChatPage() {
               prev.uid === row.uid &&
               Math.abs(new Date(row.createdAt).getTime() - new Date(prev.createdAt).getTime()) < 5 * 60_000;
             const mentionMe = !isSystem && isMentioned(row.body, userProfile.uid, userProfile.name);
+            const respectedByMe = myRespectIds.has(row.id);
             return (
               <motion.div
                 key={`${row.kind}_${row.id}`}
@@ -297,6 +306,20 @@ export default function GlobalChatPage() {
                     </p>
                     {row.messageType === "image" && row.imageUrl && (
                       <img src={row.imageUrl} alt="shared" className="mt-1.5 rounded-lg max-h-56 object-cover border" style={{ borderColor: "var(--border)" }} />
+                    )}
+                    {!isSystem && (
+                      <div className="mt-1.5 flex items-center gap-1">
+                        <button
+                          onClick={() => void toggleGlobalStreamRespect({ postId: row.id, uid: userProfile.uid })}
+                          className="px-2 py-1 rounded-md text-[11px] font-semibold inline-flex items-center gap-1"
+                          style={{
+                            background: respectedByMe ? "rgba(14,165,233,0.18)" : "var(--card-bg)",
+                            color: respectedByMe ? "#0284c7" : "var(--muted)",
+                          }}
+                        >
+                          <Sparkles size={11} /> Respect {Math.max(0, Number(row.respectCount || 0))}
+                        </button>
+                      </div>
                     )}
                     {!isSystem && menuMessageId === row.id && (
                       <div className="mt-1 flex items-center gap-1">

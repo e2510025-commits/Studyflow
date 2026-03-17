@@ -26,7 +26,7 @@ const baseNavItems = [
   { href: "/timer", label: "学習タイマー", icon: Timer },
   { href: "/subjects", label: "教科管理", icon: BookMarked },
   { href: "/ranking", label: "ランキング", icon: Trophy },
-  { href: "/global-chat", label: "全体チャット", icon: Wifi },
+  { href: "/global-chat", label: "タイムライン", icon: Wifi },
   { href: "/bulletin", label: "掲示板", icon: Clipboard },
   { href: "/missions", label: "ミッション", icon: ClipboardList },
   { href: "/achievements", label: "アーカイブ", icon: Medal },

@@ -11,6 +11,8 @@ import {
   X,
   Paperclip,
   Trash2,
+  MoreHorizontal,
+  Pencil,
   Download,
   Play,
   Loader2,
@@ -23,6 +25,7 @@ import {
   sendMediaMessage,
   sendTaskMessage,
   deleteChatMessageFromFirestore,
+  editChatMessageInFirestore,
   markChatMessagesAsRead,
 } from "@/lib/firestore/chat";
 import { getUserProfileByUid } from "@/lib/firestore/friends";
@@ -101,10 +104,14 @@ export default function ChatPage() {
   const [taskDetails, setTaskDetails] = useState("");
   const [taskDueDate, setTaskDueDate] = useState("");
   const [quickProfileUid, setQuickProfileUid] = useState<string | null>(null);
+  const [actionMenuId, setActionMenuId] = useState<string>("");
+  const [editingMessageId, setEditingMessageId] = useState<string>("");
+  const [editingText, setEditingText] = useState("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const longPressRef = useRef<number | null>(null);
 
   /* ── Subscribe to Firestore messages ────────────────── */
   useEffect(() => {
@@ -194,12 +201,50 @@ export default function ChatPage() {
   }, [taskTitle, taskDetails, taskDueDate, sending, userProfile.uid, friendUid]);
 
   /* ── Delete message ────────────────────────────────── */
-  const handleDelete = useCallback(async (msgId: string, storagePath?: string) => {
+  const handleDelete = useCallback(async (msgId: string, storagePath?: string, mode: "soft" | "hard" = "soft") => {
     try {
-      await deleteChatMessageFromFirestore(msgId, storagePath);
+      await deleteChatMessageFromFirestore(msgId, { storagePath, mode });
+      setActionMenuId("");
     } catch (err) {
       console.error("削除エラー:", err);
     }
+  }, []);
+
+  const startEdit = useCallback((messageId: string, content: string) => {
+    setEditingMessageId(messageId);
+    setEditingText(content);
+    setActionMenuId("");
+  }, []);
+
+  const saveEdit = useCallback(async () => {
+    if (!editingMessageId || !editingText.trim()) return;
+    try {
+      await editChatMessageInFirestore(editingMessageId, editingText);
+      setEditingMessageId("");
+      setEditingText("");
+    } catch (err) {
+      console.error("編集エラー:", err);
+      alert("編集に失敗しました");
+    }
+  }, [editingMessageId, editingText]);
+
+  const cancelEdit = useCallback(() => {
+    setEditingMessageId("");
+    setEditingText("");
+  }, []);
+
+  const beginLongPress = useCallback((msgId: string, isMine: boolean) => {
+    if (!isMine) return;
+    if (longPressRef.current) window.clearTimeout(longPressRef.current);
+    longPressRef.current = window.setTimeout(() => {
+      setActionMenuId(msgId);
+    }, 450);
+  }, []);
+
+  const clearLongPress = useCallback(() => {
+    if (!longPressRef.current) return;
+    window.clearTimeout(longPressRef.current);
+    longPressRef.current = null;
   }, []);
 
   /* ── File picker ───────────────────────────────────── */
@@ -409,6 +454,10 @@ export default function ChatPage() {
                     {/* Bubble */}
                     <div
                       className="rounded-2xl px-4 py-2.5 text-sm leading-relaxed break-words"
+                      onPointerDown={() => beginLongPress(msg.id, isMine)}
+                      onPointerUp={clearLongPress}
+                      onPointerCancel={clearLongPress}
+                      onPointerLeave={clearLongPress}
                       style={{
                         background: isMine
                           ? "var(--accent)"
@@ -418,13 +467,19 @@ export default function ChatPage() {
                         borderBottomLeftRadius: isMine ? 16 : 4,
                       }}
                     >
-                      {/* Text message */}
-                      {msg.type === "text" && (
-                        <span className="whitespace-pre-wrap">{msg.content}</span>
-                      )}
+                      {msg.isDeleted ? (
+                        <span className="italic" style={{ color: isMine ? "rgba(255,255,255,0.82)" : "var(--muted)" }}>
+                          このメッセージは削除されました
+                        </span>
+                      ) : (
+                        <>
+                          {/* Text message */}
+                          {msg.type === "text" && (
+                            <span className="whitespace-pre-wrap">{msg.content}</span>
+                          )}
 
-                      {/* Image message */}
-                      {msg.type === "image" && (
+                          {/* Image message */}
+                          {msg.type === "image" && (
                         <div className="space-y-1">
                           <img
                             src={msg.content}
@@ -443,8 +498,8 @@ export default function ChatPage() {
                         </div>
                       )}
 
-                      {/* Task message */}
-                      {msg.type === "task" && (() => {
+                          {/* Task message */}
+                          {msg.type === "task" && (() => {
                         const task = parseTaskPayload(msg.content);
                         return (
                           <div className="rounded-lg p-2" style={{ background: "rgba(255,255,255,0.12)" }}>
@@ -458,8 +513,8 @@ export default function ChatPage() {
                         );
                       })()}
 
-                      {/* Video message */}
-                      {msg.type === "video" && (
+                          {/* Video message */}
+                          {msg.type === "video" && (
                         <div className="space-y-1">
                           <div
                             className="relative rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
@@ -487,8 +542,39 @@ export default function ChatPage() {
                             </p>
                           )}
                         </div>
+                          )}
+                        </>
                       )}
                     </div>
+
+                    {editingMessageId === msg.id && !msg.isDeleted && (
+                      <div className="mt-1.5 rounded-xl p-2" style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}>
+                        <textarea
+                          value={editingText}
+                          onChange={(e) => setEditingText(e.target.value.slice(0, 4000))}
+                          rows={3}
+                          className="w-full text-sm rounded-lg px-2 py-1.5 resize-none"
+                          style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                        />
+                        <div className="mt-1.5 flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={cancelEdit}
+                            className="px-2 py-1 rounded text-[11px]"
+                            style={{ background: "var(--muted-bg)", color: "var(--muted)" }}
+                          >
+                            キャンセル
+                          </button>
+                          <button
+                            onClick={() => void saveEdit()}
+                            disabled={!editingText.trim()}
+                            className="px-2 py-1 rounded text-[11px] font-semibold text-white disabled:opacity-50"
+                            style={{ background: "var(--accent)" }}
+                          >
+                            保存
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Time + actions */}
                     <div
@@ -502,6 +588,11 @@ export default function ChatPage() {
                       >
                         {formatMsgTime(msg.createdAt)}
                       </span>
+                      {Boolean(msg.editedAt) && !msg.isDeleted && (
+                        <span className="text-[10px]" style={{ color: "var(--muted)" }}>
+                          (編集済み)
+                        </span>
+                      )}
                       {isMine && (
                         <span className="text-[10px]" style={{ color: "var(--muted)" }}>
                           {msg.readBy?.includes(friendUid) ? "既読" : "未読"}
@@ -521,9 +612,19 @@ export default function ChatPage() {
                             <Download size={11} />
                           </button>
                         )}
-                        {isMine && (
+                        {isMine && !msg.isDeleted && (
                           <button
-                            onClick={() => handleDelete(msg.id, msg.storagePath)}
+                            onClick={() => setActionMenuId((prev) => (prev === msg.id ? "" : msg.id))}
+                            className="p-0.5 rounded"
+                            style={{ color: "var(--muted)" }}
+                            title="メニュー"
+                          >
+                            <MoreHorizontal size={11} />
+                          </button>
+                        )}
+                        {isMine && !msg.isDeleted && (
+                          <button
+                            onClick={() => handleDelete(msg.id, msg.storagePath, "soft")}
                             className="p-0.5 rounded hover:text-red-500"
                             style={{ color: "var(--muted)" }}
                             title="削除"
@@ -533,6 +634,38 @@ export default function ChatPage() {
                         )}
                       </div>
                     </div>
+
+                    {actionMenuId === msg.id && isMine && !msg.isDeleted && (
+                      <div className={`absolute top-full mt-1 ${isMine ? "right-0" : "left-0"} rounded-lg p-1.5 z-20`} style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}>
+                        {msg.type === "text" && (
+                          <button
+                            onClick={() => startEdit(msg.id, msg.content)}
+                            className="w-full px-2 py-1.5 text-xs rounded flex items-center gap-1"
+                            style={{ color: "var(--foreground)" }}
+                          >
+                            <Pencil size={12} /> 編集
+                          </button>
+                        )}
+                        <button
+                          onClick={() => void handleDelete(msg.id, msg.storagePath, "soft")}
+                          className="w-full px-2 py-1.5 text-xs rounded flex items-center gap-1"
+                          style={{ color: "var(--foreground)" }}
+                        >
+                          <Trash2 size={12} /> 跡地を残して削除
+                        </button>
+                        <button
+                          onClick={() => {
+                            const ok = window.confirm("このメッセージを完全に削除します。よろしいですか？");
+                            if (!ok) return;
+                            void handleDelete(msg.id, msg.storagePath, "hard");
+                          }}
+                          className="w-full px-2 py-1.5 text-xs rounded flex items-center gap-1"
+                          style={{ color: "#ef4444" }}
+                        >
+                          <Trash2 size={12} /> 完全に削除
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               );
