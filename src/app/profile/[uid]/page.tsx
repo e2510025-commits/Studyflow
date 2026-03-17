@@ -26,6 +26,7 @@ import {
   sendTimelineImagePost,
   sendTimelinePost,
   subscribeMyRespectedTimelinePostIds,
+  subscribeTimelinePosts,
   subscribeUserTimelinePosts,
   toggleTimelineRespect,
 } from "@/lib/firestore/community";
@@ -184,8 +185,9 @@ export default function PublicProfilePage() {
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [timelineRows, setTimelineRows] = useState<CommunityStreamMessage[]>([]);
+  const [allTimelineRows, setAllTimelineRows] = useState<CommunityStreamMessage[]>([]);
   const [viewerRespectIds, setViewerRespectIds] = useState<Set<string>>(new Set());
-  const [profileTimelineTab, setProfileTimelineTab] = useState<"posts" | "media" | "studylogs">("posts");
+  const [profileTimelineTab, setProfileTimelineTab] = useState<"posts" | "replies" | "media">("posts");
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [composerText, setComposerText] = useState("");
   const [composerImage, setComposerImage] = useState("");
@@ -312,6 +314,14 @@ export default function PublicProfilePage() {
   }, [uid]);
 
   useEffect(() => {
+    if (!isSelf) {
+      setAllTimelineRows([]);
+      return;
+    }
+    return subscribeTimelinePosts((rows) => setAllTimelineRows(rows.filter((row) => row.kind === "user")));
+  }, [isSelf]);
+
+  useEffect(() => {
     if (!userProfile.uid) {
       setViewerRespectIds(new Set());
       return;
@@ -362,14 +372,25 @@ export default function PublicProfilePage() {
   }, [heatmap]);
 
   const profileTimelineRows = useMemo(() => {
+    const ownItems = timelineRows.map((row) => ({ row, activityType: "post" as const }));
+    const spreadItems = isSelf
+      ? allTimelineRows
+          .filter((row) => viewerRespectIds.has(row.id) && row.uid !== uid)
+          .map((row) => ({ row, activityType: "spread" as const }))
+      : [];
+
+    const merged = [...ownItems, ...spreadItems].sort(
+      (a, b) => new Date(b.row.createdAt).getTime() - new Date(a.row.createdAt).getTime()
+    );
+
     if (profileTimelineTab === "media") {
-      return timelineRows.filter((row) => row.messageType === "image");
+      return merged.filter((item) => item.row.messageType === "image");
     }
-    if (profileTimelineTab === "studylogs") {
-      return timelineRows.filter((row) => row.body.startsWith("学習完了:"));
+    if (profileTimelineTab === "replies") {
+      return merged.filter((item) => Boolean(item.row.replyToId));
     }
-    return timelineRows;
-  }, [profileTimelineTab, timelineRows]);
+    return merged.filter((item) => !item.row.replyToId);
+  }, [allTimelineRows, isSelf, profileTimelineTab, timelineRows, uid, viewerRespectIds]);
 
   const saveProfileEdit = async () => {
     if (!profile || !isSelf) return;
@@ -691,30 +712,6 @@ export default function PublicProfilePage() {
         </div>
       </section>
 
-      <section className="grid md:grid-cols-4 gap-3">
-        <div className="glass-card p-4">
-          <p className="text-xs" style={{ color: "var(--muted)" }}>学習時間</p>
-          <p className="text-xl font-black" style={{ color: "var(--accent)" }}>{formatHoursMinutes(stats.totalSeconds)}</p>
-        </div>
-        <div className="glass-card p-4">
-          <p className="text-xs" style={{ color: "var(--muted)" }}>セッション</p>
-          <p className="text-xl font-black" style={{ color: "var(--accent)" }}>{stats.totalSessions}</p>
-        </div>
-        <div className="glass-card p-4">
-          <p className="text-xs" style={{ color: "var(--muted)" }}>応援数</p>
-          <p className="text-xl font-black" style={{ color: "#f97316" }}>{cheerCount}</p>
-          <p className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>
-            役立った {Math.max(0, Number(profile.helpfulReceived || 0))}
-          </p>
-        </div>
-        <div className="glass-card p-4">
-          <p className="text-xs" style={{ color: "var(--muted)" }}>フレンド</p>
-          <p className="text-xl font-black" style={{ color: "var(--accent)" }}>
-            {canShowFriendCount ? friendCount : "--"}
-          </p>
-        </div>
-      </section>
-
       {isSelf && (
         <section className="glass-card p-4" style={{ borderTop: "1px solid var(--card-border)", borderBottom: "1px solid var(--card-border)" }}>
           <p className="text-xs font-semibold" style={{ color: "var(--muted)" }}>いまどうしてる？</p>
@@ -757,30 +754,54 @@ export default function PublicProfilePage() {
               className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
               style={{ background: "var(--accent)" }}
             >
-              {postingTimeline ? "投稿中..." : "投稿"}
+              {postingTimeline ? "投稿中..." : "投稿（島弧）"}
             </button>
           </div>
         </section>
       )}
 
+      <section className="grid md:grid-cols-4 gap-3">
+        <div className="glass-card p-4">
+          <p className="text-xs" style={{ color: "var(--muted)" }}>学習時間</p>
+          <p className="text-xl font-black" style={{ color: "var(--accent)" }}>{formatHoursMinutes(stats.totalSeconds)}</p>
+        </div>
+        <div className="glass-card p-4">
+          <p className="text-xs" style={{ color: "var(--muted)" }}>セッション</p>
+          <p className="text-xl font-black" style={{ color: "var(--accent)" }}>{stats.totalSessions}</p>
+        </div>
+        <div className="glass-card p-4">
+          <p className="text-xs" style={{ color: "var(--muted)" }}>応援数</p>
+          <p className="text-xl font-black" style={{ color: "#f97316" }}>{cheerCount}</p>
+          <p className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>
+            役立った {Math.max(0, Number(profile.helpfulReceived || 0))}
+          </p>
+        </div>
+        <div className="glass-card p-4">
+          <p className="text-xs" style={{ color: "var(--muted)" }}>フレンド</p>
+          <p className="text-xl font-black" style={{ color: "var(--accent)" }}>
+            {canShowFriendCount ? friendCount : "--"}
+          </p>
+        </div>
+      </section>
+
       <section className="glass-card p-4">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <h2 className="text-base font-black" style={{ color: "var(--foreground)" }}>StudyFlow Timeline</h2>
+          <h2 className="text-base font-black" style={{ color: "var(--foreground)" }}>パーソナル・タイムライン</h2>
           <div className="text-[10px] font-mono" style={{ color: "var(--muted)" }}>
             SYS.TIMELINE/{profile.uid}
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {[
-            ["posts", "投稿"],
+            ["posts", "ポスト"],
+            ["replies", "返信"],
             ["media", "メディア"],
-            ["studylogs", "学習記録"],
           ].map(([key, label]) => {
             const active = profileTimelineTab === key;
             return (
               <button
                 key={key}
-                onClick={() => setProfileTimelineTab(key as "posts" | "media" | "studylogs")}
+                onClick={() => setProfileTimelineTab(key as "posts" | "replies" | "media")}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold"
                 style={{
                   background: active ? "var(--accent-light)" : "var(--muted-bg)",
@@ -797,13 +818,19 @@ export default function PublicProfilePage() {
           {profileTimelineRows.length === 0 ? (
             <p className="text-sm" style={{ color: "var(--muted)" }}>該当する投稿はありません</p>
           ) : (
-            profileTimelineRows.slice(0, 60).map((row) => {
+            profileTimelineRows.slice(0, 60).map((item) => {
+              const row = item.row;
               const respectedByMe = viewerRespectIds.has(row.id);
               return (
                 <article key={row.id} className="rounded-xl p-3" style={{ background: "var(--muted-bg)" }}>
-                  <p className="text-[11px]" style={{ color: "var(--muted)" }}>
-                    {formatRelativeTime(row.createdAt)}
-                    {row.replyToId ? " ・返信" : ""}
+                  <p className="text-[11px] inline-flex items-center gap-1" style={{ color: "var(--muted)" }}>
+                    <Link href={`/profile/${row.uid}`} className="hover:underline" style={{ color: "var(--foreground)" }}>
+                      {row.name}
+                    </Link>
+                    <OfficialMark uid={row.uid} isOfficial={row.isOfficial} size={11} />
+                    <span>{formatRelativeTime(row.createdAt)}</span>
+                    {row.replyToId ? <span>・返信</span> : null}
+                    {item.activityType === "spread" ? <span>・拡散</span> : null}
                   </p>
                   <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: "var(--foreground)" }}>
                     {row.body}
@@ -824,8 +851,15 @@ export default function PublicProfilePage() {
                       color: respectedByMe ? "#0284c7" : "var(--muted)",
                     }}
                   >
-                    <Sparkles size={12} /> Respect {Math.max(0, Number(row.respectCount || 0))}
+                    <Sparkles size={12} /> 拡散 {Math.max(0, Number(row.respectCount || 0))}
                   </button>
+                  <Link
+                    href={`/timeline/${row.id}`}
+                    className="mt-2 ml-2 px-2.5 py-1 rounded-lg text-xs font-semibold inline-flex items-center gap-1"
+                    style={{ background: "var(--card-bg)", color: "var(--muted)" }}
+                  >
+                    返信を見る
+                  </Link>
                 </article>
               );
             })

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Clock3, Flame, ImagePlus, MessageCircle, Plus, Repeat2, Send, Waves, X } from "lucide-react";
 import { useStore } from "@/store/useStore";
@@ -26,6 +27,7 @@ function formatTime(iso: string) {
 }
 
 export default function TimelinePage() {
+  const router = useRouter();
   const { userProfile } = useStore();
   const [rows, setRows] = useState<CommunityStreamMessage[]>([]);
   const [respectIds, setRespectIds] = useState<Set<string>>(new Set());
@@ -36,6 +38,7 @@ export default function TimelinePage() {
   const [composeBody, setComposeBody] = useState("");
   const [composeImage, setComposeImage] = useState("");
   const [sending, setSending] = useState(false);
+  const [quoteTarget, setQuoteTarget] = useState<CommunityStreamMessage | null>(null);
 
   useEffect(() => {
     return subscribeTimelinePosts((next) => setRows(next.filter((row) => row.kind === "user")));
@@ -100,10 +103,20 @@ export default function TimelinePage() {
       }
       setComposeBody("");
       setComposeImage("");
+      setQuoteTarget(null);
       setComposeOpen(false);
     } finally {
       setSending(false);
     }
+  };
+
+  const openQuoteComposer = (row: CommunityStreamMessage) => {
+    setQuoteTarget(row);
+    setComposeBody((prev) => {
+      if (prev.trim()) return prev;
+      return `QT @${row.name}: ${row.body.slice(0, 160)}`;
+    });
+    setComposeOpen(true);
   };
 
   return (
@@ -127,10 +140,11 @@ export default function TimelinePage() {
             return (
               <motion.article
                 key={row.id}
-                className="rounded-xl p-3"
+                className="rounded-xl p-3 cursor-pointer"
                 style={{ background: "var(--muted-bg)" }}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
+                onClick={() => router.push(`/timeline/${row.id}`)}
               >
                 <div className="flex items-start gap-3">
                   <Link
@@ -160,18 +174,41 @@ export default function TimelinePage() {
                       />
                     )}
                     <div className="mt-2 flex items-center justify-between text-xs">
-                      <button className="inline-flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
-                        <MessageCircle size={14} /> {Math.max(0, Number(row.replyCount || 0))}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/timeline/${row.id}`);
+                        }}
+                        className="inline-flex items-center gap-1.5"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        <MessageCircle size={14} /> 返信 {Math.max(0, Number(row.replyCount || 0))}
                       </button>
                       <button
-                        onClick={() => void toggleTimelineRespect({ postId: row.id, uid: userProfile.uid })}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void toggleTimelineRespect({ postId: row.id, uid: userProfile.uid });
+                        }}
                         className="inline-flex items-center gap-1.5"
                         style={{ color: respectedByMe ? "#0284c7" : "var(--muted)" }}
                       >
-                        <Repeat2 size={14} /> {Math.max(0, Number(row.respectCount || 0))}
+                        <Repeat2 size={14} /> 拡散 {Math.max(0, Number(row.respectCount || 0))}
                       </button>
                       <button
-                        onClick={() => void toggleTimelineLike({ postId: row.id, uid: userProfile.uid })}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openQuoteComposer(row);
+                        }}
+                        className="inline-flex items-center gap-1.5"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        <Send size={14} /> 引用
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void toggleTimelineLike({ postId: row.id, uid: userProfile.uid });
+                        }}
                         className="inline-flex items-center gap-1.5"
                         style={{ color: likedByMe ? "#f97316" : "var(--muted)" }}
                       >
@@ -231,6 +268,11 @@ export default function TimelinePage() {
               className="w-full px-3 py-2 rounded-xl text-sm resize-none"
               style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
             />
+            {quoteTarget && (
+              <div className="rounded-lg p-2 text-xs" style={{ background: "var(--muted-bg)", color: "var(--muted)" }}>
+                引用中: @{quoteTarget.name} - {quoteTarget.body.slice(0, 120)}
+              </div>
+            )}
             {composeImage && (
               <img src={composeImage} alt="compose" className="rounded-xl max-h-64 object-cover" />
             )}

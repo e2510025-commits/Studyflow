@@ -391,11 +391,12 @@ export async function sendTimelinePost(params: {
   name: string;
   avatar: string;
   body: string;
+  replyToId?: string;
 }) {
   const body = params.body.trim();
   if (!params.uid || !body) return;
   const isOfficial = await fetchIsOfficial(params.uid);
-  await addDoc(collection(db, TIMELINE_POSTS), {
+  const payload = {
     uid: params.uid,
     userId: params.uid,
     name: sanitizeDisplayName(params.name || "匿名"),
@@ -403,11 +404,31 @@ export async function sendTimelinePost(params: {
     isOfficial,
     body: body.slice(0, 1200),
     messageType: "text",
+    replyToId: params.replyToId || "",
     replyCount: 0,
     repostCount: 0,
     respectCount: 0,
     likeCount: 0,
     createdAt: serverTimestamp(),
+  };
+
+  if (!params.replyToId) {
+    await addDoc(collection(db, TIMELINE_POSTS), payload);
+    return;
+  }
+
+  const replyRef = doc(collection(db, TIMELINE_POSTS));
+  const parentRef = doc(db, TIMELINE_POSTS, params.replyToId);
+  await runTransaction(db, async (tx) => {
+    const parentSnap = await tx.get(parentRef);
+    if (!parentSnap.exists()) {
+      tx.set(replyRef, payload);
+      return;
+    }
+
+    tx.set(replyRef, payload);
+    const nextReplyCount = Math.max(0, Number(parentSnap.data().replyCount || 0)) + 1;
+    tx.set(parentRef, { replyCount: nextReplyCount }, { merge: true });
   });
 }
 
