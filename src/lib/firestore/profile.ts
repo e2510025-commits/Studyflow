@@ -1,15 +1,16 @@
 import {
-  doc,
-  setDoc,
-  serverTimestamp,
-  getDoc,
+  addDoc,
   collection,
   deleteDoc,
+  doc,
+  getDoc,
   getDocs,
   onSnapshot,
   query,
-  where,
   limit,
+  serverTimestamp,
+  setDoc,
+  where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
@@ -491,6 +492,7 @@ export async function setFollow(ownerUid: string, targetUid: string, follow: boo
   if (!ownerUid || !targetUid || ownerUid === targetUid) return;
   const ref = doc(db, "follows", followDocId(ownerUid, targetUid));
   if (follow) {
+    const previous = await getDoc(ref);
     await setDoc(
       ref,
       {
@@ -500,6 +502,23 @@ export async function setFollow(ownerUid: string, targetUid: string, follow: boo
       },
       { merge: true }
     );
+
+    if (!previous.exists()) {
+      const ownerProfileSnap = await getDoc(doc(db, "userProfiles", ownerUid));
+      const ownerName = ownerProfileSnap.exists()
+        ? sanitizeDisplayName(ownerProfileSnap.data().name || "匿名")
+        : "匿名";
+
+      await addDoc(collection(db, "notifications"), {
+        toUid: targetUid,
+        type: "follow",
+        title: "新しいフォロワー",
+        body: `${ownerName} さんにフォローされました`,
+        link: `/profile/${ownerUid}`,
+        read: false,
+        createdAt: serverTimestamp(),
+      });
+    }
     return;
   }
   await deleteDoc(ref);

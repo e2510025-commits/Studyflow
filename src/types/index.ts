@@ -228,6 +228,7 @@ export interface FriendRequest {
 }
 
 export type AppNotificationType =
+  | "follow"
   | "friend_request"
   | "announcement"
   | "warning"

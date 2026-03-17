@@ -4,9 +4,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Clock3, Flame, ImagePlus, MessageCircle, Plus, Repeat2, Send, Waves, X } from "lucide-react";
+import { Clock3, Flag, Flame, ImagePlus, MessageCircle, MoreHorizontal, Pencil, Plus, Repeat2, Send, Trash2, Waves, X } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import {
+  deleteTimelinePost,
+  editTimelinePost,
   sendTimelineImagePost,
   sendTimelinePost,
   subscribeMyLikedTimelinePostIds,
@@ -15,6 +17,7 @@ import {
   toggleTimelineLike,
   toggleTimelineRespect,
 } from "@/lib/firestore/community";
+import { submitViolationReport } from "@/lib/firestore/moderation";
 import OfficialMark from "@/components/ui/OfficialMark";
 import ImageLightbox from "@/components/ui/ImageLightbox";
 import type { CommunityStreamMessage } from "@/types";
@@ -39,6 +42,13 @@ export default function TimelinePage() {
   const [composeImage, setComposeImage] = useState("");
   const [sending, setSending] = useState(false);
   const [quoteTarget, setQuoteTarget] = useState<CommunityStreamMessage | null>(null);
+  const [menuPostId, setMenuPostId] = useState("");
+  const [editingId, setEditingId] = useState("");
+  const [editingBody, setEditingBody] = useState("");
+  const [reportTarget, setReportTarget] = useState<CommunityStreamMessage | null>(null);
+  const [reportReason, setReportReason] = useState("迷惑行為");
+  const [reportDetail, setReportDetail] = useState("");
+  const [reporting, setReporting] = useState(false);
 
   useEffect(() => {
     return subscribeTimelinePosts((next) => setRows(next.filter((row) => row.kind === "user")));
@@ -119,6 +129,54 @@ export default function TimelinePage() {
     setComposeOpen(true);
   };
 
+  const saveEdit = async () => {
+    if (!editingId || !editingBody.trim()) return;
+    try {
+      await editTimelinePost({ postId: editingId, uid: userProfile.uid, body: editingBody });
+      setEditingId("");
+      setEditingBody("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "編集に失敗しました";
+      if (message === "auto_study_post_locked") {
+        alert("学習完了の自動投稿は編集できません");
+        return;
+      }
+      alert(message);
+    }
+  };
+
+  const removePost = async (postId: string) => {
+    try {
+      await deleteTimelinePost({ postId, uid: userProfile.uid, mode: "soft" });
+      setMenuPostId("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "削除に失敗しました";
+      alert(message);
+    }
+  };
+
+  const sendReport = async () => {
+    if (!reportTarget || reporting) return;
+    setReporting(true);
+    try {
+      await submitViolationReport({
+        targetType: "timeline",
+        targetId: reportTarget.id,
+        reason: reportReason,
+        detail: reportDetail,
+      });
+      setReportTarget(null);
+      setReportReason("迷惑行為");
+      setReportDetail("");
+      alert("通報を送信しました");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "通報に失敗しました";
+      alert(message);
+    } finally {
+      setReporting(false);
+    }
+  };
+
   return (
     <div className="max-w-[600px] mx-auto space-y-4 px-2 sm:px-0">
       <div className="flex items-center gap-3">
@@ -137,6 +195,7 @@ export default function TimelinePage() {
             const isAvatarImage = row.avatar.startsWith("http") || row.avatar.startsWith("data:");
             const respectedByMe = respectIds.has(row.id);
             const likedByMe = likeIds.has(row.id);
+            const isMine = row.uid === userProfile.uid;
             return (
               <motion.article
                 key={row.id}
@@ -167,10 +226,97 @@ export default function TimelinePage() {
                       </Link>
                       <OfficialMark uid={row.uid} isOfficial={row.isOfficial} size={13} />
                       <span className="inline-flex items-center gap-1"><Clock3 size={12} /> {formatTime(row.createdAt)}</span>
+                      {!row.isDeleted && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuPostId((prev) => (prev === row.id ? "" : row.id));
+                          }}
+                          className="ml-auto p-1 rounded-md"
+                          style={{ background: "var(--card-bg)", color: "var(--muted)" }}
+                          title="メニュー"
+                        >
+                          <MoreHorizontal size={14} />
+                        </button>
+                      )}
                     </div>
-                    <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: "var(--foreground)" }}>
-                      {row.isDeleted ? "この投稿は削除されました" : row.body}
-                    </p>
+                    {editingId === row.id ? (
+                      <div className="mt-2 space-y-2">
+                        <textarea
+                          value={editingBody}
+                          onChange={(e) => setEditingBody(e.target.value.slice(0, 1200))}
+                          rows={3}
+                          className="w-full px-2 py-1.5 rounded-lg text-sm resize-none"
+                          style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void saveEdit();
+                            }}
+                            className="px-2 py-1 rounded-md text-[11px] font-semibold text-white"
+                            style={{ background: "var(--accent)" }}
+                          >
+                            保存
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingId("");
+                              setEditingBody("");
+                            }}
+                            className="px-2 py-1 rounded-md text-[11px] font-semibold"
+                            style={{ background: "var(--card-bg)", color: "var(--muted)" }}
+                          >
+                            キャンセル
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: "var(--foreground)" }}>
+                        {row.isDeleted ? "この投稿は削除されました" : row.body}
+                        {row.editedAt && !row.isDeleted ? <span className="ml-1 text-[10px]" style={{ color: "var(--muted)" }}>(編集済み)</span> : null}
+                      </p>
+                    )}
+                    {menuPostId === row.id && (
+                      <div className="mt-2 flex flex-wrap items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        {isMine && !row.isDeleted && (
+                          <button
+                            onClick={() => {
+                              setEditingId(row.id);
+                              setEditingBody(row.body || "");
+                              setMenuPostId("");
+                            }}
+                            className="px-2 py-1 rounded-md text-[11px] font-semibold inline-flex items-center gap-1"
+                            style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
+                          >
+                            <Pencil size={11} /> 編集
+                          </button>
+                        )}
+                        {isMine && (
+                          <button
+                            onClick={() => void removePost(row.id)}
+                            className="px-2 py-1 rounded-md text-[11px] font-semibold inline-flex items-center gap-1"
+                            style={{ background: "#ef444420", color: "#ef4444" }}
+                          >
+                            <Trash2 size={11} /> 削除
+                          </button>
+                        )}
+                        {!isMine && !row.isDeleted && (
+                          <button
+                            onClick={() => {
+                              setReportTarget(row);
+                              setMenuPostId("");
+                            }}
+                            className="px-2 py-1 rounded-md text-[11px] font-semibold inline-flex items-center gap-1"
+                            style={{ background: "#f59e0b20", color: "#f59e0b" }}
+                          >
+                            <Flag size={11} /> 通報
+                          </button>
+                        )}
+                      </div>
+                    )}
                     {row.messageType === "image" && row.imageUrl && !row.isDeleted && (
                       <img
                         src={row.imageUrl}
@@ -315,6 +461,47 @@ export default function TimelinePage() {
                 style={{ background: "var(--accent)" }}
               >
                 <Send size={14} /> 投稿
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reportTarget && (
+        <div className="fixed inset-0 z-50 bg-black/45 grid place-items-center p-4" onClick={() => setReportTarget(null)}>
+          <div className="w-full max-w-md rounded-2xl p-4 space-y-3" style={{ background: "var(--card-bg)" }} onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-black" style={{ color: "var(--foreground)" }}>投稿を通報</h3>
+            <select
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl text-sm"
+              style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+            >
+              <option value="迷惑行為">迷惑行為</option>
+              <option value="ハラスメント">ハラスメント</option>
+              <option value="スパム">スパム</option>
+              <option value="不適切な画像/文章">不適切な画像/文章</option>
+              <option value="その他">その他</option>
+            </select>
+            <textarea
+              value={reportDetail}
+              onChange={(e) => setReportDetail(e.target.value.slice(0, 1200))}
+              rows={4}
+              placeholder="詳細（任意）"
+              className="w-full px-3 py-2 rounded-xl text-sm resize-none"
+              style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setReportTarget(null)} className="px-3 py-2 rounded-lg text-sm" style={{ background: "var(--muted-bg)", color: "var(--muted)" }}>
+                キャンセル
+              </button>
+              <button
+                onClick={() => void sendReport()}
+                disabled={reporting}
+                className="px-3 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
+                style={{ background: "#f59e0b" }}
+              >
+                {reporting ? "送信中..." : "通報する"}
               </button>
             </div>
           </div>

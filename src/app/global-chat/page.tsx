@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore } from "@/store/useStore";
 import { motion } from "framer-motion";
-import { BookPlus, ImagePlus, Loader2, Plus, RadioTower, Send, Sparkles } from "lucide-react";
+import { BookPlus, Flag, ImagePlus, Loader2, Plus, RadioTower, Send, Sparkles } from "lucide-react";
 import {
   createBulletinPost,
   deleteGlobalStreamMessage,
@@ -16,6 +16,7 @@ import {
   syncAchievementSystemEvents,
   toggleGlobalStreamRespect,
 } from "@/lib/firestore/community";
+import { submitViolationReport } from "@/lib/firestore/moderation";
 import OfficialMark from "@/components/ui/OfficialMark";
 import ImageLightbox from "@/components/ui/ImageLightbox";
 import type { BulletinCategory, CommunityStreamMessage } from "@/types";
@@ -62,6 +63,10 @@ export default function GlobalChatPage() {
   const [editingId, setEditingId] = useState("");
   const [editingBody, setEditingBody] = useState("");
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [reportTarget, setReportTarget] = useState<CommunityStreamMessage | null>(null);
+  const [reportReason, setReportReason] = useState("迷惑行為");
+  const [reportDetail, setReportDetail] = useState("");
+  const [reporting, setReporting] = useState(false);
 
   useEffect(() => {
     return subscribeGlobalStreamMessages(setRows);
@@ -243,6 +248,27 @@ export default function GlobalChatPage() {
     }
   };
 
+  const sendReport = async () => {
+    if (!reportTarget || reporting) return;
+    setReporting(true);
+    setErrorText("");
+    try {
+      await submitViolationReport({
+        targetType: "global_chat",
+        targetId: reportTarget.id,
+        reason: reportReason,
+        detail: reportDetail,
+      });
+      setReportTarget(null);
+      setReportReason("迷惑行為");
+      setReportDetail("");
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : "通報に失敗しました");
+    } finally {
+      setReporting(false);
+    }
+  };
+
   const forwardToBulletin = async () => {
     if (!forwardSource || !forwardTitle.trim() || forwarding) return;
     setForwarding(true);
@@ -420,6 +446,18 @@ export default function GlobalChatPage() {
                             削除
                           </button>
                         )}
+                        {!isMine && !row.isDeleted && (
+                          <button
+                            onClick={() => {
+                              setReportTarget(row);
+                              setMenuMessageId("");
+                            }}
+                            className="px-2 py-1 rounded-md text-[11px] font-semibold inline-flex items-center gap-1"
+                            style={{ background: "#f59e0b20", color: "#f59e0b" }}
+                          >
+                            <Flag size={11} /> 通報
+                          </button>
+                        )}
                         <button
                           onClick={() => openForwardModal(row)}
                           className="px-2 py-1 rounded-md text-[11px] font-semibold"
@@ -538,6 +576,47 @@ export default function GlobalChatPage() {
                 style={{ background: "var(--accent)" }}
               >
                 {forwarding ? "転送中..." : "転送"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reportTarget && (
+        <div className="fixed inset-0 z-[65] bg-black/45 grid place-items-center p-4" onClick={() => setReportTarget(null)}>
+          <div className="w-full max-w-md rounded-2xl p-4 space-y-3" style={{ background: "var(--card-bg)" }} onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-black" style={{ color: "var(--foreground)" }}>投稿を通報</h3>
+            <select
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl text-sm"
+              style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+            >
+              <option value="迷惑行為">迷惑行為</option>
+              <option value="ハラスメント">ハラスメント</option>
+              <option value="スパム">スパム</option>
+              <option value="不適切な画像/文章">不適切な画像/文章</option>
+              <option value="その他">その他</option>
+            </select>
+            <textarea
+              value={reportDetail}
+              onChange={(e) => setReportDetail(e.target.value.slice(0, 1200))}
+              rows={4}
+              placeholder="詳細（任意）"
+              className="w-full px-3 py-2 rounded-xl text-sm resize-none"
+              style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setReportTarget(null)} className="px-3 py-2 rounded-lg text-sm" style={{ background: "var(--muted-bg)", color: "var(--muted)" }}>
+                キャンセル
+              </button>
+              <button
+                onClick={() => void sendReport()}
+                disabled={reporting}
+                className="px-3 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
+                style={{ background: "#f59e0b" }}
+              >
+                {reporting ? "送信中..." : "通報する"}
               </button>
             </div>
           </div>

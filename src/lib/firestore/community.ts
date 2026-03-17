@@ -543,6 +543,63 @@ export async function toggleTimelineLike(params: { postId: string; uid: string }
   });
 }
 
+export async function editTimelinePost(params: {
+  postId: string;
+  uid: string;
+  body: string;
+}) {
+  const trimmed = params.body.trim();
+  if (!params.postId || !params.uid || !trimmed) return;
+
+  const ref = doc(db, TIMELINE_POSTS, params.postId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+
+  const data = snap.data();
+  if (String(data.uid || data.userId || "") !== params.uid) {
+    throw new Error("forbidden");
+  }
+  const originalBody = String(data.body || "");
+  if (/^\s*学習完了:/.test(originalBody)) {
+    throw new Error("auto_study_post_locked");
+  }
+
+  await updateDoc(ref, {
+    body: trimmed.slice(0, 1200),
+    editedAt: new Date().toISOString(),
+    isDeleted: false,
+  });
+}
+
+export async function deleteTimelinePost(params: {
+  postId: string;
+  uid: string;
+  mode?: "soft" | "hard";
+}) {
+  if (!params.postId || !params.uid) return;
+
+  const ref = doc(db, TIMELINE_POSTS, params.postId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+
+  const data = snap.data();
+  if (String(data.uid || data.userId || "") !== params.uid) {
+    throw new Error("forbidden");
+  }
+
+  if ((params.mode || "soft") === "hard") {
+    await deleteDoc(ref);
+    return;
+  }
+
+  await updateDoc(ref, {
+    body: "",
+    imageUrl: "",
+    isDeleted: true,
+    editedAt: new Date().toISOString(),
+  });
+}
+
 export async function createAutoStudyTimelinePost(params: {
   uid: string;
   name: string;

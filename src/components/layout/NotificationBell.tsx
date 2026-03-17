@@ -73,6 +73,11 @@ export default function NotificationBell() {
     () => requests.length > 0 || personalNotifications.some((n) => !n.read),
     [requests, personalNotifications]
   );
+  const unreadPersonalCount = useMemo(
+    () => personalNotifications.filter((row) => !row.read).length,
+    [personalNotifications]
+  );
+  const incomingCount = requests.length + unreadPersonalCount;
 
   return (
     <div ref={rootRef} className="fixed top-4 right-16 z-50">
@@ -85,10 +90,18 @@ export default function NotificationBell() {
       >
         {hasIncoming ? <BellDot size={18} style={{ color: "#84cc16" }} /> : <Bell size={18} style={{ color: "var(--foreground)" }} />}
         {hasIncoming && (
-          <span
-            className="absolute -top-1 -right-1 w-3 h-3 rounded-full"
-            style={{ background: "#84cc16", boxShadow: "0 0 10px #84cc16aa" }}
-          />
+          <>
+            <span
+              className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
+              style={{ background: "#84cc16", color: "#052e16", boxShadow: "0 0 10px #84cc16aa" }}
+            >
+              {incomingCount > 99 ? "99+" : incomingCount}
+            </span>
+            <span
+              className="absolute inset-0 rounded-xl pointer-events-none"
+              style={{ boxShadow: "0 0 0 1px #84cc1655, 0 0 12px #84cc1633" }}
+            />
+          </>
         )}
       </motion.button>
 

@@ -6,7 +6,7 @@ import AchievementManager from "@/components/admin/AchievementManager";
 import MissionManager from "@/components/admin/MissionManager";
 import SupportManager from "@/components/admin/SupportManager";
 
-type AdminSection = "overview" | "support" | "announcements" | "missions" | "achievements" | "users";
+type AdminSection = "overview" | "support" | "announcements" | "missions" | "achievements" | "users" | "reports";
 
 interface AdminOverview {
   users: number;
@@ -48,6 +48,24 @@ interface AdminAnnouncement {
   notifyAsMissionStart?: boolean;
 }
 
+interface AdminViolationReport {
+  id: string;
+  targetType: "timeline" | "global_chat";
+  targetId: string;
+  targetUid: string;
+  targetBody: string;
+  reporterUid: string;
+  reporterName: string;
+  reason: string;
+  detail: string;
+  status: "open" | "reviewing" | "resolved" | "dismissed";
+  createdAt: string;
+  updatedAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  adminNote?: string;
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
@@ -71,6 +89,8 @@ export default function AdminPage() {
   const [section, setSection] = useState<AdminSection>("overview");
   const [appVersion, setAppVersion] = useState("1.0.0");
   const [savingVersion, setSavingVersion] = useState(false);
+  const [reports, setReports] = useState<AdminViolationReport[]>([]);
+  const [reportNote, setReportNote] = useState("");
 
   const verifyAdmin = useCallback(async () => {
     setChecking(true);
@@ -120,6 +140,13 @@ export default function AdminPage() {
     setAppVersion((json.version || "1.0.0").trim() || "1.0.0");
   }, []);
 
+  const loadReports = useCallback(async () => {
+    const res = await fetch("/api/admin/reports", { cache: "no-store" });
+    if (!res.ok) return;
+    const json = (await res.json()) as { reports: AdminViolationReport[] };
+    setReports(json.reports || []);
+  }, []);
+
   useEffect(() => {
     void verifyAdmin();
   }, [verifyAdmin]);
@@ -130,7 +157,8 @@ export default function AdminPage() {
     void loadUsers();
     void loadAnnouncements();
     void loadSettings();
-  }, [allowed, loadAnnouncements, loadOverview, loadSettings, loadUsers]);
+    void loadReports();
+  }, [allowed, loadAnnouncements, loadOverview, loadReports, loadSettings, loadUsers]);
 
   const saveSettings = useCallback(async () => {
     const version = appVersion.trim();
@@ -167,6 +195,22 @@ export default function AdminPage() {
       await Promise.all([loadUsers(), loadOverview()]);
     },
     [loadUsers, loadOverview]
+  );
+
+  const markReport = useCallback(
+    async (reportId: string, status: AdminViolationReport["status"]) => {
+      const res = await fetch("/api/admin/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportId, status, adminNote: reportNote }),
+      });
+      if (!res.ok) {
+        alert("通報ステータスの更新に失敗しました");
+        return;
+      }
+      await loadReports();
+    },
+    [loadReports, reportNote]
   );
 
   const publishAnnouncement = useCallback(async () => {
@@ -284,7 +328,7 @@ export default function AdminPage() {
         </p>
       </div>
 
-      <div className="glass-card p-2 grid grid-cols-2 sm:grid-cols-6 gap-2">
+      <div className="glass-card p-2 grid grid-cols-2 sm:grid-cols-7 gap-2">
         {[
           ["overview", "全体統計"],
           ["support", "お問い合わせ"],
@@ -292,6 +336,7 @@ export default function AdminPage() {
           ["missions", "ミッション"],
           ["achievements", "勲章"],
           ["users", "ユーザー管理"],
+          ["reports", "違反報告"],
         ].map(([key, label]) => (
           <button
             key={key}
@@ -548,6 +593,110 @@ export default function AdminPage() {
             ))}
           </div>
         )}
+        </section>
+      )}
+
+      {section === "reports" && (
+        <section className="glass-card p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-bold" style={{ color: "var(--foreground)" }}>違反報告</h2>
+            <button
+              onClick={() => void loadReports()}
+              className="ml-auto px-3 py-2 rounded-xl text-xs font-bold"
+              style={{ background: "var(--accent-light)", color: "var(--accent)" }}
+            >
+              更新
+            </button>
+          </div>
+
+          <textarea
+            value={reportNote}
+            onChange={(e) => setReportNote(e.target.value.slice(0, 400))}
+            rows={2}
+            placeholder="管理メモ（対応内容や判断理由）"
+            className="w-full px-3 py-2 rounded-xl text-sm"
+            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+          />
+
+          {reports.length === 0 ? (
+            <p className="text-sm" style={{ color: "var(--muted)" }}>通報はありません。</p>
+          ) : (
+            <div className="space-y-2 max-h-[560px] overflow-y-auto">
+              {reports.map((report) => {
+                const moderationReason =
+                  actionReason.trim() ||
+                  `[通報対応] ${report.reason}${report.detail ? ` / ${report.detail}` : ""}`;
+                return (
+                  <div key={report.id} className="rounded-xl p-3" style={{ background: "var(--muted-bg)" }}>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="px-2 py-0.5 rounded" style={{ background: "var(--card-bg)", color: "var(--foreground)" }}>
+                        {report.targetType === "timeline" ? "タイムライン" : "全体チャット"}
+                      </span>
+                      <span className="px-2 py-0.5 rounded" style={{ background: "#ffffff22", color: "var(--muted)" }}>
+                        {report.status}
+                      </span>
+                      <span style={{ color: "var(--muted)" }}>
+                        {new Date(report.createdAt).toLocaleString("ja-JP")}
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                      理由: {report.reason}
+                    </p>
+                    {report.detail && (
+                      <p className="text-xs mt-1 whitespace-pre-wrap" style={{ color: "var(--muted)" }}>
+                        詳細: {report.detail}
+                      </p>
+                    )}
+                    <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
+                      対象UID: {report.targetUid} / 通報者: {report.reporterName} ({report.reporterUid})
+                    </p>
+                    {report.targetBody && (
+                      <p className="text-xs mt-1 p-2 rounded" style={{ background: "var(--card-bg)", color: "var(--foreground)" }}>
+                        投稿内容: {report.targetBody}
+                      </p>
+                    )}
+
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button onClick={() => void markReport(report.id, "reviewing")} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "#38bdf820", color: "#0284c7" }}>確認中</button>
+                      <button onClick={() => void markReport(report.id, "resolved")} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "#16a34a20", color: "#16a34a" }}>対応済み</button>
+                      <button onClick={() => void markReport(report.id, "dismissed")} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "#ef444420", color: "#ef4444" }}>却下</button>
+                      <button
+                        onClick={async () => {
+                          await act(report.targetUid, "warn", { reason: moderationReason });
+                          await markReport(report.id, "resolved");
+                        }}
+                        className="px-2.5 py-1.5 rounded text-xs"
+                        style={{ background: "#f59e0b20", color: "#f59e0b" }}
+                      >
+                        警告して完了
+                      </button>
+                      <button
+                        onClick={async () => {
+                          await act(report.targetUid, "suspend", { days: 1, reason: moderationReason });
+                          await markReport(report.id, "resolved");
+                        }}
+                        className="px-2.5 py-1.5 rounded text-xs"
+                        style={{ background: "#f59e0b20", color: "#b45309" }}
+                      >
+                        1日停止して完了
+                      </button>
+                      <button
+                        onClick={async () => {
+                          await act(report.targetUid, "ban", { reason: moderationReason });
+                          await markReport(report.id, "resolved");
+                        }}
+                        className="px-2.5 py-1.5 rounded text-xs"
+                        style={{ background: "#ef444420", color: "#ef4444" }}
+                      >
+                        BANして完了
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </section>
       )}
     </div>
