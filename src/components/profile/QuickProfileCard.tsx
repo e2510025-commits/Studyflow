@@ -5,7 +5,11 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { BadgeCheck, ExternalLink, MessageCircle, X } from "lucide-react";
 import { fetchPublicProfile } from "@/lib/firestore/profile";
-import { subscribeUserPresenceStatus } from "@/lib/firestore/presence";
+import {
+  subscribeUserPresenceAgents,
+  subscribeUserPresenceStatus,
+  type PresenceAgentInfo,
+} from "@/lib/firestore/presence";
 import { subscribeActiveStudyUsers } from "@/lib/firestore/focusRoom";
 import { getAchievementMeta } from "@/lib/achievements";
 
@@ -35,6 +39,7 @@ export default function QuickProfileCard({ open, uid, viewerUid, onClose }: Quic
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState<Awaited<ReturnType<typeof fetchPublicProfile>>>(null);
   const [presence, setPresence] = useState<{ isOnline: boolean; updatedAtMs: number }>({ isOnline: false, updatedAtMs: 0 });
+  const [presenceAgents, setPresenceAgents] = useState<PresenceAgentInfo[]>([]);
   const [activeSet, setActiveSet] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -51,6 +56,11 @@ export default function QuickProfileCard({ open, uid, viewerUid, onClose }: Quic
   useEffect(() => {
     if (!open || !uid) return;
     return subscribeUserPresenceStatus(uid, setPresence);
+  }, [open, uid]);
+
+  useEffect(() => {
+    if (!open || !uid) return;
+    return subscribeUserPresenceAgents(uid, setPresenceAgents);
   }, [open, uid]);
 
   useEffect(() => {
@@ -138,6 +148,22 @@ export default function QuickProfileCard({ open, uid, viewerUid, onClose }: Quic
                     <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
                       {profile.statusMessage || "ステータスメッセージは未設定"}
                     </p>
+                    {presenceAgents.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {presenceAgents.slice(0, 4).map((agent) => (
+                          <span
+                            key={agent.sessionId}
+                            className="px-2 py-0.5 rounded-full text-[10px]"
+                            style={{
+                              background: agent.isOnline ? "rgba(34,197,94,0.14)" : "var(--card-bg)",
+                              color: agent.isOnline ? "#16a34a" : "var(--muted)",
+                            }}
+                          >
+                            {agent.label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-3 grid grid-cols-2 gap-2">

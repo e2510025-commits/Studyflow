@@ -31,6 +31,46 @@ import { getAchievementMeta } from "@/lib/achievements";
 
 const BARE_ROUTES = ["/login", "/register"];
 
+function getPresenceSessionId(): string {
+  if (typeof window === "undefined") return "server";
+  const key = "studyflow-presence-session-id";
+  const existing = window.localStorage.getItem(key);
+  if (existing) return existing;
+  const next = `sess_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
+  window.localStorage.setItem(key, next);
+  return next;
+}
+
+function detectOsLabel(): string {
+  if (typeof navigator === "undefined") return "Unknown OS";
+  const ua = navigator.userAgent.toLowerCase();
+  const hasTouch = typeof navigator.maxTouchPoints === "number" && navigator.maxTouchPoints > 1;
+
+  if (/ipad/.test(ua) || (/macintosh/.test(ua) && hasTouch)) return "iPad OS";
+  if (/iphone|ipod/.test(ua)) return "iOS";
+  if (/android/.test(ua)) return "Android OS";
+  if (/cros/.test(ua)) return "Chrome OS";
+  if (/windows/.test(ua)) return "Windows";
+  if (/mac os|macintosh/.test(ua)) return "macOS";
+  if (/linux|x11/.test(ua)) return "Linux";
+  return "Unknown OS";
+}
+
+function detectBrowserLabel(): string {
+  if (typeof navigator === "undefined") return "Unknown Browser";
+  const ua = navigator.userAgent.toLowerCase();
+  if (/edg\//.test(ua)) return "Edge";
+  if (/opr\//.test(ua) || /opera/.test(ua)) return "Opera";
+  if (/firefox\//.test(ua)) return "Firefox";
+  if (/chrome\//.test(ua) && !/edg\//.test(ua) && !/opr\//.test(ua)) return "Chrome";
+  if (/safari\//.test(ua) && !/chrome\//.test(ua)) return "Safari";
+  return "Unknown Browser";
+}
+
+function detectPresenceAgentLabel(): string {
+  return `${detectOsLabel()} / ${detectBrowserLabel()}`;
+}
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const {
     theme,
@@ -308,10 +348,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (!userProfile.uid) return;
 
     let disposed = false;
+    const sessionId = getPresenceSessionId();
+    const agentLabel = detectPresenceAgentLabel();
 
     const upsert = (online: boolean) => {
       if (disposed) return;
-      void updateUserPresence(userProfile.uid, online).catch(() => {});
+      void updateUserPresence(userProfile.uid, online, { sessionId, agentLabel }).catch(() => {});
     };
 
     upsert(true);
@@ -322,7 +364,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     const onFocus = () => upsert(true);
     const onBlur = () => upsert(false);
     const onBeforeUnload = () => {
-      void updateUserPresence(userProfile.uid, false).catch(() => {});
+      void updateUserPresence(userProfile.uid, false, { sessionId, agentLabel }).catch(() => {});
     };
 
     document.addEventListener("visibilitychange", onVisibility);
@@ -344,7 +386,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("blur", onBlur);
       window.removeEventListener("beforeunload", onBeforeUnload);
-      void updateUserPresence(userProfile.uid, false).catch(() => {});
+      void updateUserPresence(userProfile.uid, false, { sessionId, agentLabel }).catch(() => {});
     };
   }, [userProfile.uid]);
 

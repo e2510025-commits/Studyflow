@@ -32,7 +32,12 @@ import {
   toggleTimelineRespect,
 } from "@/lib/firestore/community";
 import { subscribeActiveStudyUsers } from "@/lib/firestore/focusRoom";
-import { subscribeUserPresenceStatus, subscribeUsersOnlineStatus } from "@/lib/firestore/presence";
+import {
+  subscribeUserPresenceAgents,
+  subscribeUserPresenceStatus,
+  type PresenceAgentInfo,
+  subscribeUsersOnlineStatus,
+} from "@/lib/firestore/presence";
 import { getAchievementMeta } from "@/lib/achievements";
 import { formatHoursMinutes } from "@/lib/utils";
 import { Flame, PenLine, Search, Send, Sparkles, UserRound } from "lucide-react";
@@ -51,14 +56,25 @@ function dateKey(offset: number): string {
 function detectDeviceLabel(): string {
   if (typeof navigator === "undefined") return "Unknown";
   const ua = navigator.userAgent.toLowerCase();
-  const mobile = /iphone|ipad|android|mobile/.test(ua);
-  if (mobile) {
-    if (ua.includes("iphone") || ua.includes("ipad")) return "Mobile (iOS)";
-    return "Mobile (Android)";
-  }
-  if (ua.includes("windows")) return "PC (Windows)";
-  if (ua.includes("mac")) return "PC (macOS)";
-  return "PC (Web)";
+  const hasTouch = typeof navigator.maxTouchPoints === "number" && navigator.maxTouchPoints > 1;
+
+  let os = "Unknown OS";
+  if (/ipad/.test(ua) || (/macintosh/.test(ua) && hasTouch)) os = "iPad OS";
+  else if (/iphone|ipod/.test(ua)) os = "iOS";
+  else if (/android/.test(ua)) os = "Android OS";
+  else if (/cros/.test(ua)) os = "Chrome OS";
+  else if (/windows/.test(ua)) os = "Windows";
+  else if (/mac os|macintosh/.test(ua)) os = "macOS";
+  else if (/linux|x11/.test(ua)) os = "Linux";
+
+  let browser = "Web";
+  if (/edg\//.test(ua)) browser = "Edge";
+  else if (/opr\//.test(ua) || /opera/.test(ua)) browser = "Opera";
+  else if (/firefox\//.test(ua)) browser = "Firefox";
+  else if (/chrome\//.test(ua) && !/edg\//.test(ua) && !/opr\//.test(ua)) browser = "Chrome";
+  else if (/safari\//.test(ua) && !/chrome\//.test(ua)) browser = "Safari";
+
+  return `${os} / ${browser}`;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -166,6 +182,7 @@ export default function PublicProfilePage() {
   const [activities, setActivities] = useState<ProfileActivityItem[]>([]);
   const [activeStudySet, setActiveStudySet] = useState<Set<string>>(new Set());
   const [presence, setPresence] = useState<{ isOnline: boolean; updatedAtMs: number }>({ isOnline: false, updatedAtMs: 0 });
+  const [presenceAgents, setPresenceAgents] = useState<PresenceAgentInfo[]>([]);
   const [cheerCount, setCheerCount] = useState(0);
   const [cheered, setCheered] = useState(false);
   const [savingCheer, setSavingCheer] = useState(false);
@@ -258,6 +275,11 @@ export default function PublicProfilePage() {
   useEffect(() => {
     if (!uid) return;
     return subscribeUserPresenceStatus(uid, setPresence);
+  }, [uid]);
+
+  useEffect(() => {
+    if (!uid) return;
+    return subscribeUserPresenceAgents(uid, setPresenceAgents);
   }, [uid]);
 
   useEffect(() => {
@@ -383,7 +405,9 @@ export default function PublicProfilePage() {
 
   const profileTimelineRows = useMemo(() => {
     const ownItems = timelineRows.map((row) => ({ row, activityType: "post" as const }));
-    const spreadItems = isSelf
+    const ownPosts = ownItems.filter((item) => !item.row.replyToId);
+    const ownReplies = ownItems.filter((item) => Boolean(item.row.replyToId));
+    const repostItems = isSelf
       ? allTimelineRows
           .filter((row) => viewerRespectIds.has(row.id) && row.uid !== uid)
           .map((row) => ({ row, activityType: "spread" as const }))
@@ -394,23 +418,29 @@ export default function PublicProfilePage() {
           .map((row) => ({ row, activityType: "like" as const }))
       : [];
 
-    const merged = [...ownItems, ...spreadItems, ...likedItems].sort(
-      (a, b) => new Date(b.row.createdAt).getTime() - new Date(a.row.createdAt).getTime()
-    );
+    const sortByTimeDesc = <T extends { row: CommunityStreamMessage }>(rows: T[]) =>
+      [...rows].sort((a, b) => new Date(b.row.createdAt).getTime() - new Date(a.row.createdAt).getTime());
 
-    if (profileTimelineTab === "likes") {
-      return merged.filter((item) => item.activityType === "like");
+    if (profileTimelineTab === "posts") {
+      return sortByTimeDesc(ownPosts);
+    }
+    if (profileTimelineTab === "replies") {
+      return sortByTimeDesc(ownReplies);
     }
     if (profileTimelineTab === "reposts") {
-      return merged.filter((item) => item.activityType === "spread");
+      return sortByTimeDesc(repostItems);
     }
+    if (profileTimelineTab === "likes") {
+      return sortByTimeDesc(likedItems);
+    }
+
+    const merged = [...ownPosts, ...repostItems, ...likedItems].sort(
+      (a, b) => new Date(b.row.createdAt).getTime() - new Date(a.row.createdAt).getTime()
+    );
     if (profileTimelineTab === "media") {
       return merged.filter((item) => item.row.messageType === "image");
     }
-    if (profileTimelineTab === "replies") {
-      return merged.filter((item) => item.activityType === "post" && Boolean(item.row.replyToId));
-    }
-    return merged.filter((item) => item.activityType === "post" && !item.row.replyToId);
+    return sortByTimeDesc(ownPosts);
   }, [allTimelineRows, isSelf, profileTimelineTab, timelineRows, uid, viewerLikeIds, viewerRespectIds]);
 
   const saveProfileEdit = async () => {
@@ -688,6 +718,22 @@ export default function PublicProfilePage() {
                 {statusStyle.label}
                 {profile.deviceLabel ? ` / ${profile.deviceLabel}` : ""}
               </p>
+              {presenceAgents.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {presenceAgents.slice(0, 6).map((agent) => (
+                    <span
+                      key={agent.sessionId}
+                      className="px-2 py-0.5 rounded-full text-[10px]"
+                      style={{
+                        background: agent.isOnline ? "rgba(34,197,94,0.14)" : "var(--muted-bg)",
+                        color: agent.isOnline ? "#16a34a" : "var(--muted)",
+                      }}
+                    >
+                      {agent.label}
+                    </span>
+                  ))}
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 {profile.statusMessage ? (
                   <span className="px-2.5 py-1 rounded-full text-xs" style={{ background: "rgba(14,165,233,0.12)", color: "#0369a1" }}>
