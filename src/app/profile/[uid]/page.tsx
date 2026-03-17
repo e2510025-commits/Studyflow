@@ -23,7 +23,6 @@ import {
   type ProfileActivityItem,
 } from "@/lib/firestore/profile";
 import {
-  subscribeMyLikedTimelinePostIds,
   subscribeMyRespectedTimelinePostIds,
   subscribeUserTimelinePosts,
   toggleTimelineRespect,
@@ -33,7 +32,7 @@ import { subscribeUserPresenceStatus, subscribeUsersOnlineStatus } from "@/lib/f
 import { getAchievementMeta } from "@/lib/achievements";
 import { formatHoursMinutes } from "@/lib/utils";
 import { Flame, PenLine, Search, Send, Sparkles, UserRound } from "lucide-react";
-import VerifiedBadge from "@/components/ui/VerifiedBadge";
+import OfficialMark from "@/components/ui/OfficialMark";
 import type { CommunityStreamMessage } from "@/types";
 
 type PresenceColor = "online" | "away" | "offline" | "studying";
@@ -183,8 +182,7 @@ export default function PublicProfilePage() {
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [timelineRows, setTimelineRows] = useState<CommunityStreamMessage[]>([]);
   const [viewerRespectIds, setViewerRespectIds] = useState<Set<string>>(new Set());
-  const [profileLikedPostIds, setProfileLikedPostIds] = useState<Set<string>>(new Set());
-  const [profileTimelineTab, setProfileTimelineTab] = useState<"posts" | "media" | "likes">("posts");
+  const [profileTimelineTab, setProfileTimelineTab] = useState<"posts" | "replies" | "media" | "studylogs">("posts");
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -315,14 +313,6 @@ export default function PublicProfilePage() {
     return subscribeMyRespectedTimelinePostIds(userProfile.uid, setViewerRespectIds);
   }, [userProfile.uid]);
 
-  useEffect(() => {
-    if (!uid) {
-      setProfileLikedPostIds(new Set());
-      return;
-    }
-    return subscribeMyLikedTimelinePostIds(uid, setProfileLikedPostIds);
-  }, [uid]);
-
   const statusColor = useMemo<PresenceColor>(() => {
     if (activeStudySet.has(uid)) return "studying";
     if (!presence.isOnline) return "offline";
@@ -366,14 +356,17 @@ export default function PublicProfilePage() {
   }, [heatmap]);
 
   const profileTimelineRows = useMemo(() => {
-    if (profileTimelineTab === "likes") {
-      return timelineRows.filter((row) => profileLikedPostIds.has(row.id));
+    if (profileTimelineTab === "replies") {
+      return timelineRows.filter((row) => Boolean(row.replyToId));
     }
     if (profileTimelineTab === "media") {
       return timelineRows.filter((row) => row.messageType === "image");
     }
+    if (profileTimelineTab === "studylogs") {
+      return timelineRows.filter((row) => row.body.startsWith("学習完了:"));
+    }
     return timelineRows;
-  }, [profileLikedPostIds, profileTimelineTab, timelineRows]);
+  }, [profileTimelineTab, timelineRows]);
 
   const saveProfileEdit = async () => {
     if (!profile || !isSelf) return;
@@ -514,116 +507,106 @@ export default function PublicProfilePage() {
   return (
     <div className="max-w-6xl mx-auto space-y-5">
       <section className="glass-card overflow-hidden">
-        <div className="h-44 sm:h-52" style={{ background: headerBackground }} />
-        <div className="p-5 -mt-10">
-          <div className="flex items-end justify-between gap-3 flex-wrap">
-            <div className="flex items-end gap-4">
-              <div className="relative">
-                {isImageAvatar ? (
-                  <img src={profile.avatar} alt={profile.name} className="w-20 h-20 rounded-full object-cover border-4" style={{ borderColor: "var(--card-bg)" }} />
-                ) : (
-                  <div className="w-20 h-20 rounded-full flex items-center justify-center text-4xl border-4" style={{ borderColor: "var(--card-bg)", background: "var(--accent-light)" }}>
-                    {profile.avatar}
-                  </div>
-                )}
-                <span
-                  className="absolute right-1 bottom-1 w-4 h-4 rounded-full border-2"
-                  style={{ background: statusStyle.bg, borderColor: "var(--card-bg)" }}
-                  title={statusStyle.label}
+        <div className="relative">
+          <div className="h-44 sm:h-52" style={{ background: headerBackground }} />
+          <div className="absolute left-5 sm:left-7 -bottom-12">
+            <div className="relative">
+              {isImageAvatar ? (
+                <img
+                  src={profile.avatar}
+                  alt={profile.name}
+                  className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover border-[5px] shadow-xl"
+                  style={{ borderColor: "#ffffff" }}
                 />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-2xl font-black flex items-center gap-1" style={{ color: "var(--foreground)" }}>
-                    {profile.name}
-                    <VerifiedBadge show={profile.isOfficial} size={18} />
-                  </h1>
-                  {(canShowFollowing || canShowFollowers) && <span className="text-xs" style={{ color: "var(--card-border)" }}>|</span>}
-                  {canShowFollowing ? (
-                    <button
-                      onClick={() => void openFollowModal("following")}
-                      className="text-[12.5px] font-semibold px-2 py-0.5 rounded-md transition-all"
-                      style={{
-                        color: "#94a3b8",
-                        background: followBump === "following" ? "rgba(34,211,238,0.14)" : "transparent",
-                        transform: followBump === "following" ? "scale(1.06)" : "scale(1)",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.color = "var(--foreground)";
-                        e.currentTarget.style.background = "rgba(148,163,184,0.14)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.color = "#94a3b8";
-                        e.currentTarget.style.background =
-                          followBump === "following" ? "rgba(34,211,238,0.14)" : "transparent";
-                      }}
-                    >
-                      {followCounts.following.toLocaleString()} フォロー
-                    </button>
-                  ) : null}
-                  {canShowFollowers ? (
-                    <button
-                      onClick={() => void openFollowModal("followers")}
-                      className="text-[12.5px] font-semibold px-2 py-0.5 rounded-md transition-all"
-                      style={{
-                        color: "#94a3b8",
-                        background: followBump === "followers" ? "rgba(34,211,238,0.14)" : "transparent",
-                        transform: followBump === "followers" ? "scale(1.06)" : "scale(1)",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.color = "var(--foreground)";
-                        e.currentTarget.style.background = "rgba(148,163,184,0.14)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.color = "#94a3b8";
-                        e.currentTarget.style.background =
-                          followBump === "followers" ? "rgba(34,211,238,0.14)" : "transparent";
-                      }}
-                    >
-                      {followCounts.followers.toLocaleString()} フォロワー
-                    </button>
-                  ) : null}
-                  {!isSelf ? (
-                    <button
-                      onClick={() => void toggleFollow()}
-                      disabled={followPending}
-                      className="ml-1 px-3 py-1 rounded-lg text-xs font-semibold disabled:opacity-50"
-                      style={{
-                        border: "1px solid rgba(56,189,248,0.7)",
-                        color: isFollowingUser ? "#38bdf8" : "var(--foreground)",
-                        background: "transparent",
-                      }}
-                    >
-                      {followPending ? "処理中..." : isFollowingUser ? "フォロー中" : "+ フォローする"}
-                    </button>
-                  ) : null}
-                </div>
-                <p className="text-xs font-mono" style={{ color: "var(--muted)" }}>UID: {profile.uid}</p>
-                <p className="text-xs mt-1" style={{ color: statusStyle.bg }}>
-                  {statusStyle.label}
-                  {profile.deviceLabel ? ` / ${profile.deviceLabel}` : ""}
-                </p>
-                <div className="mt-1.5 flex flex-wrap gap-2">
-                  {profile.statusMessage ? (
-                    <span
-                      className="px-2.5 py-1 rounded-full text-xs"
-                      style={{ background: "rgba(14,165,233,0.12)", color: "#0369a1" }}
-                    >
-                      {profile.statusMessage}
-                    </span>
-                  ) : null}
-                  <span className="text-[11px]" style={{ color: "var(--muted)" }}>
-                    Active Since: {activeSince}
-                  </span>
-                </div>
-                <p
-                  className="mt-2 px-3 py-2 rounded-2xl text-sm max-w-[520px]"
-                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+              ) : (
+                <div
+                  className="w-24 h-24 sm:w-28 sm:h-28 rounded-full flex items-center justify-center text-4xl border-[5px] shadow-xl"
+                  style={{ borderColor: "#ffffff", background: "var(--accent-light)" }}
                 >
+                  {profile.avatar}
+                </div>
+              )}
+              <span
+                className="absolute right-1.5 bottom-1.5 w-4 h-4 rounded-full border-2"
+                style={{ background: statusStyle.bg, borderColor: "#ffffff" }}
+                title={statusStyle.label}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="px-5 sm:px-6 pt-16 pb-5">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="flex flex-col md:flex-row md:items-end md:gap-4">
+                <h1 className="text-3xl sm:text-4xl font-black leading-none inline-flex items-center gap-2" style={{ color: "var(--foreground)" }}>
+                  {profile.name}
+                  <OfficialMark uid={profile.uid} isOfficial={profile.isOfficial} size={20} />
+                </h1>
+                <p className="text-sm mt-2 md:mt-0 md:max-w-[560px]" style={{ color: "var(--foreground)" }}>
                   {profile.bio || "一言メッセージはまだ設定されていません"}
                 </p>
               </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                {canShowFollowing ? (
+                  <button
+                    onClick={() => void openFollowModal("following")}
+                    className="px-2.5 py-1 rounded-md font-semibold transition-all"
+                    style={{
+                      color: "#94a3b8",
+                      background: followBump === "following" ? "rgba(34,211,238,0.14)" : "transparent",
+                      transform: followBump === "following" ? "scale(1.06)" : "scale(1)",
+                    }}
+                  >
+                    {followCounts.following.toLocaleString()} フォロー
+                  </button>
+                ) : null}
+                {canShowFollowers ? (
+                  <button
+                    onClick={() => void openFollowModal("followers")}
+                    className="px-2.5 py-1 rounded-md font-semibold transition-all"
+                    style={{
+                      color: "#94a3b8",
+                      background: followBump === "followers" ? "rgba(34,211,238,0.14)" : "transparent",
+                      transform: followBump === "followers" ? "scale(1.06)" : "scale(1)",
+                    }}
+                  >
+                    {followCounts.followers.toLocaleString()} フォロワー
+                  </button>
+                ) : null}
+                {canShowFriendCount ? (
+                  <button
+                    onClick={() => void openFollowModal("friends")}
+                    className="px-2.5 py-1 rounded-md font-semibold transition-all"
+                    style={{
+                      color: "#94a3b8",
+                      background: followBump === "friends" ? "rgba(34,211,238,0.14)" : "transparent",
+                      transform: followBump === "friends" ? "scale(1.06)" : "scale(1)",
+                    }}
+                  >
+                    {friendCount.toLocaleString()} フレンド
+                  </button>
+                ) : null}
+              </div>
+
+              <p className="text-xs font-mono" style={{ color: "var(--muted)" }}>UID: {profile.uid}</p>
+              <p className="text-xs" style={{ color: statusStyle.bg }}>
+                {statusStyle.label}
+                {profile.deviceLabel ? ` / ${profile.deviceLabel}` : ""}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {profile.statusMessage ? (
+                  <span className="px-2.5 py-1 rounded-full text-xs" style={{ background: "rgba(14,165,233,0.12)", color: "#0369a1" }}>
+                    {profile.statusMessage}
+                  </span>
+                ) : null}
+                <span className="text-[11px]" style={{ color: "var(--muted)" }}>
+                  Active Since: {activeSince}
+                </span>
+              </div>
             </div>
+
             {isSelf ? (
               <button
                 onClick={() => setEditOpen(true)}
@@ -633,14 +616,24 @@ export default function PublicProfilePage() {
                 <PenLine size={14} /> 編集
               </button>
             ) : (
-              <button
-                onClick={() => void toggleCheer()}
-                disabled={savingCheer}
-                className="px-3 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1 disabled:opacity-50"
-                style={{ background: cheered ? "#f9731622" : "var(--muted-bg)", color: cheered ? "#f97316" : "var(--foreground)" }}
-              >
-                <Flame size={14} /> {cheered ? "応援中" : "応援する"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => void toggleFollow()}
+                  disabled={followPending}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+                  style={{ border: "1px solid rgba(56,189,248,0.7)", color: isFollowingUser ? "#38bdf8" : "var(--foreground)" }}
+                >
+                  {followPending ? "処理中..." : isFollowingUser ? "フォロー中" : "+ フォローする"}
+                </button>
+                <button
+                  onClick={() => void toggleCheer()}
+                  disabled={savingCheer}
+                  className="px-3 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1 disabled:opacity-50"
+                  style={{ background: cheered ? "#f9731622" : "var(--muted-bg)", color: cheered ? "#f97316" : "var(--foreground)" }}
+                >
+                  <Flame size={14} /> {cheered ? "応援中" : "応援する"}
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -680,14 +673,15 @@ export default function PublicProfilePage() {
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {[
             ["posts", "投稿"],
+            ["replies", "返信"],
             ["media", "メディア"],
-            ["likes", "いいね"],
+            ["studylogs", "学習ログ"],
           ].map(([key, label]) => {
             const active = profileTimelineTab === key;
             return (
               <button
                 key={key}
-                onClick={() => setProfileTimelineTab(key as "posts" | "media" | "likes")}
+                onClick={() => setProfileTimelineTab(key as "posts" | "replies" | "media" | "studylogs")}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold"
                 style={{
                   background: active ? "var(--accent-light)" : "var(--muted-bg)",
