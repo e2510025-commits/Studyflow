@@ -1073,12 +1073,63 @@ export default function PublicProfilePage() {
         </div>
       )}
 
-      {cropModalOpen && (
-        <div className="fixed inset-0 z-[119] flex items-center justify-center p-4" style={{ background: "rgba(2,6,23,0.72)" }}>
+      {cropModalOpen && cropKind === "header" && (
+        <div className="fixed inset-0 z-[121] overflow-y-auto" style={{ background: "var(--background)" }}>
+          <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+            <div className="rounded-2xl p-4" style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}>
+              <div className="relative w-full overflow-hidden rounded-xl" style={{ background: "#0b1120", height: "min(56vh, 520px)" }}>
+                <SafeCropper
+                  image={cropSource}
+                  crop={crop}
+                  zoom={zoom}
+                  aspect={3}
+                  cropShape="rect"
+                  showGrid
+                  onCropChange={setCrop}
+                  onZoomChange={setZoom}
+                  onCropComplete={(_: Area, areaPixels: Area) => setCroppedAreaPixels(areaPixels)}
+                />
+              </div>
+              <div className="mt-4 space-y-2">
+                <p className="text-xs" style={{ color: "var(--muted)" }}>ズーム</p>
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  step={0.01}
+                  value={zoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  className="w-full"
+                />
+                <p className="text-[11px]" style={{ color: "var(--muted)" }}>出力サイズ: 1500 x 500</p>
+              </div>
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <button
+                  onClick={() => setCropModalOpen(false)}
+                  className="px-3 py-2 rounded-lg text-sm"
+                  style={{ background: "var(--muted-bg)", color: "var(--muted)" }}
+                >
+                  キャンセル
+                </button>
+                <button
+                  onClick={() => void applyCrop()}
+                  className="px-3 py-2 rounded-lg text-sm font-semibold text-white"
+                  style={{ background: "var(--accent)" }}
+                >
+                  この範囲で保存
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cropModalOpen && cropKind === "avatar" && (
+        <div className="fixed inset-0 z-[121] flex items-center justify-center p-4" style={{ background: "rgba(2,6,23,0.9)" }}>
           <div className="w-full max-w-2xl rounded-2xl p-4 glass-card">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-base font-black" style={{ color: "var(--foreground)" }}>
-                {cropKind === "header" ? "ヘッダー画像を調整" : "アイコン画像を調整"}
+                アイコン画像を調整
               </h3>
               <button onClick={() => setCropModalOpen(false)} className="text-sm" style={{ color: "var(--muted)" }}>
                 閉じる
@@ -1089,9 +1140,9 @@ export default function PublicProfilePage() {
                 image={cropSource}
                 crop={crop}
                 zoom={zoom}
-                aspect={cropKind === "header" ? 3 : 1}
-                cropShape={cropKind === "avatar" ? "round" : "rect"}
-                showGrid={cropKind === "header"}
+                aspect={1}
+                cropShape="round"
+                showGrid={false}
                 onCropChange={setCrop}
                 onZoomChange={setZoom}
                 onCropComplete={(_: Area, areaPixels: Area) => setCroppedAreaPixels(areaPixels)}
@@ -1108,9 +1159,7 @@ export default function PublicProfilePage() {
                 onChange={(e) => setZoom(Number(e.target.value))}
                 className="w-full"
               />
-              <p className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>
-                {cropKind === "header" ? "出力サイズ: 1500 x 500" : "出力サイズ: 160 x 160"}
-              </p>
+              <p className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>出力サイズ: 160 x 160</p>
             </div>
             <div className="mt-4 flex items-center justify-end gap-2">
               <button
@@ -1133,8 +1182,8 @@ export default function PublicProfilePage() {
       )}
 
       {editOpen && isSelf && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.55)" }}>
-          <div className="w-full max-w-2xl rounded-2xl p-5 glass-card max-h-[92vh] overflow-y-auto">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4" style={{ background: "rgba(2,6,23,0.9)" }}>
+          <div className="w-full max-w-2xl rounded-2xl p-5 glass-card max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-black" style={{ color: "var(--foreground)" }}>プロフィール編集</h3>
               <button onClick={() => setEditOpen(false)} className="text-sm" style={{ color: "var(--muted)" }}>閉じる</button>
