@@ -19,7 +19,8 @@ import {
   ListTodo,
 } from "lucide-react";
 import QuickProfileCard from "@/components/profile/QuickProfileCard";
-import VerifiedBadge from "@/components/ui/VerifiedBadge";
+import OfficialMark from "@/components/ui/OfficialMark";
+import ImageLightbox from "@/components/ui/ImageLightbox";
 import {
   subscribeChatMessages,
   sendTextMessage,
@@ -388,7 +389,7 @@ export default function ChatPage() {
             style={{ color: "var(--foreground)" }}
           >
             {safeFriendName}
-            <VerifiedBadge show={friend.isOfficial} size={13} />
+            <OfficialMark uid={friend.uid} isOfficial={friend.isOfficial} size={13} />
           </Link>
           <span className="text-xs font-mono" style={{ color: "var(--muted)" }}>
             UID: {friend.uid}
@@ -800,9 +801,16 @@ export default function ChatPage() {
         </motion.button>
       </div>
 
+      <ImageLightbox
+        src={lightboxType === "image" ? lightbox : null}
+        open={Boolean(lightbox) && lightboxType === "image"}
+        onClose={() => setLightbox(null)}
+        zIndexClass="z-[100]"
+      />
+
       {/* ─── Lightbox ─────────────────────────────────── */}
       <AnimatePresence>
-        {lightbox && (
+        {lightbox && lightboxType !== "image" && (
           <motion.div
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80"
             initial={{ opacity: 0 }}
@@ -823,20 +831,14 @@ export default function ChatPage() {
               >
                 <X size={16} />
               </button>
-              {lightboxType === "image" ? (
-                <img
-                  src={lightbox}
-                  alt=""
-                  className="max-w-full max-h-[85vh] rounded-lg object-contain"
-                />
-              ) : (
+              {
                 <video
                   src={lightbox}
                   controls
                   autoPlay
                   className="max-w-full max-h-[85vh] rounded-lg"
                 />
-              )}
+              }
               <div className="absolute bottom-3 right-3">
                 <button
                   onClick={() => downloadMedia(lightbox)}

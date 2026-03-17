@@ -23,6 +23,8 @@ import {
   type ProfileActivityItem,
 } from "@/lib/firestore/profile";
 import {
+  sendTimelineImagePost,
+  sendTimelinePost,
   subscribeMyRespectedTimelinePostIds,
   subscribeUserTimelinePosts,
   toggleTimelineRespect,
@@ -33,6 +35,7 @@ import { getAchievementMeta } from "@/lib/achievements";
 import { formatHoursMinutes } from "@/lib/utils";
 import { Flame, PenLine, Search, Send, Sparkles, UserRound } from "lucide-react";
 import OfficialMark from "@/components/ui/OfficialMark";
+import ImageLightbox from "@/components/ui/ImageLightbox";
 import type { CommunityStreamMessage } from "@/types";
 
 type PresenceColor = "online" | "away" | "offline" | "studying";
@@ -182,8 +185,11 @@ export default function PublicProfilePage() {
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [timelineRows, setTimelineRows] = useState<CommunityStreamMessage[]>([]);
   const [viewerRespectIds, setViewerRespectIds] = useState<Set<string>>(new Set());
-  const [profileTimelineTab, setProfileTimelineTab] = useState<"posts" | "replies" | "media" | "studylogs">("posts");
+  const [profileTimelineTab, setProfileTimelineTab] = useState<"posts" | "media" | "studylogs">("posts");
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [composerText, setComposerText] = useState("");
+  const [composerImage, setComposerImage] = useState("");
+  const [postingTimeline, setPostingTimeline] = useState(false);
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const headerInputRef = useRef<HTMLInputElement>(null);
@@ -356,9 +362,6 @@ export default function PublicProfilePage() {
   }, [heatmap]);
 
   const profileTimelineRows = useMemo(() => {
-    if (profileTimelineTab === "replies") {
-      return timelineRows.filter((row) => Boolean(row.replyToId));
-    }
     if (profileTimelineTab === "media") {
       return timelineRows.filter((row) => row.messageType === "image");
     }
@@ -479,6 +482,50 @@ export default function PublicProfilePage() {
       setIsFollowingUser(next);
     } finally {
       setFollowPending(false);
+    }
+  };
+
+  const onPickComposerImage = async (file?: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return;
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("IMAGE_READ_FAILED"));
+      reader.readAsDataURL(file);
+    });
+    if (dataUrl.length > 700_000) {
+      alert("画像サイズが大きすぎます (700KB相当以下)");
+      return;
+    }
+    setComposerImage(dataUrl);
+  };
+
+  const submitTimelinePost = async () => {
+    if (!isSelf || postingTimeline || !userProfile.uid) return;
+    if (!composerText.trim() && !composerImage) return;
+    setPostingTimeline(true);
+    try {
+      if (composerImage) {
+        await sendTimelineImagePost({
+          uid: userProfile.uid,
+          name: userProfile.name,
+          avatar: userProfile.avatar,
+          imageUrl: composerImage,
+          caption: composerText,
+        });
+      } else {
+        await sendTimelinePost({
+          uid: userProfile.uid,
+          name: userProfile.name,
+          avatar: userProfile.avatar,
+          body: composerText,
+        });
+      }
+      setComposerText("");
+      setComposerImage("");
+    } finally {
+      setPostingTimeline(false);
     }
   };
 
@@ -605,6 +652,54 @@ export default function PublicProfilePage() {
                   Active Since: {activeSince}
                 </span>
               </div>
+
+              {isSelf && (
+                <div className="mt-2 rounded-2xl p-3" style={{ background: "var(--muted-bg)" }}>
+                  <p className="text-xs font-semibold" style={{ color: "var(--muted)" }}>いまどうしてる？</p>
+                  <textarea
+                    value={composerText}
+                    onChange={(e) => setComposerText(e.target.value.slice(0, 1200))}
+                    rows={3}
+                    placeholder="いまの学習や気づきを投稿しよう"
+                    className="mt-2 w-full px-3 py-2 rounded-xl text-sm resize-none"
+                    style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
+                  />
+                  {composerImage && (
+                    <img src={composerImage} alt="compose" className="mt-2 rounded-xl max-h-56 object-cover" />
+                  )}
+                  <input
+                    id="profile-composer-image"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      void onPickComposerImage(file);
+                      e.currentTarget.value = "";
+                    }}
+                  />
+                  <div className="mt-2 flex items-center justify-between">
+                    <button
+                      onClick={() => {
+                        const el = document.getElementById("profile-composer-image") as HTMLInputElement | null;
+                        el?.click();
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
+                    >
+                      画像を追加
+                    </button>
+                    <button
+                      onClick={() => void submitTimelinePost()}
+                      disabled={postingTimeline || (!composerText.trim() && !composerImage)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
+                      style={{ background: "var(--accent)" }}
+                    >
+                      {postingTimeline ? "投稿中..." : "投稿"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {isSelf ? (
@@ -673,15 +768,14 @@ export default function PublicProfilePage() {
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {[
             ["posts", "投稿"],
-            ["replies", "返信"],
             ["media", "メディア"],
-            ["studylogs", "学習ログ"],
+            ["studylogs", "学習記録"],
           ].map(([key, label]) => {
             const active = profileTimelineTab === key;
             return (
               <button
                 key={key}
-                onClick={() => setProfileTimelineTab(key as "posts" | "replies" | "media" | "studylogs")}
+                onClick={() => setProfileTimelineTab(key as "posts" | "media" | "studylogs")}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold"
                 style={{
                   background: active ? "var(--accent-light)" : "var(--muted-bg)",
@@ -1067,11 +1161,7 @@ export default function PublicProfilePage() {
         </div>
       )}
 
-      {lightboxUrl && (
-        <div className="fixed inset-0 z-[120] bg-black/90 grid place-items-center p-4" onClick={() => setLightboxUrl(null)}>
-          <img src={lightboxUrl} alt="preview" className="max-w-full max-h-full object-contain" />
-        </div>
-      )}
+      <ImageLightbox src={lightboxUrl} open={Boolean(lightboxUrl)} onClose={() => setLightboxUrl(null)} zIndexClass="z-[120]" />
     </div>
   );
 }

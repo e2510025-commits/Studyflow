@@ -15,6 +15,7 @@ import {
   toggleTimelineRespect,
 } from "@/lib/firestore/community";
 import OfficialMark from "@/components/ui/OfficialMark";
+import ImageLightbox from "@/components/ui/ImageLightbox";
 import type { CommunityStreamMessage } from "@/types";
 
 function formatTime(iso: string) {
@@ -185,11 +186,7 @@ export default function TimelinePage() {
         )}
       </section>
 
-      {lightboxUrl && (
-        <div className="fixed inset-0 z-30 bg-black/90 grid place-items-center p-4" onClick={() => setLightboxUrl(null)}>
-          <img src={lightboxUrl} alt="preview" className="max-w-full max-h-full object-contain" />
-        </div>
-      )}
+      <ImageLightbox src={lightboxUrl} open={Boolean(lightboxUrl)} onClose={() => setLightboxUrl(null)} zIndexClass="z-30" />
 
       <input
         id="timeline-image-input"
