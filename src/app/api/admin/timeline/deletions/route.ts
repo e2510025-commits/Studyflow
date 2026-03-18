@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { collection, doc, getDoc, getDocs, limit, query } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, limit, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { requireAdmin } from "@/lib/server/adminGuard";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 
 const ADMIN_TIMELINE_DELETION_LOGS = "adminTimelineDeletionLogs";
+const TIMELINE_POSTS = "timelinePosts";
 
 function toIso(value: unknown): string {
   if (typeof value === "string") return value;
@@ -25,6 +26,21 @@ interface RawDeletionLog {
   postCreatedAt?: unknown;
   deletedAt?: unknown;
   deletedByUid?: string;
+}
+
+interface RawTimelinePost {
+  uid?: string;
+  userId?: string;
+  name?: string;
+  avatar?: string;
+  body?: string;
+  imageUrl?: string;
+  createdAt?: unknown;
+  editedAt?: unknown;
+  deletedAt?: unknown;
+  deletedByUid?: string;
+  deletedByAdminUid?: string;
+  isDeleted?: boolean;
 }
 
 export async function GET() {
@@ -54,7 +70,40 @@ export async function GET() {
     .filter((row) => row.postId)
     .sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
 
-  const deleterUids = Array.from(new Set(logs.map((row) => row.deletedByUid).filter(Boolean)));
+  // Fallback for older deletions or self deletions that were not written to admin logs collection.
+  const deletedPostsSnap = await getDocs(
+    query(collection(db, TIMELINE_POSTS), where("isDeleted", "==", true), limit(400))
+  );
+  const fallbackRows = deletedPostsSnap.docs.map((row) => {
+    const data = row.data() as RawTimelinePost;
+    const deletedByUid = String(data.deletedByUid || data.deletedByAdminUid || "");
+    return {
+      id: `post_${row.id}`,
+      postId: row.id,
+      postUid: String(data.uid || data.userId || ""),
+      postUserName: sanitizeDisplayName(data.name || "匿名"),
+      postUserAvatar: sanitizeAvatar(data.avatar || "👤"),
+      postBody: String(data.body || ""),
+      postImageUrl: typeof data.imageUrl === "string" ? data.imageUrl : "",
+      postCreatedAt: toIso(data.createdAt),
+      deletedAt: toIso(data.deletedAt || data.editedAt),
+      deletedByUid,
+    };
+  });
+
+  const mergedByPostId = new Map<string, (typeof logs)[number]>();
+  logs.forEach((row) => mergedByPostId.set(row.postId, row));
+  fallbackRows.forEach((row) => {
+    if (!mergedByPostId.has(row.postId)) {
+      mergedByPostId.set(row.postId, row);
+    }
+  });
+
+  const mergedRaw = Array.from(mergedByPostId.values()).sort(
+    (a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime()
+  );
+
+  const deleterUids = Array.from(new Set(mergedRaw.map((row) => row.deletedByUid).filter(Boolean)));
   const deleterProfiles = await Promise.all(
     deleterUids.map(async (uid) => {
       const snap = await getDoc(doc(db, "userProfiles", uid));
@@ -73,12 +122,12 @@ export async function GET() {
   );
   const deleterMap = new Map(deleterProfiles);
 
-  const mergedLogs = logs.map((row) => {
+  const mergedLogs = mergedRaw.map((row) => {
     const deleter = deleterMap.get(row.deletedByUid) || { name: row.deletedByUid, avatar: "🛡️" };
     return {
       ...row,
-      deletedByName: deleter.name,
-      deletedByAvatar: deleter.avatar,
+      deletedByName: deleter.name || "不明",
+      deletedByAvatar: deleter.avatar || "🛡️",
     };
   });
 
