@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -20,7 +20,12 @@ import {
 import { submitViolationReport } from "@/lib/firestore/moderation";
 import { isAdminUid } from "@/lib/admin";
 import { fetchRecentChatPartnerUids } from "@/lib/firestore/chat";
-import { fetchFollowLists, fetchUserMiniProfilesByUids, type UserMiniProfile } from "@/lib/firestore/profile";
+import {
+  fetchFollowLists,
+  fetchUserMiniProfileByDisplayName,
+  fetchUserMiniProfilesByUids,
+  type UserMiniProfile,
+} from "@/lib/firestore/profile";
 import OfficialMark from "@/components/ui/OfficialMark";
 import ImageLightbox from "@/components/ui/ImageLightbox";
 import type { CommunityStreamMessage } from "@/types";
@@ -32,11 +37,30 @@ function formatTime(iso: string) {
   ).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-function renderBodyWithMentions(body: string, stopPropagation?: boolean) {
+const MENTION_REGEX = /@([A-Za-z0-9_\u3040-\u30ff\u3400-\u9fffー-]{2,32})/g;
+const MENTION_FRAGMENT_REGEX = /^[A-Za-z0-9_\u3040-\u30ff\u3400-\u9fffー-]*$/;
+
+function collectMentionsFromText(body: string): string[] {
+  const ids = new Set<string>();
+  const mentionRegex = new RegExp(MENTION_REGEX.source, "g");
+  let match: RegExpExecArray | null;
+  while ((match = mentionRegex.exec(body)) !== null) {
+    ids.add(match[1]);
+  }
+  return Array.from(ids);
+}
+
+function renderBodyWithMentions(
+  body: string,
+  options?: {
+    stopPropagation?: boolean;
+    onMentionClick?: (token: string) => void;
+  }
+) {
   const lines = body.split("\n");
   return lines.map((line, lineIndex) => {
     const parts: React.ReactNode[] = [];
-    const mentionRegex = /@([A-Za-z0-9_]{2,32})/g;
+    const mentionRegex = new RegExp(MENTION_REGEX.source, "g");
     let lastIndex = 0;
     let match: RegExpExecArray | null;
 
@@ -44,19 +68,20 @@ function renderBodyWithMentions(body: string, stopPropagation?: boolean) {
       if (match.index > lastIndex) {
         parts.push(line.slice(lastIndex, match.index));
       }
-      const uid = match[1];
+      const token = match[1];
       parts.push(
-        <Link
-          key={`${lineIndex}_${match.index}_${uid}`}
-          href={`/profile/${uid}`}
+        <button
+          type="button"
+          key={`${lineIndex}_${match.index}_${token}`}
           className="font-semibold hover:underline"
           style={{ color: "var(--accent)" }}
           onClick={(event) => {
-            if (stopPropagation) event.stopPropagation();
+            if (options?.stopPropagation) event.stopPropagation();
+            options?.onMentionClick?.(token);
           }}
         >
-          @{uid}
-        </Link>
+          @{token}
+        </button>
       );
       lastIndex = match.index + match[0].length;
     }
@@ -84,7 +109,7 @@ function getMentionDraft(body: string, cursor: number): { start: number; query: 
   if (!hasWhitespaceBefore) return null;
 
   const fragment = before.slice(atIndex + 1);
-  if (!/^[A-Za-z0-9_]*$/.test(fragment)) return null;
+  if (!MENTION_FRAGMENT_REGEX.test(fragment)) return null;
   return { start: atIndex, query: fragment };
 }
 
@@ -93,6 +118,7 @@ function renderQuoteNestedCard(
   options: {
     router: ReturnType<typeof useRouter>;
     onOpenImage: (url: string) => void;
+    onMentionClick?: (token: string) => void;
     compact?: boolean;
   }
 ) {
@@ -121,7 +147,12 @@ function renderQuoteNestedCard(
             <OfficialMark uid={quote.uid} isOfficial={quote.isOfficial} size={11} />
           </div>
           <p className="whitespace-pre-wrap mt-1" style={{ color: "var(--foreground)" }}>
-            {quote.isDeleted ? "この投稿は削除されました" : renderBodyWithMentions(quote.body, true)}
+            {quote.isDeleted
+              ? "この投稿は削除されました"
+              : renderBodyWithMentions(quote.body, {
+                  stopPropagation: true,
+                  onMentionClick: options.onMentionClick,
+                })}
           </p>
           {quote.imageUrl && !quote.isDeleted ? (
             <img
@@ -165,6 +196,7 @@ export default function TimelinePage() {
   const [mentionCandidates, setMentionCandidates] = useState<UserMiniProfile[]>([]);
   const [mentionKeyword, setMentionKeyword] = useState("");
   const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionUidByToken, setMentionUidByToken] = useState<Record<string, string>>({});
   const composeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -236,6 +268,72 @@ export default function TimelinePage() {
   }, [composeOpen, userProfile.uid]);
 
   const feed = useMemo(() => [...rows].slice(0, 120), [rows]);
+
+  const resolveMentionUid = useCallback(
+    async (token: string): Promise<string | null> => {
+      if (!token) return null;
+      if (/^\d{6,}$/.test(token)) return token;
+
+      const cached = mentionUidByToken[token];
+      if (cached) return cached;
+
+      const candidate = mentionCandidates.find((row) => row.name === token);
+      if (candidate?.uid) {
+        setMentionUidByToken((prev) => ({ ...prev, [token]: candidate.uid }));
+        return candidate.uid;
+      }
+
+      const profile = await fetchUserMiniProfileByDisplayName(token);
+      if (!profile?.uid) return null;
+      setMentionUidByToken((prev) => ({ ...prev, [token]: profile.uid }));
+      return profile.uid;
+    },
+    [mentionCandidates, mentionUidByToken]
+  );
+
+  const handleMentionNavigate = useCallback(
+    async (token: string) => {
+      const uid = await resolveMentionUid(token);
+      if (!uid) {
+        alert("ユーザーが見つかりませんでした");
+        return;
+      }
+      router.push(`/profile/${uid}`);
+    },
+    [resolveMentionUid, router]
+  );
+
+  useEffect(() => {
+    const mentionTokens = feed.flatMap((row) => {
+      const current = collectMentionsFromText(row.body || "");
+      const quoted = row.quote?.body ? collectMentionsFromText(row.quote.body) : [];
+      return [...current, ...quoted];
+    });
+
+    const unresolved = Array.from(new Set(mentionTokens))
+      .filter((token) => !/^\d{6,}$/.test(token) && !mentionUidByToken[token])
+      .slice(0, 80);
+    if (unresolved.length === 0) return;
+
+    let active = true;
+    void (async () => {
+      const updates: Record<string, string> = {};
+      await Promise.all(
+        unresolved.map(async (token) => {
+          const profile = await fetchUserMiniProfileByDisplayName(token);
+          if (profile?.uid) {
+            updates[token] = profile.uid;
+          }
+        })
+      );
+      if (!active || Object.keys(updates).length === 0) return;
+      setMentionUidByToken((prev) => ({ ...prev, ...updates }));
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [feed, mentionUidByToken]);
 
   const openComposer = () => {
     setFabBootLog(true);
@@ -393,9 +491,11 @@ export default function TimelinePage() {
 
     const head = composeBody.slice(0, draft.start);
     const tail = composeBody.slice(cursor);
-    const mentionText = `@${candidate.uid} `;
+    const mentionToken = /\s/.test(candidate.name) ? candidate.uid : candidate.name;
+    const mentionText = `@${mentionToken} `;
     const merged = `${head}${mentionText}${tail}`;
     setComposeBody(merged);
+    setMentionUidByToken((prev) => ({ ...prev, [mentionToken]: candidate.uid }));
     setMentionOpen(false);
     setMentionKeyword("");
 
@@ -527,11 +627,27 @@ export default function TimelinePage() {
                       </div>
                     ) : (
                       <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: "var(--foreground)" }}>
-                        {row.isDeleted ? "この投稿は削除されました" : renderBodyWithMentions(row.body, true)}
+                        {row.isDeleted
+                          ? "この投稿は削除されました"
+                          : renderBodyWithMentions(row.body, {
+                              stopPropagation: true,
+                              onMentionClick: (token) => {
+                                void handleMentionNavigate(token);
+                              },
+                            })}
                         {row.editedAt && !row.isDeleted ? <span className="ml-1 text-[10px]" style={{ color: "var(--muted)" }}>(編集済み)</span> : null}
                       </p>
                     )}
-                    {row.quote ? renderQuoteNestedCard(row.quote, { router, onOpenImage: (url) => setLightboxUrl(url), compact: true }) : null}
+                    {row.quote
+                      ? renderQuoteNestedCard(row.quote, {
+                          router,
+                          onOpenImage: (url) => setLightboxUrl(url),
+                          onMentionClick: (token) => {
+                            void handleMentionNavigate(token);
+                          },
+                          compact: true,
+                        })
+                      : null}
                     {menuPostId === row.id && (
                       <div className="mt-2 flex flex-wrap items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         {isMine && !row.isDeleted && (

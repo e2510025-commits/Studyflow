@@ -211,6 +211,28 @@ export async function fetchUserMiniProfilesByUids(uids: string[]): Promise<UserM
   return profiles.filter((row): row is UserMiniProfile => Boolean(row));
 }
 
+export async function fetchUserMiniProfileByDisplayName(displayName: string): Promise<UserMiniProfile | null> {
+  const safeName = sanitizeDisplayName(displayName || "").trim();
+  if (!safeName) return null;
+
+  try {
+    const snap = await getDocs(
+      query(collection(db, "userProfiles"), where("name", "==", safeName), limit(1))
+    );
+    if (snap.empty) return null;
+    const row = snap.docs[0];
+    const data = row.data();
+    return {
+      uid: String(data.uid || row.id || ""),
+      name: sanitizeDisplayName(data.name || safeName),
+      avatar: sanitizeAvatar(data.avatar || "👤"),
+      isOfficial: Boolean(data.isOfficial),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function updateEquippedBadges(uid: string, badges: string[]) {
   await setDoc(
     doc(db, "userProfiles", uid),

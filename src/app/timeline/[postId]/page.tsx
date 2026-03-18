@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, MessageCircle, Send } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import { sendTimelinePost, subscribeTimelinePosts } from "@/lib/firestore/community";
+import { fetchUserMiniProfileByDisplayName } from "@/lib/firestore/profile";
 import OfficialMark from "@/components/ui/OfficialMark";
 import type { CommunityStreamMessage } from "@/types";
 
@@ -16,11 +17,23 @@ function formatTime(iso: string) {
   ).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-function renderBodyWithMentions(body: string) {
+const MENTION_REGEX = /@([A-Za-z0-9_\u3040-\u30ff\u3400-\u9fffー-]{2,32})/g;
+
+function collectMentionsFromText(body: string): string[] {
+  const ids = new Set<string>();
+  const mentionRegex = new RegExp(MENTION_REGEX.source, "g");
+  let match: RegExpExecArray | null;
+  while ((match = mentionRegex.exec(body)) !== null) {
+    ids.add(match[1]);
+  }
+  return Array.from(ids);
+}
+
+function renderBodyWithMentions(body: string, onMentionClick?: (token: string) => void) {
   const lines = body.split("\n");
   return lines.map((line, lineIndex) => {
     const parts: React.ReactNode[] = [];
-    const mentionRegex = /@([A-Za-z0-9_]{2,32})/g;
+    const mentionRegex = new RegExp(MENTION_REGEX.source, "g");
     let lastIndex = 0;
     let match: RegExpExecArray | null;
 
@@ -28,11 +41,17 @@ function renderBodyWithMentions(body: string) {
       if (match.index > lastIndex) {
         parts.push(line.slice(lastIndex, match.index));
       }
-      const uid = match[1];
+      const token = match[1];
       parts.push(
-        <Link key={`${lineIndex}_${match.index}_${uid}`} href={`/profile/${uid}`} className="font-semibold hover:underline" style={{ color: "var(--accent)" }}>
-          @{uid}
-        </Link>
+        <button
+          type="button"
+          key={`${lineIndex}_${match.index}_${token}`}
+          className="font-semibold hover:underline"
+          style={{ color: "var(--accent)" }}
+          onClick={() => onMentionClick?.(token)}
+        >
+          @{token}
+        </button>
       );
       lastIndex = match.index + match[0].length;
     }
@@ -51,6 +70,34 @@ function renderBodyWithMentions(body: string) {
 }
 
 function QuoteCard({ quote }: { quote: NonNullable<CommunityStreamMessage["quote"]> }) {
+  const router = useRouter();
+  const [mentionUidByToken, setMentionUidByToken] = useState<Record<string, string>>({});
+
+  const resolveMentionUid = useCallback(
+    async (token: string): Promise<string | null> => {
+      if (!token) return null;
+      if (/^\d{6,}$/.test(token)) return token;
+      if (mentionUidByToken[token]) return mentionUidByToken[token];
+      const profile = await fetchUserMiniProfileByDisplayName(token);
+      if (!profile?.uid) return null;
+      setMentionUidByToken((prev) => ({ ...prev, [token]: profile.uid }));
+      return profile.uid;
+    },
+    [mentionUidByToken]
+  );
+
+  const handleMentionNavigate = useCallback(
+    async (token: string) => {
+      const uid = await resolveMentionUid(token);
+      if (!uid) {
+        alert("ユーザーが見つかりませんでした");
+        return;
+      }
+      router.push(`/profile/${uid}`);
+    },
+    [resolveMentionUid, router]
+  );
+
   const isAvatarImage = quote.avatar.startsWith("http") || quote.avatar.startsWith("data:");
   return (
     <Link
@@ -68,7 +115,7 @@ function QuoteCard({ quote }: { quote: NonNullable<CommunityStreamMessage["quote
             <OfficialMark uid={quote.uid} isOfficial={quote.isOfficial} size={11} />
           </div>
           <p className="text-sm whitespace-pre-wrap mt-1" style={{ color: "var(--foreground)" }}>
-            {quote.isDeleted ? "この投稿は削除されました" : renderBodyWithMentions(quote.body)}
+            {quote.isDeleted ? "この投稿は削除されました" : renderBodyWithMentions(quote.body, (token) => void handleMentionNavigate(token))}
           </p>
           {quote.imageUrl && !quote.isDeleted ? <img src={quote.imageUrl} alt="quoted" className="mt-2 rounded-lg max-h-64 object-cover" /> : null}
         </div>
@@ -86,6 +133,7 @@ export default function TimelineDetailPage() {
   const [rows, setRows] = useState<CommunityStreamMessage[]>([]);
   const [replyBody, setReplyBody] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+  const [mentionUidByToken, setMentionUidByToken] = useState<Record<string, string>>({});
 
   useEffect(() => {
     return subscribeTimelinePosts((next) => setRows(next.filter((row) => row.kind === "user")));
@@ -96,6 +144,60 @@ export default function TimelineDetailPage() {
     () => rows.filter((row) => row.replyToId === postId).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
     [rows, postId]
   );
+
+  const resolveMentionUid = useCallback(
+    async (token: string): Promise<string | null> => {
+      if (!token) return null;
+      if (/^\d{6,}$/.test(token)) return token;
+      if (mentionUidByToken[token]) return mentionUidByToken[token];
+      const profile = await fetchUserMiniProfileByDisplayName(token);
+      if (!profile?.uid) return null;
+      setMentionUidByToken((prev) => ({ ...prev, [token]: profile.uid }));
+      return profile.uid;
+    },
+    [mentionUidByToken]
+  );
+
+  const handleMentionNavigate = useCallback(
+    async (token: string) => {
+      const uid = await resolveMentionUid(token);
+      if (!uid) {
+        alert("ユーザーが見つかりませんでした");
+        return;
+      }
+      router.push(`/profile/${uid}`);
+    },
+    [resolveMentionUid, router]
+  );
+
+  useEffect(() => {
+    const mentionTokens = rows.flatMap((row) => {
+      const current = collectMentionsFromText(row.body || "");
+      const quoted = row.quote?.body ? collectMentionsFromText(row.quote.body) : [];
+      return [...current, ...quoted];
+    });
+    const unresolved = Array.from(new Set(mentionTokens))
+      .filter((token) => !/^\d{6,}$/.test(token) && !mentionUidByToken[token])
+      .slice(0, 80);
+    if (unresolved.length === 0) return;
+
+    let active = true;
+    void (async () => {
+      const updates: Record<string, string> = {};
+      await Promise.all(
+        unresolved.map(async (token) => {
+          const profile = await fetchUserMiniProfileByDisplayName(token);
+          if (profile?.uid) updates[token] = profile.uid;
+        })
+      );
+      if (!active || Object.keys(updates).length === 0) return;
+      setMentionUidByToken((prev) => ({ ...prev, ...updates }));
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [mentionUidByToken, rows]);
 
   const submitReply = async () => {
     if (!postId || !userProfile.uid || !replyBody.trim() || sendingReply) return;
@@ -159,7 +261,7 @@ export default function TimelineDetailPage() {
               <span>{formatTime(post.createdAt)}</span>
             </div>
             <p className="text-sm mt-2 whitespace-pre-wrap" style={{ color: "var(--foreground)" }}>
-              {post.isDeleted ? "この投稿は削除されました" : renderBodyWithMentions(post.body)}
+              {post.isDeleted ? "この投稿は削除されました" : renderBodyWithMentions(post.body, (token) => void handleMentionNavigate(token))}
             </p>
             {post.quote ? <QuoteCard quote={post.quote} /> : null}
             {post.messageType === "image" && post.imageUrl && !post.isDeleted && (
@@ -198,7 +300,7 @@ export default function TimelineDetailPage() {
                       <span>{formatTime(row.createdAt)}</span>
                     </div>
                     <p className="text-sm whitespace-pre-wrap mt-1" style={{ color: "var(--foreground)" }}>
-                      {row.isDeleted ? "この返信は削除されました" : renderBodyWithMentions(row.body)}
+                      {row.isDeleted ? "この返信は削除されました" : renderBodyWithMentions(row.body, (token) => void handleMentionNavigate(token))}
                     </p>
                     {row.quote ? <QuoteCard quote={row.quote} /> : null}
                   </div>

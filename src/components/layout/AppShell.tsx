@@ -489,7 +489,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             immersiveMode
               ? "w-full"
               : isTimerPage
-              ? "px-3 sm:px-5 lg:px-8 py-4 pt-16 w-full"
+              ? "px-3 sm:px-5 lg:px-8 py-4 pt-16 w-full max-w-screen-2xl mx-auto"
               : "px-3 sm:px-5 lg:px-8 py-4 pt-16 lg:pt-6 w-full"
           }
         >
