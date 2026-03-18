@@ -16,6 +16,67 @@ function formatTime(iso: string) {
   ).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+function renderBodyWithMentions(body: string) {
+  const lines = body.split("\n");
+  return lines.map((line, lineIndex) => {
+    const parts: React.ReactNode[] = [];
+    const mentionRegex = /@([A-Za-z0-9_]{2,32})/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = mentionRegex.exec(line)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(line.slice(lastIndex, match.index));
+      }
+      const uid = match[1];
+      parts.push(
+        <Link key={`${lineIndex}_${match.index}_${uid}`} href={`/profile/${uid}`} className="font-semibold hover:underline" style={{ color: "var(--accent)" }}>
+          @{uid}
+        </Link>
+      );
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < line.length) {
+      parts.push(line.slice(lastIndex));
+    }
+
+    return (
+      <React.Fragment key={`line_${lineIndex}`}>
+        {parts}
+        {lineIndex < lines.length - 1 ? <br /> : null}
+      </React.Fragment>
+    );
+  });
+}
+
+function QuoteCard({ quote }: { quote: NonNullable<CommunityStreamMessage["quote"]> }) {
+  const isAvatarImage = quote.avatar.startsWith("http") || quote.avatar.startsWith("data:");
+  return (
+    <Link
+      href={`/timeline/${quote.postId}`}
+      className="mt-2 block rounded-xl border px-3 py-2"
+      style={{ borderColor: "var(--glass-border)", background: "var(--card-bg)" }}
+    >
+      <div className="flex items-start gap-2">
+        <div className="w-7 h-7 rounded-full overflow-hidden inline-flex items-center justify-center" style={{ background: "var(--accent-light)" }}>
+          {isAvatarImage ? <img src={quote.avatar} alt={quote.name} className="w-full h-full object-cover" /> : quote.avatar}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="inline-flex items-center gap-1 text-[11px]" style={{ color: "var(--muted)" }}>
+            <span className="font-semibold" style={{ color: "var(--foreground)" }}>{quote.name}</span>
+            <OfficialMark uid={quote.uid} isOfficial={quote.isOfficial} size={11} />
+          </div>
+          <p className="text-sm whitespace-pre-wrap mt-1" style={{ color: "var(--foreground)" }}>
+            {quote.isDeleted ? "この投稿は削除されました" : renderBodyWithMentions(quote.body)}
+          </p>
+          {quote.imageUrl && !quote.isDeleted ? <img src={quote.imageUrl} alt="quoted" className="mt-2 rounded-lg max-h-64 object-cover" /> : null}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 export default function TimelineDetailPage() {
   const router = useRouter();
   const params = useParams<{ postId?: string | string[] }>();
@@ -98,8 +159,9 @@ export default function TimelineDetailPage() {
               <span>{formatTime(post.createdAt)}</span>
             </div>
             <p className="text-sm mt-2 whitespace-pre-wrap" style={{ color: "var(--foreground)" }}>
-              {post.isDeleted ? "この投稿は削除されました" : post.body}
+              {post.isDeleted ? "この投稿は削除されました" : renderBodyWithMentions(post.body)}
             </p>
+            {post.quote ? <QuoteCard quote={post.quote} /> : null}
             {post.messageType === "image" && post.imageUrl && !post.isDeleted && (
               <img src={post.imageUrl} alt="timeline" className="mt-2 rounded-lg max-h-80 object-cover" />
             )}
@@ -136,8 +198,9 @@ export default function TimelineDetailPage() {
                       <span>{formatTime(row.createdAt)}</span>
                     </div>
                     <p className="text-sm whitespace-pre-wrap mt-1" style={{ color: "var(--foreground)" }}>
-                      {row.isDeleted ? "この返信は削除されました" : row.body}
+                      {row.isDeleted ? "この返信は削除されました" : renderBodyWithMentions(row.body)}
                     </p>
+                    {row.quote ? <QuoteCard quote={row.quote} /> : null}
                   </div>
                 </div>
               </article>

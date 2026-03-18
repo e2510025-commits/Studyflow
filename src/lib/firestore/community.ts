@@ -43,6 +43,25 @@ function toIso(value: unknown): string {
   return new Date().toISOString();
 }
 
+function sanitizeQuoteSnapshot(value: unknown): CommunityStreamMessage["quote"] | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Record<string, unknown>;
+  const postId = String(raw.postId || "").trim();
+  const uid = String(raw.uid || "").trim();
+  if (!postId || !uid) return undefined;
+  return {
+    postId,
+    uid,
+    name: sanitizeDisplayName(String(raw.name || "匿名")),
+    avatar: sanitizeAvatar(String(raw.avatar || "👤")),
+    isOfficial: Boolean(raw.isOfficial),
+    body: String(raw.body || "").slice(0, 1200),
+    imageUrl: typeof raw.imageUrl === "string" ? raw.imageUrl : undefined,
+    isDeleted: Boolean(raw.isDeleted),
+    createdAt: toIso(raw.createdAt),
+  };
+}
+
 async function fetchIsOfficial(uid: string): Promise<boolean> {
   if (!uid) return false;
   try {
@@ -296,6 +315,8 @@ export function subscribeUserTimelinePosts(uid: string, callback: (rows: Communi
       body: String(data.body || ""),
       imageUrl: typeof data.imageUrl === "string" ? data.imageUrl : undefined,
       replyToId: typeof data.replyToId === "string" ? data.replyToId : undefined,
+      quotePostId: typeof data.quotePostId === "string" ? data.quotePostId : undefined,
+      quote: sanitizeQuoteSnapshot(data.quote),
       replyCount: Math.max(0, Number(data.replyCount || 0)),
       repostCount: Math.max(0, Number(data.repostCount || 0)),
       respectCount: Math.max(0, Number(data.respectCount || 0)),
@@ -371,6 +392,8 @@ export function subscribeTimelinePosts(callback: (rows: CommunityStreamMessage[]
           body: String(data.body || ""),
           imageUrl: typeof data.imageUrl === "string" ? data.imageUrl : undefined,
           replyToId: typeof data.replyToId === "string" ? data.replyToId : undefined,
+          quotePostId: typeof data.quotePostId === "string" ? data.quotePostId : undefined,
+          quote: sanitizeQuoteSnapshot(data.quote),
           replyCount: Math.max(0, Number(data.replyCount || 0)),
           repostCount: Math.max(0, Number(data.repostCount || 0)),
           respectCount: Math.max(0, Number(data.respectCount || 0)),
@@ -392,6 +415,7 @@ export async function sendTimelinePost(params: {
   avatar: string;
   body: string;
   replyToId?: string;
+  quoteTarget?: Pick<CommunityStreamMessage, "id" | "uid" | "name" | "avatar" | "isOfficial" | "body" | "imageUrl" | "isDeleted" | "createdAt">;
 }) {
   const body = params.body.trim();
   if (!params.uid || !body) return;
@@ -403,6 +427,20 @@ export async function sendTimelinePost(params: {
     avatar: sanitizeAvatar(params.avatar || "👤"),
     isOfficial,
     body: body.slice(0, 1200),
+    quotePostId: params.quoteTarget?.id || "",
+    quote: params.quoteTarget
+      ? {
+          postId: params.quoteTarget.id,
+          uid: params.quoteTarget.uid,
+          name: sanitizeDisplayName(params.quoteTarget.name || "匿名"),
+          avatar: sanitizeAvatar(params.quoteTarget.avatar || "👤"),
+          isOfficial: Boolean(params.quoteTarget.isOfficial),
+          body: String(params.quoteTarget.body || "").slice(0, 1200),
+          imageUrl: params.quoteTarget.imageUrl ? String(params.quoteTarget.imageUrl).slice(0, 700_000) : "",
+          isDeleted: Boolean(params.quoteTarget.isDeleted),
+          createdAt: params.quoteTarget.createdAt || new Date().toISOString(),
+        }
+      : null,
     messageType: "text",
     replyToId: params.replyToId || "",
     replyCount: 0,

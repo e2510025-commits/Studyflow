@@ -83,6 +83,18 @@ export interface CommunityStreamMessage {
   respectedByMe?: boolean;
   editedAt?: string;
   isDeleted?: boolean;
+  quotePostId?: string;
+  quote?: {
+    postId: string;
+    uid: string;
+    name: string;
+    avatar: string;
+    isOfficial?: boolean;
+    body: string;
+    imageUrl?: string;
+    isDeleted?: boolean;
+    createdAt: string;
+  };
   createdAt: string;
 }
 

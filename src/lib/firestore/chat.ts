@@ -7,6 +7,8 @@ import {
   query,
   where,
   onSnapshot,
+  orderBy,
+  limit,
   serverTimestamp,
   Timestamp,
   getDocs,
@@ -294,4 +296,58 @@ export async function deleteChatMessageFromFirestore(
       // ファイルが存在しない場合は無視
     }
   }
+}
+
+export async function fetchRecentChatPartnerUids(myUid: string, take = 20): Promise<string[]> {
+  if (!myUid) return [];
+  const safeTake = Math.max(5, Math.min(80, Math.floor(take)));
+
+  const [sentSnap, receivedSnap] = await Promise.all([
+    getDocs(
+      query(
+        collection(db, CHAT_COLLECTION),
+        where("fromUid", "==", myUid),
+        orderBy("createdAt", "desc"),
+        limit(safeTake)
+      )
+    ),
+    getDocs(
+      query(
+        collection(db, CHAT_COLLECTION),
+        where("toUid", "==", myUid),
+        orderBy("createdAt", "desc"),
+        limit(safeTake)
+      )
+    ),
+  ]);
+
+  const latestByUid = new Map<string, number>();
+
+  const collect = (docs: typeof sentSnap.docs, pickUid: (data: Record<string, unknown>) => string) => {
+    docs.forEach((d) => {
+      const data = d.data() as Record<string, unknown>;
+      const counterpartUid = pickUid(data);
+      if (!counterpartUid || counterpartUid === myUid) return;
+
+      const createdAtMs =
+        typeof data.createdAtMs === "number"
+          ? data.createdAtMs
+          : data.createdAt instanceof Timestamp
+          ? data.createdAt.toDate().getTime()
+          : Date.now();
+
+      const previous = latestByUid.get(counterpartUid) || 0;
+      if (createdAtMs > previous) {
+        latestByUid.set(counterpartUid, createdAtMs);
+      }
+    });
+  };
+
+  collect(sentSnap.docs, (data) => String(data.toUid || ""));
+  collect(receivedSnap.docs, (data) => String(data.fromUid || ""));
+
+  return Array.from(latestByUid.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, safeTake)
+    .map(([uid]) => uid);
 }

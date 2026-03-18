@@ -40,6 +40,13 @@ export interface ProfileActivityItem {
   detail?: string;
 }
 
+export interface UserMiniProfile {
+  uid: string;
+  name: string;
+  avatar: string;
+  isOfficial: boolean;
+}
+
 export async function saveDisplayProfile(params: {
   uid: string;
   name: string;
@@ -177,6 +184,31 @@ export async function fetchPublicProfile(uid: string): Promise<PublicProfile | n
     showFriendCount: typeof data.showFriendCount === "boolean" ? data.showFriendCount : true,
     helpfulReceived: typeof data.helpfulReceived === "number" ? data.helpfulReceived : 0,
   };
+}
+
+export async function fetchUserMiniProfilesByUids(uids: string[]): Promise<UserMiniProfile[]> {
+  const unique = Array.from(new Set(uids.filter(Boolean)));
+  if (unique.length === 0) return [];
+
+  const profiles = await Promise.all(
+    unique.map(async (uid) => {
+      try {
+        const snap = await getDoc(doc(db, "userProfiles", uid));
+        if (!snap.exists()) return null;
+        const data = snap.data();
+        return {
+          uid,
+          name: sanitizeDisplayName(data.name || "匿名"),
+          avatar: sanitizeAvatar(data.avatar || "👤"),
+          isOfficial: Boolean(data.isOfficial),
+        } satisfies UserMiniProfile;
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  return profiles.filter((row): row is UserMiniProfile => Boolean(row));
 }
 
 export async function updateEquippedBadges(uid: string, badges: string[]) {

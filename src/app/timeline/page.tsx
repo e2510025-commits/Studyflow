@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Clock3, Flag, Flame, ImagePlus, MessageCircle, MoreHorizontal, Pencil, Plus, Repeat2, Send, Trash2, Waves, X } from "lucide-react";
+import { Clock3, Flag, Flame, ImagePlus, MessageCircle, MoreHorizontal, Pencil, Plus, Repeat2, Send, Share2, Trash2, Waves, X } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import {
   deleteTimelinePost,
@@ -18,6 +18,9 @@ import {
   toggleTimelineRespect,
 } from "@/lib/firestore/community";
 import { submitViolationReport } from "@/lib/firestore/moderation";
+import { isAdminUid } from "@/lib/admin";
+import { fetchRecentChatPartnerUids } from "@/lib/firestore/chat";
+import { fetchFollowLists, fetchUserMiniProfilesByUids, type UserMiniProfile } from "@/lib/firestore/profile";
 import OfficialMark from "@/components/ui/OfficialMark";
 import ImageLightbox from "@/components/ui/ImageLightbox";
 import type { CommunityStreamMessage } from "@/types";
@@ -27,6 +30,114 @@ function formatTime(iso: string) {
   return `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")} ${String(
     d.getHours()
   ).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function renderBodyWithMentions(body: string, stopPropagation?: boolean) {
+  const lines = body.split("\n");
+  return lines.map((line, lineIndex) => {
+    const parts: React.ReactNode[] = [];
+    const mentionRegex = /@([A-Za-z0-9_]{2,32})/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = mentionRegex.exec(line)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(line.slice(lastIndex, match.index));
+      }
+      const uid = match[1];
+      parts.push(
+        <Link
+          key={`${lineIndex}_${match.index}_${uid}`}
+          href={`/profile/${uid}`}
+          className="font-semibold hover:underline"
+          style={{ color: "var(--accent)" }}
+          onClick={(event) => {
+            if (stopPropagation) event.stopPropagation();
+          }}
+        >
+          @{uid}
+        </Link>
+      );
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < line.length) {
+      parts.push(line.slice(lastIndex));
+    }
+
+    return (
+      <React.Fragment key={`line_${lineIndex}`}>
+        {parts}
+        {lineIndex < lines.length - 1 ? <br /> : null}
+      </React.Fragment>
+    );
+  });
+}
+
+function getMentionDraft(body: string, cursor: number): { start: number; query: string } | null {
+  const safeCursor = Math.max(0, Math.min(cursor, body.length));
+  const before = body.slice(0, safeCursor);
+  const atIndex = before.lastIndexOf("@");
+  if (atIndex < 0) return null;
+
+  const hasWhitespaceBefore = atIndex === 0 || /\s/.test(before[atIndex - 1]);
+  if (!hasWhitespaceBefore) return null;
+
+  const fragment = before.slice(atIndex + 1);
+  if (!/^[A-Za-z0-9_]*$/.test(fragment)) return null;
+  return { start: atIndex, query: fragment };
+}
+
+function renderQuoteNestedCard(
+  quote: NonNullable<CommunityStreamMessage["quote"]>,
+  options: {
+    router: ReturnType<typeof useRouter>;
+    onOpenImage: (url: string) => void;
+    compact?: boolean;
+  }
+) {
+  const isAvatarImage = quote.avatar.startsWith("http") || quote.avatar.startsWith("data:");
+  return (
+    <button
+      type="button"
+      className={`mt-2 w-full text-left rounded-xl border px-3 py-2 ${options.compact ? "text-xs" : "text-sm"}`}
+      style={{ borderColor: "var(--glass-border)", background: "var(--card-bg)" }}
+      onClick={(event) => {
+        event.stopPropagation();
+        options.router.push(`/timeline/${quote.postId}`);
+      }}
+      title="元の投稿を表示"
+    >
+      <div className="flex items-start gap-2">
+        <div
+          className="w-7 h-7 rounded-full overflow-hidden inline-flex items-center justify-center shrink-0"
+          style={{ background: "var(--accent-light)" }}
+        >
+          {isAvatarImage ? <img src={quote.avatar} alt={quote.name} className="w-full h-full object-cover" /> : quote.avatar}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="inline-flex items-center gap-1 text-[11px]" style={{ color: "var(--muted)" }}>
+            <span className="font-semibold" style={{ color: "var(--foreground)" }}>{quote.name}</span>
+            <OfficialMark uid={quote.uid} isOfficial={quote.isOfficial} size={11} />
+          </div>
+          <p className="whitespace-pre-wrap mt-1" style={{ color: "var(--foreground)" }}>
+            {quote.isDeleted ? "この投稿は削除されました" : renderBodyWithMentions(quote.body, true)}
+          </p>
+          {quote.imageUrl && !quote.isDeleted ? (
+            <img
+              src={quote.imageUrl}
+              alt="quoted"
+              className="mt-2 rounded-lg max-h-48 object-cover"
+              onClick={(event) => {
+                event.stopPropagation();
+                options.onOpenImage(quote.imageUrl || "");
+              }}
+            />
+          ) : null}
+        </div>
+      </div>
+    </button>
+  );
 }
 
 export default function TimelinePage() {
@@ -49,6 +160,12 @@ export default function TimelinePage() {
   const [reportReason, setReportReason] = useState("迷惑行為");
   const [reportDetail, setReportDetail] = useState("");
   const [reporting, setReporting] = useState(false);
+  const [repostMenuPostId, setRepostMenuPostId] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [mentionCandidates, setMentionCandidates] = useState<UserMiniProfile[]>([]);
+  const [mentionKeyword, setMentionKeyword] = useState("");
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const composeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     return subscribeTimelinePosts((next) => setRows(next.filter((row) => row.kind === "user")));
@@ -63,6 +180,60 @@ export default function TimelinePage() {
     if (!userProfile.uid) return;
     return subscribeMyLikedTimelinePostIds(userProfile.uid, setLikeIds);
   }, [userProfile.uid]);
+
+  useEffect(() => {
+    setIsAdmin(isAdminUid(userProfile.uid));
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/me", { cache: "no-store" });
+        if (!active) return;
+        if (response.ok) {
+          setIsAdmin(true);
+        }
+      } catch {
+        // ignore session check failure
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [userProfile.uid]);
+
+  useEffect(() => {
+    if (!composeOpen || !userProfile.uid) return;
+    let active = true;
+    void (async () => {
+      try {
+        const [followLists, recentChatUids] = await Promise.all([
+          fetchFollowLists(userProfile.uid, 180),
+          fetchRecentChatPartnerUids(userProfile.uid, 40),
+        ]);
+
+        const followingUids = followLists.following.map((row) => row.uid);
+        const candidateUids = Array.from(new Set([...followingUids, ...recentChatUids])).slice(0, 220);
+        const profiles = await fetchUserMiniProfilesByUids(candidateUids);
+        if (!active) return;
+
+        const priority = new Map<string, number>();
+        followingUids.forEach((uid, index) => priority.set(uid, index));
+
+        const sorted = [...profiles].sort((a, b) => {
+          const aPriority = priority.has(a.uid) ? priority.get(a.uid)! : 9_999;
+          const bPriority = priority.has(b.uid) ? priority.get(b.uid)! : 9_999;
+          if (aPriority !== bPriority) return aPriority - bPriority;
+          return a.name.localeCompare(b.name, "ja");
+        });
+        setMentionCandidates(sorted);
+      } catch {
+        if (!active) return;
+        setMentionCandidates([]);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [composeOpen, userProfile.uid]);
 
   const feed = useMemo(() => [...rows].slice(0, 120), [rows]);
 
@@ -109,12 +280,27 @@ export default function TimelinePage() {
           name: userProfile.name,
           avatar: userProfile.avatar,
           body: composeBody,
+          quoteTarget: quoteTarget
+            ? {
+                id: quoteTarget.id,
+                uid: quoteTarget.uid || "",
+                name: quoteTarget.name,
+                avatar: quoteTarget.avatar,
+                isOfficial: quoteTarget.isOfficial,
+                body: quoteTarget.body,
+                imageUrl: quoteTarget.imageUrl,
+                isDeleted: quoteTarget.isDeleted,
+                createdAt: quoteTarget.createdAt,
+              }
+            : undefined,
         });
       }
       setComposeBody("");
       setComposeImage("");
       setQuoteTarget(null);
       setComposeOpen(false);
+      setMentionOpen(false);
+      setMentionKeyword("");
     } finally {
       setSending(false);
     }
@@ -122,11 +308,8 @@ export default function TimelinePage() {
 
   const openQuoteComposer = (row: CommunityStreamMessage) => {
     setQuoteTarget(row);
-    setComposeBody((prev) => {
-      if (prev.trim()) return prev;
-      return `QT @${row.name}: ${row.body.slice(0, 160)}`;
-    });
     setComposeOpen(true);
+    setRepostMenuPostId("");
   };
 
   const saveEdit = async () => {
@@ -145,14 +328,82 @@ export default function TimelinePage() {
     }
   };
 
-  const removePost = async (postId: string) => {
+  const removePost = async (postId: string, ownPost: boolean) => {
     try {
-      await deleteTimelinePost({ postId, uid: userProfile.uid, mode: "soft" });
+      if (ownPost) {
+        await deleteTimelinePost({ postId, uid: userProfile.uid, mode: "soft" });
+      } else {
+        const response = await fetch("/api/admin/timeline/delete", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ postId }),
+        });
+        if (!response.ok) {
+          const body = (await response.json().catch(() => ({}))) as { error?: string };
+          throw new Error(body.error || "forbidden");
+        }
+      }
       setMenuPostId("");
     } catch (error) {
       const message = error instanceof Error ? error.message : "削除に失敗しました";
       alert(message);
     }
+  };
+
+  const sharePost = async (postId: string) => {
+    const url = `${window.location.origin}/timeline/${postId}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      alert("投稿リンクをコピーしました");
+    } catch {
+      alert("共有に失敗しました");
+    }
+  };
+
+  const handleComposerChange = (nextBody: string, cursor: number) => {
+    setComposeBody(nextBody);
+    const draft = getMentionDraft(nextBody, cursor);
+    if (!draft) {
+      setMentionOpen(false);
+      setMentionKeyword("");
+      return;
+    }
+    setMentionOpen(true);
+    setMentionKeyword(draft.query.toLowerCase());
+  };
+
+  const mentionResults = useMemo(() => {
+    if (!mentionOpen) return [];
+    if (!mentionKeyword) return mentionCandidates.slice(0, 8);
+    return mentionCandidates
+      .filter((row) => row.uid.toLowerCase().includes(mentionKeyword) || row.name.toLowerCase().includes(mentionKeyword))
+      .slice(0, 8);
+  }, [mentionOpen, mentionKeyword, mentionCandidates]);
+
+  const applyMention = (candidate: UserMiniProfile) => {
+    const textarea = composeTextareaRef.current;
+    if (!textarea) return;
+    const cursor = textarea.selectionStart || 0;
+    const draft = getMentionDraft(composeBody, cursor);
+    if (!draft) return;
+
+    const head = composeBody.slice(0, draft.start);
+    const tail = composeBody.slice(cursor);
+    const mentionText = `@${candidate.uid} `;
+    const merged = `${head}${mentionText}${tail}`;
+    setComposeBody(merged);
+    setMentionOpen(false);
+    setMentionKeyword("");
+
+    const nextCursor = head.length + mentionText.length;
+    window.requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(nextCursor, nextCursor);
+    });
   };
 
   const sendReport = async () => {
@@ -196,6 +447,7 @@ export default function TimelinePage() {
             const respectedByMe = respectIds.has(row.id);
             const likedByMe = likeIds.has(row.id);
             const isMine = row.uid === userProfile.uid;
+            const canDeleteThis = isMine || isAdmin;
             return (
               <motion.article
                 key={row.id}
@@ -275,10 +527,11 @@ export default function TimelinePage() {
                       </div>
                     ) : (
                       <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: "var(--foreground)" }}>
-                        {row.isDeleted ? "この投稿は削除されました" : row.body}
+                        {row.isDeleted ? "この投稿は削除されました" : renderBodyWithMentions(row.body, true)}
                         {row.editedAt && !row.isDeleted ? <span className="ml-1 text-[10px]" style={{ color: "var(--muted)" }}>(編集済み)</span> : null}
                       </p>
                     )}
+                    {row.quote ? renderQuoteNestedCard(row.quote, { router, onOpenImage: (url) => setLightboxUrl(url), compact: true }) : null}
                     {menuPostId === row.id && (
                       <div className="mt-2 flex flex-wrap items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         {isMine && !row.isDeleted && (
@@ -294,13 +547,13 @@ export default function TimelinePage() {
                             <Pencil size={11} /> 編集
                           </button>
                         )}
-                        {isMine && (
+                        {canDeleteThis && (
                           <button
-                            onClick={() => void removePost(row.id)}
+                            onClick={() => void removePost(row.id, isMine)}
                             className="px-2 py-1 rounded-md text-[11px] font-semibold inline-flex items-center gap-1"
                             style={{ background: "#ef444420", color: "#ef4444" }}
                           >
-                            <Trash2 size={11} /> 削除
+                            <Trash2 size={11} /> {isMine ? "削除" : "管理削除"}
                           </button>
                         )}
                         {!isMine && !row.isDeleted && (
@@ -328,13 +581,13 @@ export default function TimelinePage() {
                         }}
                       />
                     )}
-                    <div className="mt-2 flex items-center justify-between text-xs">
+                    <div className="mt-2 grid grid-cols-4 gap-2 text-xs" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           router.push(`/timeline/${row.id}`);
                         }}
-                        className="inline-flex items-center gap-1.5"
+                        className="inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg"
                         style={{ color: "var(--muted)" }}
                       >
                         <MessageCircle size={14} /> 返信 {Math.max(0, Number(row.replyCount || 0))}
@@ -342,34 +595,55 @@ export default function TimelinePage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          void toggleTimelineRespect({ postId: row.id, uid: userProfile.uid });
+                          setRepostMenuPostId((prev) => (prev === row.id ? "" : row.id));
                         }}
-                        className="inline-flex items-center gap-1.5"
+                        className="inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg"
                         style={{ color: respectedByMe ? "#0284c7" : "var(--muted)" }}
                       >
-                        <Repeat2 size={14} /> 拡散 {Math.max(0, Number(row.respectCount || 0))}
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openQuoteComposer(row);
-                        }}
-                        className="inline-flex items-center gap-1.5"
-                        style={{ color: "var(--muted)" }}
-                      >
-                        <Send size={14} /> 引用
+                        <Repeat2 size={14} /> リポスト {Math.max(0, Number(row.respectCount || 0))}
                       </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           void toggleTimelineLike({ postId: row.id, uid: userProfile.uid });
                         }}
-                        className="inline-flex items-center gap-1.5"
+                        className="inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg"
                         style={{ color: likedByMe ? "#f97316" : "var(--muted)" }}
                       >
-                        <Flame size={14} /> {Math.max(0, Number(row.likeCount || 0))}
+                        <Flame size={14} /> いいね {Math.max(0, Number(row.likeCount || 0))}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void sharePost(row.id);
+                        }}
+                        className="inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        <Share2 size={14} /> 共有
                       </button>
                     </div>
+                    {repostMenuPostId === row.id && (
+                      <div className="mt-2 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => {
+                            void toggleTimelineRespect({ postId: row.id, uid: userProfile.uid });
+                            setRepostMenuPostId("");
+                          }}
+                          className="px-2 py-1 rounded-md text-[11px] font-semibold inline-flex items-center gap-1"
+                          style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
+                        >
+                          <Repeat2 size={11} /> 通常リポスト
+                        </button>
+                        <button
+                          onClick={() => openQuoteComposer(row)}
+                          className="px-2 py-1 rounded-md text-[11px] font-semibold inline-flex items-center gap-1"
+                          style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                        >
+                          <Send size={11} /> 引用リポスト
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </motion.article>
@@ -427,17 +701,63 @@ export default function TimelinePage() {
                 <X size={16} />
               </button>
             </div>
+            {mentionOpen && mentionResults.length > 0 && (
+              <div className="rounded-xl border p-2 max-h-44 overflow-y-auto" style={{ background: "var(--card-bg)", borderColor: "var(--glass-border)" }}>
+                {mentionResults.map((candidate) => {
+                  const isAvatarImage = candidate.avatar.startsWith("http") || candidate.avatar.startsWith("data:");
+                  return (
+                    <button
+                      key={candidate.uid}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => applyMention(candidate)}
+                      className="w-full text-left px-2 py-1.5 rounded-lg flex items-center gap-2"
+                      style={{ color: "var(--foreground)" }}
+                    >
+                      <span className="w-7 h-7 rounded-full overflow-hidden inline-flex items-center justify-center" style={{ background: "var(--accent-light)" }}>
+                        {isAvatarImage ? <img src={candidate.avatar} alt={candidate.name} className="w-full h-full object-cover" /> : candidate.avatar}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold">
+                          {candidate.name}
+                          <OfficialMark uid={candidate.uid} isOfficial={candidate.isOfficial} size={11} />
+                        </span>
+                        <span className="block text-[11px]" style={{ color: "var(--muted)" }}>@{candidate.uid}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <textarea
+              ref={composeTextareaRef}
               value={composeBody}
-              onChange={(e) => setComposeBody(e.target.value.slice(0, 1200))}
+              onChange={(e) => {
+                const next = e.target.value.slice(0, 1200);
+                handleComposerChange(next, e.target.selectionStart || 0);
+              }}
               rows={5}
-              placeholder="いまどうしてる？"
+              placeholder="いまどうしてる？（@UID でメンション）"
               className="w-full px-3 py-2 rounded-xl text-sm resize-none"
               style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
             />
             {quoteTarget && (
-              <div className="rounded-lg p-2 text-xs" style={{ background: "var(--muted-bg)", color: "var(--muted)" }}>
-                引用中: @{quoteTarget.name} - {quoteTarget.body.slice(0, 120)}
+              <div>
+                <p className="text-xs mb-1" style={{ color: "var(--muted)" }}>引用リポスト元</p>
+                {renderQuoteNestedCard(
+                  {
+                    postId: quoteTarget.id,
+                    uid: quoteTarget.uid || "",
+                    name: quoteTarget.name,
+                    avatar: quoteTarget.avatar,
+                    isOfficial: quoteTarget.isOfficial,
+                    body: quoteTarget.body,
+                    imageUrl: quoteTarget.imageUrl,
+                    isDeleted: quoteTarget.isDeleted,
+                    createdAt: quoteTarget.createdAt,
+                  },
+                  { router, onOpenImage: (url) => setLightboxUrl(url), compact: true }
+                )}
               </div>
             )}
             {composeImage && (
