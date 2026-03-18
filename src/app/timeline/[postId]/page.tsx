@@ -17,6 +17,11 @@ function formatTime(iso: string) {
   ).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+function isVisibleTimelinePost(row: CommunityStreamMessage): boolean {
+  if (row.isDeleted) return false;
+  return (row.body || "").trim() !== "この投稿は削除されました";
+}
+
 const MENTION_REGEX = /@([A-Za-z0-9_\u3040-\u30ff\u3400-\u9fffー-]{2,32})/g;
 
 function collectMentionsFromText(body: string): string[] {
@@ -115,7 +120,7 @@ function QuoteCard({ quote }: { quote: NonNullable<CommunityStreamMessage["quote
             <OfficialMark uid={quote.uid} isOfficial={quote.isOfficial} size={11} />
           </div>
           <p className="text-sm whitespace-pre-wrap mt-1" style={{ color: "var(--foreground)" }}>
-            {quote.isDeleted ? "この投稿は削除されました" : renderBodyWithMentions(quote.body, (token) => void handleMentionNavigate(token))}
+            {quote.isDeleted ? "削除済み投稿" : renderBodyWithMentions(quote.body, (token) => void handleMentionNavigate(token))}
           </p>
           {quote.imageUrl && !quote.isDeleted ? <img src={quote.imageUrl} alt="quoted" className="mt-2 rounded-lg max-h-64 object-cover" /> : null}
         </div>
@@ -136,7 +141,9 @@ export default function TimelineDetailPage() {
   const [mentionUidByToken, setMentionUidByToken] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    return subscribeTimelinePosts((next) => setRows(next.filter((row) => row.kind === "user")));
+    return subscribeTimelinePosts((next) =>
+      setRows(next.filter((row) => row.kind === "user" && isVisibleTimelinePost(row)))
+    );
   }, []);
 
   const post = useMemo(() => rows.find((row) => row.id === postId) || null, [rows, postId]);
@@ -261,10 +268,10 @@ export default function TimelineDetailPage() {
               <span>{formatTime(post.createdAt)}</span>
             </div>
             <p className="text-sm mt-2 whitespace-pre-wrap" style={{ color: "var(--foreground)" }}>
-              {post.isDeleted ? "この投稿は削除されました" : renderBodyWithMentions(post.body, (token) => void handleMentionNavigate(token))}
+              {renderBodyWithMentions(post.body, (token) => void handleMentionNavigate(token))}
             </p>
             {post.quote ? <QuoteCard quote={post.quote} /> : null}
-            {post.messageType === "image" && post.imageUrl && !post.isDeleted && (
+            {post.messageType === "image" && post.imageUrl && (
               <img src={post.imageUrl} alt="timeline" className="mt-2 rounded-lg max-h-80 object-cover" />
             )}
             <p className="text-xs mt-2" style={{ color: "var(--muted)" }}>
@@ -300,7 +307,7 @@ export default function TimelineDetailPage() {
                       <span>{formatTime(row.createdAt)}</span>
                     </div>
                     <p className="text-sm whitespace-pre-wrap mt-1" style={{ color: "var(--foreground)" }}>
-                      {row.isDeleted ? "この返信は削除されました" : renderBodyWithMentions(row.body, (token) => void handleMentionNavigate(token))}
+                      {renderBodyWithMentions(row.body, (token) => void handleMentionNavigate(token))}
                     </p>
                     {row.quote ? <QuoteCard quote={row.quote} /> : null}
                   </div>

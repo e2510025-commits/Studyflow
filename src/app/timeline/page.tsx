@@ -37,6 +37,11 @@ function formatTime(iso: string) {
   ).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+function isVisibleTimelinePost(row: CommunityStreamMessage): boolean {
+  if (row.isDeleted) return false;
+  return (row.body || "").trim() !== "この投稿は削除されました";
+}
+
 const MENTION_REGEX = /@([A-Za-z0-9_\u3040-\u30ff\u3400-\u9fffー-]{2,32})/g;
 const MENTION_FRAGMENT_REGEX = /^[A-Za-z0-9_\u3040-\u30ff\u3400-\u9fffー-]*$/;
 
@@ -148,7 +153,7 @@ function renderQuoteNestedCard(
           </div>
           <p className="whitespace-pre-wrap mt-1" style={{ color: "var(--foreground)" }}>
             {quote.isDeleted
-              ? "この投稿は削除されました"
+              ? "削除済み投稿"
               : renderBodyWithMentions(quote.body, {
                   stopPropagation: true,
                   onMentionClick: options.onMentionClick,
@@ -200,7 +205,9 @@ export default function TimelinePage() {
   const composeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
-    return subscribeTimelinePosts((next) => setRows(next.filter((row) => row.kind === "user")));
+    return subscribeTimelinePosts((next) =>
+      setRows(next.filter((row) => row.kind === "user" && isVisibleTimelinePost(row)))
+    );
   }, []);
 
   useEffect(() => {
@@ -578,19 +585,17 @@ export default function TimelinePage() {
                       </Link>
                       <OfficialMark uid={row.uid} isOfficial={row.isOfficial} size={13} />
                       <span className="inline-flex items-center gap-1"><Clock3 size={12} /> {formatTime(row.createdAt)}</span>
-                      {!row.isDeleted && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setMenuPostId((prev) => (prev === row.id ? "" : row.id));
-                          }}
-                          className="ml-auto p-1 rounded-md"
-                          style={{ background: "var(--card-bg)", color: "var(--muted)" }}
-                          title="メニュー"
-                        >
-                          <MoreHorizontal size={14} />
-                        </button>
-                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMenuPostId((prev) => (prev === row.id ? "" : row.id));
+                        }}
+                        className="ml-auto p-1 rounded-md"
+                        style={{ background: "var(--card-bg)", color: "var(--muted)" }}
+                        title="メニュー"
+                      >
+                        <MoreHorizontal size={14} />
+                      </button>
                     </div>
                     {editingId === row.id ? (
                       <div className="mt-2 space-y-2">
@@ -627,15 +632,13 @@ export default function TimelinePage() {
                       </div>
                     ) : (
                       <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: "var(--foreground)" }}>
-                        {row.isDeleted
-                          ? "この投稿は削除されました"
-                          : renderBodyWithMentions(row.body, {
-                              stopPropagation: true,
-                              onMentionClick: (token) => {
-                                void handleMentionNavigate(token);
-                              },
-                            })}
-                        {row.editedAt && !row.isDeleted ? <span className="ml-1 text-[10px]" style={{ color: "var(--muted)" }}>(編集済み)</span> : null}
+                        {renderBodyWithMentions(row.body, {
+                          stopPropagation: true,
+                          onMentionClick: (token) => {
+                            void handleMentionNavigate(token);
+                          },
+                        })}
+                        {row.editedAt ? <span className="ml-1 text-[10px]" style={{ color: "var(--muted)" }}>(編集済み)</span> : null}
                       </p>
                     )}
                     {row.quote
@@ -650,7 +653,7 @@ export default function TimelinePage() {
                       : null}
                     {menuPostId === row.id && (
                       <div className="mt-2 flex flex-wrap items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                        {isMine && !row.isDeleted && (
+                        {isMine && (
                           <button
                             onClick={() => {
                               setEditingId(row.id);
@@ -672,7 +675,7 @@ export default function TimelinePage() {
                             <Trash2 size={11} /> {isMine ? "削除" : "管理削除"}
                           </button>
                         )}
-                        {!isMine && !row.isDeleted && (
+                        {!isMine && (
                           <button
                             onClick={() => {
                               setReportTarget(row);
@@ -686,7 +689,7 @@ export default function TimelinePage() {
                         )}
                       </div>
                     )}
-                    {row.messageType === "image" && row.imageUrl && !row.isDeleted && (
+                    {row.messageType === "image" && row.imageUrl && (
                       <img
                         src={row.imageUrl}
                         alt="timeline"

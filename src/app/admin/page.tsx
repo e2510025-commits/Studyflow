@@ -6,7 +6,7 @@ import AchievementManager from "@/components/admin/AchievementManager";
 import MissionManager from "@/components/admin/MissionManager";
 import SupportManager from "@/components/admin/SupportManager";
 
-type AdminSection = "overview" | "support" | "announcements" | "missions" | "achievements" | "users" | "reports";
+type AdminSection = "overview" | "support" | "announcements" | "missions" | "achievements" | "users" | "reports" | "timelineDeletes";
 
 interface AdminOverview {
   users: number;
@@ -66,6 +66,21 @@ interface AdminViolationReport {
   adminNote?: string;
 }
 
+interface AdminTimelineDeletionLog {
+  id: string;
+  postId: string;
+  postUid: string;
+  postUserName: string;
+  postUserAvatar: string;
+  postBody: string;
+  postImageUrl: string;
+  postCreatedAt: string;
+  deletedAt: string;
+  deletedByUid: string;
+  deletedByName: string;
+  deletedByAvatar: string;
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
@@ -91,6 +106,8 @@ export default function AdminPage() {
   const [savingVersion, setSavingVersion] = useState(false);
   const [reports, setReports] = useState<AdminViolationReport[]>([]);
   const [reportNote, setReportNote] = useState("");
+  const [timelineDeletionLogs, setTimelineDeletionLogs] = useState<AdminTimelineDeletionLog[]>([]);
+  const [loadingTimelineDeletionLogs, setLoadingTimelineDeletionLogs] = useState(false);
 
   const verifyAdmin = useCallback(async () => {
     setChecking(true);
@@ -147,6 +164,18 @@ export default function AdminPage() {
     setReports(json.reports || []);
   }, []);
 
+  const loadTimelineDeletionLogs = useCallback(async () => {
+    setLoadingTimelineDeletionLogs(true);
+    try {
+      const res = await fetch("/api/admin/timeline/deletions", { cache: "no-store" });
+      if (!res.ok) return;
+      const json = (await res.json()) as { logs: AdminTimelineDeletionLog[] };
+      setTimelineDeletionLogs(json.logs || []);
+    } finally {
+      setLoadingTimelineDeletionLogs(false);
+    }
+  }, []);
+
   useEffect(() => {
     void verifyAdmin();
   }, [verifyAdmin]);
@@ -158,7 +187,8 @@ export default function AdminPage() {
     void loadAnnouncements();
     void loadSettings();
     void loadReports();
-  }, [allowed, loadAnnouncements, loadOverview, loadReports, loadSettings, loadUsers]);
+    void loadTimelineDeletionLogs();
+  }, [allowed, loadAnnouncements, loadOverview, loadReports, loadSettings, loadTimelineDeletionLogs, loadUsers]);
 
   const saveSettings = useCallback(async () => {
     const version = appVersion.trim();
@@ -328,7 +358,7 @@ export default function AdminPage() {
         </p>
       </div>
 
-      <div className="glass-card p-2 grid grid-cols-2 sm:grid-cols-7 gap-2">
+      <div className="glass-card p-2 grid grid-cols-2 sm:grid-cols-8 gap-2">
         {[
           ["overview", "全体統計"],
           ["support", "お問い合わせ"],
@@ -337,6 +367,7 @@ export default function AdminPage() {
           ["achievements", "勲章"],
           ["users", "ユーザー管理"],
           ["reports", "違反報告"],
+          ["timelineDeletes", "削除履歴"],
         ].map(([key, label]) => (
           <button
             key={key}
@@ -693,6 +724,69 @@ export default function AdminPage() {
                       </button>
                     </div>
                   </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
+      {section === "timelineDeletes" && (
+        <section className="glass-card p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-bold" style={{ color: "var(--foreground)" }}>タイムライン削除履歴</h2>
+            <button
+              onClick={() => void loadTimelineDeletionLogs()}
+              className="ml-auto px-3 py-2 rounded-xl text-xs font-bold"
+              style={{ background: "var(--accent-light)", color: "var(--accent)" }}
+            >
+              更新
+            </button>
+          </div>
+
+          {loadingTimelineDeletionLogs ? (
+            <p className="text-sm" style={{ color: "var(--muted)" }}>読み込み中...</p>
+          ) : timelineDeletionLogs.length === 0 ? (
+            <p className="text-sm" style={{ color: "var(--muted)" }}>削除履歴はありません。</p>
+          ) : (
+            <div className="space-y-2 max-h-[620px] overflow-y-auto">
+              {timelineDeletionLogs.map((row) => {
+                const postAvatarIsImage = row.postUserAvatar.startsWith("http") || row.postUserAvatar.startsWith("data:");
+                const deleterAvatarIsImage = row.deletedByAvatar.startsWith("http") || row.deletedByAvatar.startsWith("data:");
+                return (
+                  <article key={row.id} className="rounded-xl p-3" style={{ background: "var(--muted-bg)" }}>
+                    <div className="flex flex-wrap items-center gap-3 text-xs" style={{ color: "var(--muted)" }}>
+                      <span>投稿日時: {new Date(row.postCreatedAt).toLocaleString("ja-JP")}</span>
+                      <span>削除日時: {new Date(row.deletedAt).toLocaleString("ja-JP")}</span>
+                    </div>
+
+                    <div className="mt-2 flex items-start gap-3">
+                      <span className="w-9 h-9 rounded-full overflow-hidden inline-flex items-center justify-center shrink-0" style={{ background: "var(--card-bg)" }}>
+                        {postAvatarIsImage ? <img src={row.postUserAvatar} alt={row.postUserName} className="w-full h-full object-cover" /> : row.postUserAvatar}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
+                          投稿者: {row.postUserName}
+                          <span className="ml-2 text-xs font-normal" style={{ color: "var(--muted)" }}>UID: {row.postUid}</span>
+                        </p>
+                        <p className="text-sm mt-1 whitespace-pre-wrap break-words" style={{ color: "var(--foreground)" }}>
+                          {row.postBody || "(本文なし)"}
+                        </p>
+                        {row.postImageUrl ? (
+                          <img src={row.postImageUrl} alt="deleted timeline" className="mt-2 rounded-lg max-h-44 object-cover" />
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="mt-2 pt-2 border-t flex items-center gap-2 text-xs" style={{ borderColor: "var(--card-border)", color: "var(--muted)" }}>
+                      <span className="w-7 h-7 rounded-full overflow-hidden inline-flex items-center justify-center shrink-0" style={{ background: "var(--card-bg)" }}>
+                        {deleterAvatarIsImage ? <img src={row.deletedByAvatar} alt={row.deletedByName} className="w-full h-full object-cover" /> : row.deletedByAvatar}
+                      </span>
+                      <span>
+                        削除者: {row.deletedByName} ({row.deletedByUid})
+                      </span>
+                    </div>
+                  </article>
                 );
               })}
             </div>

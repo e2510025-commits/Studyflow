@@ -289,7 +289,7 @@ export default function GlobalChatPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-4">
+    <div className="max-w-5xl mx-auto w-full h-[calc(100dvh-7.5rem)] sm:h-[calc(100dvh-7rem)] lg:h-[calc(100dvh-6.5rem)] flex flex-col gap-3 pb-[max(env(safe-area-inset-bottom),0.25rem)]">
       <div className="flex items-center gap-3">
         <RadioTower size={24} style={{ color: "var(--accent)" }} />
         <div>
@@ -300,7 +300,7 @@ export default function GlobalChatPage() {
         </div>
       </div>
 
-      <section className="glass-card p-4 h-[58vh] overflow-y-auto space-y-2">
+      <section className="glass-card p-3 sm:p-4 flex-1 min-h-0 overflow-y-auto space-y-2">
         {grouped.length === 0 ? (
           <p className="text-sm" style={{ color: "var(--muted)" }}>まだ投稿がありません。</p>
         ) : (
@@ -475,7 +475,7 @@ export default function GlobalChatPage() {
         )}
       </section>
 
-      <section className="glass-card p-3 flex items-end gap-2 relative">
+      <section className="glass-card p-3 flex items-end gap-2 relative shrink-0">
         <input
           type="file"
           id="global-chat-image-input"

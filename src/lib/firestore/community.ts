@@ -630,11 +630,15 @@ export async function deleteTimelinePost(params: {
     return;
   }
 
+  const deletedAt = new Date().toISOString();
+
   await updateDoc(ref, {
     body: "",
     imageUrl: "",
     isDeleted: true,
-    editedAt: new Date().toISOString(),
+    editedAt: deletedAt,
+    deletedAt,
+    deletedByUid: params.uid,
   });
 }
 
