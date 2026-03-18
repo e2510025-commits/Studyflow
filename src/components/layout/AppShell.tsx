@@ -88,8 +88,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     studyLogs,
   } = useStore();
   const pathname = usePathname();
-  const isBareRoute = BARE_ROUTES.includes(pathname);
-  const isTimerPage = pathname === "/timer";
+  const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
+  const isBareRoute = BARE_ROUTES.includes(normalizedPathname);
+  const isTimerPage = normalizedPathname === "/timer" || normalizedPathname.startsWith("/timer/");
 
   // Sidebar hover-reveal on timer page
   const [sidebarPeek, setSidebarPeek] = useState(false);

@@ -22,6 +22,7 @@ import { isAdminUid } from "@/lib/admin";
 import { fetchRecentChatPartnerUids } from "@/lib/firestore/chat";
 import {
   fetchFollowLists,
+  fetchUserMiniProfilesByNamePrefix,
   fetchUserMiniProfileByDisplayName,
   fetchUserMiniProfilesByUids,
   type UserMiniProfile,
@@ -44,6 +45,7 @@ function isVisibleTimelinePost(row: CommunityStreamMessage): boolean {
 
 const MENTION_REGEX = /@([A-Za-z0-9_\u3040-\u30ff\u3400-\u9fffー-]{2,32})/g;
 const MENTION_FRAGMENT_REGEX = /^[A-Za-z0-9_\u3040-\u30ff\u3400-\u9fffー-]*$/;
+const MENTION_TOKEN_CHAR_REGEX = /[A-Za-z0-9_\u3040-\u30ff\u3400-\u9fffー-]/;
 
 function collectMentionsFromText(body: string): string[] {
   const ids = new Set<string>();
@@ -110,8 +112,7 @@ function getMentionDraft(body: string, cursor: number): { start: number; query: 
   const atIndex = before.lastIndexOf("@");
   if (atIndex < 0) return null;
 
-  const hasWhitespaceBefore = atIndex === 0 || /\s/.test(before[atIndex - 1]);
-  if (!hasWhitespaceBefore) return null;
+  if (atIndex > 0 && MENTION_TOKEN_CHAR_REGEX.test(before[atIndex - 1])) return null;
 
   const fragment = before.slice(atIndex + 1);
   if (!MENTION_FRAGMENT_REGEX.test(fragment)) return null;
@@ -202,6 +203,7 @@ export default function TimelinePage() {
   const [mentionKeyword, setMentionKeyword] = useState("");
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionUidByToken, setMentionUidByToken] = useState<Record<string, string>>({});
+  const [remoteMentionCandidates, setRemoteMentionCandidates] = useState<UserMiniProfile[]>([]);
   const composeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -484,10 +486,39 @@ export default function TimelinePage() {
   const mentionResults = useMemo(() => {
     if (!mentionOpen) return [];
     if (!mentionKeyword) return mentionCandidates.slice(0, 8);
-    return mentionCandidates
+    const local = mentionCandidates
       .filter((row) => row.uid.toLowerCase().includes(mentionKeyword) || row.name.toLowerCase().includes(mentionKeyword))
       .slice(0, 8);
-  }, [mentionOpen, mentionKeyword, mentionCandidates]);
+
+    const merged = [...local];
+    remoteMentionCandidates.forEach((row) => {
+      if (!merged.some((existing) => existing.uid === row.uid)) {
+        merged.push(row);
+      }
+    });
+    return merged.slice(0, 8);
+  }, [mentionOpen, mentionKeyword, mentionCandidates, remoteMentionCandidates]);
+
+  useEffect(() => {
+    if (!mentionOpen || !mentionKeyword) {
+      setRemoteMentionCandidates([]);
+      return;
+    }
+
+    let active = true;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const candidates = await fetchUserMiniProfilesByNamePrefix(mentionKeyword, 8);
+        if (!active) return;
+        setRemoteMentionCandidates(candidates);
+      })();
+    }, 120);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [mentionKeyword, mentionOpen]);
 
   const applyMention = (candidate: UserMiniProfile) => {
     const textarea = composeTextareaRef.current;

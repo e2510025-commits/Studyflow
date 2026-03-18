@@ -3,12 +3,15 @@ import {
   collection,
   deleteDoc,
   doc,
+  endAt,
   getDoc,
   getDocs,
+  orderBy,
   onSnapshot,
   query,
   limit,
   serverTimestamp,
+  startAt,
   setDoc,
   where,
 } from "firebase/firestore";
@@ -230,6 +233,37 @@ export async function fetchUserMiniProfileByDisplayName(displayName: string): Pr
     };
   } catch {
     return null;
+  }
+}
+
+export async function fetchUserMiniProfilesByNamePrefix(prefix: string, take = 8): Promise<UserMiniProfile[]> {
+  const safePrefix = sanitizeDisplayName(prefix || "").trim();
+  if (!safePrefix) return [];
+
+  try {
+    const snap = await getDocs(
+      query(
+        collection(db, "userProfiles"),
+        orderBy("name"),
+        startAt(safePrefix),
+        endAt(`${safePrefix}\uf8ff`),
+        limit(Math.max(1, Math.min(20, take)))
+      )
+    );
+
+    return snap.docs
+      .map((row) => {
+        const data = row.data();
+        return {
+          uid: String(data.uid || row.id || ""),
+          name: sanitizeDisplayName(data.name || "匿名"),
+          avatar: sanitizeAvatar(data.avatar || "👤"),
+          isOfficial: Boolean(data.isOfficial),
+        } satisfies UserMiniProfile;
+      })
+      .filter((row) => row.uid);
+  } catch {
+    return [];
   }
 }
 

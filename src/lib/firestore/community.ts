@@ -374,8 +374,8 @@ export function subscribeUserTimelinePosts(uid: string, callback: (rows: Communi
   };
 }
 
-export function subscribeTimelinePosts(callback: (rows: CommunityStreamMessage[]) => void) {
-  const q = query(collection(db, TIMELINE_POSTS), orderBy("createdAt", "desc"), limit(140));
+export function subscribeTimelinePosts(callback: (rows: CommunityStreamMessage[]) => void, take = 140) {
+  const q = query(collection(db, TIMELINE_POSTS), orderBy("createdAt", "desc"), limit(Math.max(20, Math.min(800, take))));
   return onSnapshot(
     q,
     (snapshot) => {

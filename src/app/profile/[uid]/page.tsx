@@ -94,6 +94,11 @@ function normalizeSearchText(text: string): string {
   return text.trim().toLowerCase();
 }
 
+function isVisibleTimelinePost(row: CommunityStreamMessage): boolean {
+  if (row.isDeleted) return false;
+  return (row.body || "").trim() !== "この投稿は削除されました";
+}
+
 function calcRadarValues(heatmap: Record<string, number>): number[] {
   const bins = [0, 0, 0, 0, 0, 0, 0];
   Object.entries(heatmap).forEach(([key, sec]) => {
@@ -334,7 +339,7 @@ export default function PublicProfilePage() {
 
   useEffect(() => {
     if (!uid) return;
-    return subscribeUserTimelinePosts(uid, setTimelineRows);
+    return subscribeUserTimelinePosts(uid, (rows) => setTimelineRows(rows.filter(isVisibleTimelinePost)));
   }, [uid]);
 
   useEffect(() => {
@@ -342,7 +347,10 @@ export default function PublicProfilePage() {
       setAllTimelineRows([]);
       return;
     }
-    return subscribeTimelinePosts((rows) => setAllTimelineRows(rows.filter((row) => row.kind === "user")));
+    return subscribeTimelinePosts(
+      (rows) => setAllTimelineRows(rows.filter((row) => row.kind === "user" && isVisibleTimelinePost(row))),
+      600
+    );
   }, [isSelf]);
 
   useEffect(() => {
@@ -404,17 +412,22 @@ export default function PublicProfilePage() {
   }, [heatmap]);
 
   const profileTimelineRows = useMemo(() => {
-    const ownItems = timelineRows.map((row) => ({ row, activityType: "post" as const }));
+    const ownSourceRows = (isSelf
+      ? allTimelineRows.filter((row) => (row.uid || "") === uid)
+      : timelineRows
+    ).filter(isVisibleTimelinePost);
+
+    const ownItems = ownSourceRows.map((row) => ({ row, activityType: "post" as const }));
     const ownPosts = ownItems.filter((item) => !item.row.replyToId);
     const ownReplies = ownItems.filter((item) => Boolean(item.row.replyToId));
     const repostItems = isSelf
       ? allTimelineRows
-          .filter((row) => viewerRespectIds.has(row.id) && row.uid !== uid)
+          .filter((row) => isVisibleTimelinePost(row) && viewerRespectIds.has(row.id) && row.uid !== uid)
           .map((row) => ({ row, activityType: "spread" as const }))
       : [];
     const likedItems = isSelf
       ? allTimelineRows
-          .filter((row) => viewerLikeIds.has(row.id))
+          .filter((row) => isVisibleTimelinePost(row) && viewerLikeIds.has(row.id))
           .map((row) => ({ row, activityType: "like" as const }))
       : [];
 
@@ -904,7 +917,7 @@ export default function PublicProfilePage() {
                     {item.activityType === "spread" ? <span>・拡散</span> : null}
                   </p>
                   <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: "var(--foreground)" }}>
-                    {row.isDeleted ? "この投稿は削除されました" : row.body}
+                    {row.body}
                   </p>
                   {row.messageType === "image" && row.imageUrl && (
                     <img
