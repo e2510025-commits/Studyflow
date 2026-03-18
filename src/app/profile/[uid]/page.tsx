@@ -29,6 +29,7 @@ import {
   subscribeMyRespectedTimelinePostIds,
   subscribeTimelinePosts,
   subscribeUserTimelinePosts,
+  toggleTimelineLike,
   toggleTimelineRespect,
 } from "@/lib/firestore/community";
 import { subscribeActiveStudyUsers } from "@/lib/firestore/focusRoom";
@@ -40,7 +41,7 @@ import {
 } from "@/lib/firestore/presence";
 import { getAchievementMeta } from "@/lib/achievements";
 import { formatHoursMinutes } from "@/lib/utils";
-import { Flame, PenLine, Search, Send, Sparkles, UserRound } from "lucide-react";
+import { Clock3, Flame, MessageCircle, PenLine, Repeat2, Search, Send, Share2, UserRound } from "lucide-react";
 import OfficialMark from "@/components/ui/OfficialMark";
 import ImageLightbox from "@/components/ui/ImageLightbox";
 import type { CommunityStreamMessage } from "@/types";
@@ -422,7 +423,7 @@ export default function PublicProfilePage() {
     const ownReplies = ownItems.filter((item) => Boolean(item.row.replyToId));
     const repostItems = isSelf
       ? allTimelineRows
-          .filter((row) => isVisibleTimelinePost(row) && viewerRespectIds.has(row.id) && row.uid !== uid)
+          .filter((row) => isVisibleTimelinePost(row) && viewerRespectIds.has(row.id))
           .map((row) => ({ row, activityType: "spread" as const }))
       : [];
     const likedItems = isSelf
@@ -611,6 +612,20 @@ export default function PublicProfilePage() {
       setComposerImage("");
     } finally {
       setPostingTimeline(false);
+    }
+  };
+
+  const shareTimelinePost = async (postId: string) => {
+    const url = `${window.location.origin}/timeline/${postId}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      alert("投稿リンクをコピーしました");
+    } catch {
+      alert("共有に失敗しました");
     }
   };
 
@@ -905,45 +920,72 @@ export default function PublicProfilePage() {
             profileTimelineRows.slice(0, 60).map((item) => {
               const row = item.row;
               const respectedByMe = viewerRespectIds.has(row.id);
+              const likedByMe = viewerLikeIds.has(row.id);
+              const isAvatarImage = row.avatar.startsWith("http") || row.avatar.startsWith("data:");
               return (
-                <article key={row.id} className="rounded-xl p-3" style={{ background: "var(--muted-bg)" }}>
-                  <p className="text-[11px] inline-flex items-center gap-1" style={{ color: "var(--muted)" }}>
-                    <Link href={`/profile/${row.uid}`} className="hover:underline" style={{ color: "var(--foreground)" }}>
-                      {row.name}
+                <article key={`${item.activityType}_${row.id}`} className="rounded-xl p-3" style={{ background: "var(--muted-bg)" }}>
+                  <div className="flex items-start gap-3">
+                    <Link
+                      href={`/profile/${row.uid}`}
+                      className="w-9 h-9 rounded-full overflow-hidden inline-flex items-center justify-center"
+                      style={{ background: "var(--accent-light)" }}
+                    >
+                      {isAvatarImage ? <img src={row.avatar} alt={row.name} className="w-full h-full object-cover" /> : row.avatar}
                     </Link>
-                    <OfficialMark uid={row.uid} isOfficial={row.isOfficial} size={11} />
-                    <span>{formatRelativeTime(row.createdAt)}</span>
-                    {row.replyToId ? <span>・返信</span> : null}
-                    {item.activityType === "spread" ? <span>・拡散</span> : null}
-                  </p>
-                  <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: "var(--foreground)" }}>
-                    {row.body}
-                  </p>
-                  {row.messageType === "image" && row.imageUrl && (
-                    <img
-                      src={row.imageUrl}
-                      alt="timeline-media"
-                      className="mt-2 rounded-lg max-h-64 object-cover cursor-zoom-in"
-                      onClick={() => setLightboxUrl(row.imageUrl || null)}
-                    />
-                  )}
-                  <button
-                    onClick={() => void toggleTimelineRespect({ postId: row.id, uid: userProfile.uid })}
-                    className="mt-2 px-2.5 py-1 rounded-lg text-xs font-semibold inline-flex items-center gap-1"
-                    style={{
-                      background: respectedByMe ? "rgba(14,165,233,0.18)" : "var(--card-bg)",
-                      color: respectedByMe ? "#0284c7" : "var(--muted)",
-                    }}
-                  >
-                    <Sparkles size={12} /> 拡散 {Math.max(0, Number(row.respectCount || 0))}
-                  </button>
-                  <Link
-                    href={`/timeline/${row.id}`}
-                    className="mt-2 ml-2 px-2.5 py-1 rounded-lg text-xs font-semibold inline-flex items-center gap-1"
-                    style={{ background: "var(--card-bg)", color: "var(--muted)" }}
-                  >
-                    返信を見る
-                  </Link>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 text-xs" style={{ color: "var(--muted)" }}>
+                        <Link href={`/profile/${row.uid}`} className="font-semibold hover:underline" style={{ color: "var(--foreground)" }}>
+                          {row.name}
+                        </Link>
+                        <OfficialMark uid={row.uid} isOfficial={row.isOfficial} size={13} />
+                        <span className="inline-flex items-center gap-1"><Clock3 size={12} /> {formatRelativeTime(row.createdAt)}</span>
+                        {row.replyToId ? <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--card-bg)" }}>返信</span> : null}
+                        {item.activityType === "spread" ? <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "rgba(14,165,233,0.16)", color: "#0284c7" }}>リポスト</span> : null}
+                        {item.activityType === "like" ? <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "rgba(249,115,22,0.16)", color: "#f97316" }}>いいね</span> : null}
+                      </div>
+                      <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: "var(--foreground)" }}>
+                        {row.body}
+                      </p>
+                      {row.messageType === "image" && row.imageUrl && (
+                        <img
+                          src={row.imageUrl}
+                          alt="timeline-media"
+                          className="mt-2 rounded-lg max-h-64 object-cover cursor-zoom-in"
+                          onClick={() => setLightboxUrl(row.imageUrl || null)}
+                        />
+                      )}
+                      <div className="mt-2 grid grid-cols-4 gap-2 text-xs">
+                        <Link
+                          href={`/timeline/${row.id}`}
+                          className="inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg"
+                          style={{ color: "var(--muted)" }}
+                        >
+                          <MessageCircle size={14} /> 返信 {Math.max(0, Number(row.replyCount || 0))}
+                        </Link>
+                        <button
+                          onClick={() => void toggleTimelineRespect({ postId: row.id, uid: userProfile.uid })}
+                          className="inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg"
+                          style={{ color: respectedByMe ? "#0284c7" : "var(--muted)" }}
+                        >
+                          <Repeat2 size={14} /> リポスト {Math.max(0, Number(row.respectCount || 0))}
+                        </button>
+                        <button
+                          onClick={() => void toggleTimelineLike({ postId: row.id, uid: userProfile.uid })}
+                          className="inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg"
+                          style={{ color: likedByMe ? "#f97316" : "var(--muted)" }}
+                        >
+                          <Flame size={14} /> いいね {Math.max(0, Number(row.likeCount || 0))}
+                        </button>
+                        <button
+                          onClick={() => void shareTimelinePost(row.id)}
+                          className="inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg"
+                          style={{ color: "var(--muted)" }}
+                        >
+                          <Share2 size={14} /> 共有
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </article>
               );
             })

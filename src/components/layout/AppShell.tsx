@@ -91,6 +91,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
   const isBareRoute = BARE_ROUTES.includes(normalizedPathname);
   const isTimerPage = normalizedPathname === "/timer" || normalizedPathname.startsWith("/timer/");
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const useTimerPeekSidebar = isTimerPage && !isTouchDevice;
 
   // Sidebar hover-reveal on timer page
   const [sidebarPeek, setSidebarPeek] = useState(false);
@@ -98,14 +100,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [awardQueue, setAwardQueue] = useState<string[]>([]);
   const [currentAward, setCurrentAward] = useState<string | null>(null);
   const announcedAwardsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (typeof navigator === "undefined") return;
+    setIsTouchDevice((navigator.maxTouchPoints || 0) > 0);
+  }, []);
+
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (e.clientX <= 12) setSidebarPeek(true);
   }, []);
   useEffect(() => {
-    if (!isTimerPage) return;
+    if (!useTimerPeekSidebar) return;
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, [isTimerPage, handleMouseMove]);
+  }, [useTimerPeekSidebar, handleMouseMove]);
 
   useEffect(() => {
     initializeDefaults();
@@ -430,7 +438,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* Sidebar: on timer page, auto-hide with hover-reveal */}
       {!immersiveMode && (
         <>
-          {isTimerPage ? (
+          {useTimerPeekSidebar ? (
             <>
               {/* Invisible hover zone on left edge */}
               <div
@@ -480,7 +488,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         className={
           immersiveMode
             ? "min-h-screen"
-            : isTimerPage
+            : useTimerPeekSidebar
             ? "min-h-screen transition-all duration-700"
             : "lg:pl-72 min-h-screen transition-all duration-700"
         }
@@ -489,7 +497,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           className={
             immersiveMode
               ? "w-full"
-              : isTimerPage
+              : useTimerPeekSidebar
               ? "px-3 sm:px-5 lg:px-8 py-4 pt-16 w-full max-w-screen-2xl mx-auto"
               : "px-3 sm:px-5 lg:px-8 py-4 pt-16 lg:pt-6 w-full"
           }

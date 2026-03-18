@@ -19,6 +19,7 @@ import {
 import { db } from "@/lib/firebase";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 import { getAchievementMeta } from "@/lib/achievements";
+import { sendUserNotification } from "@/lib/firestore/notifications";
 import type {
   BulletinCategory,
   BulletinPost,
@@ -36,6 +37,7 @@ const BULLETIN_HELPFULS = "bulletinHelpfuls";
 const BULLETIN_THREADS = "bulletinThreadMessages";
 const GLOBAL_STREAM_RESPECTS = "globalStreamRespects";
 const BULLETIN_ALLOWED_CATEGORIES: BulletinCategory[] = ["qa", "tips", "chat", "ops"];
+const MENTION_REGEX = /@([A-Za-z0-9_\u3040-\u30ff\u3400-\u9fffー-]{2,32})/g;
 
 function toIso(value: unknown): string {
   if (value instanceof Timestamp) return value.toDate().toISOString();
@@ -69,6 +71,71 @@ async function fetchIsOfficial(uid: string): Promise<boolean> {
     return snap.exists() ? Boolean(snap.data().isOfficial) : false;
   } catch {
     return false;
+  }
+}
+
+function collectMentionTokens(body: string): string[] {
+  const tokens = new Set<string>();
+  const regex = new RegExp(MENTION_REGEX.source, "g");
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(body)) !== null) {
+    const token = String(match[1] || "").trim();
+    if (token) tokens.add(token);
+  }
+  return Array.from(tokens);
+}
+
+async function resolveMentionUid(token: string): Promise<string | null> {
+  if (!token) return null;
+  if (/^\d{6,}$/.test(token)) return token;
+
+  const safeName = sanitizeDisplayName(token);
+  if (!safeName) return null;
+
+  const snap = await getDocs(
+    query(collection(db, "userProfiles"), where("name", "==", safeName), limit(1))
+  );
+  if (snap.empty) return null;
+  const row = snap.docs[0];
+  const data = row.data();
+  return String(data.uid || row.id || "") || null;
+}
+
+async function notifyTimelineMentions(params: {
+  body: string;
+  actorUid: string;
+  actorName: string;
+  postId: string;
+}) {
+  const tokens = collectMentionTokens(params.body).slice(0, 12);
+  if (tokens.length === 0) return;
+
+  const mentionUids = await Promise.all(tokens.map((token) => resolveMentionUid(token)));
+  const targets = Array.from(new Set(mentionUids.filter((uid): uid is string => Boolean(uid)))).filter(
+    (uid) => uid !== params.actorUid
+  );
+  if (targets.length === 0) return;
+
+  await Promise.all(
+    targets.map((toUid) =>
+      sendUserNotification({
+        toUid,
+        type: "mention",
+        title: "メンションされました",
+        body: `${params.actorName} さんがあなたをメンションしました`,
+        link: `/timeline/${params.postId}`,
+      }).catch(() => {})
+    )
+  );
+}
+
+async function fetchActorName(uid: string): Promise<string> {
+  try {
+    const snap = await getDoc(doc(db, "userProfiles", uid));
+    if (!snap.exists()) return "匿名";
+    return sanitizeDisplayName(String(snap.data().name || "匿名"));
+  } catch {
+    return "匿名";
   }
 }
 
@@ -420,10 +487,11 @@ export async function sendTimelinePost(params: {
   const body = params.body.trim();
   if (!params.uid || !body) return;
   const isOfficial = await fetchIsOfficial(params.uid);
+  const actorName = sanitizeDisplayName(params.name || "匿名");
   const payload = {
     uid: params.uid,
     userId: params.uid,
-    name: sanitizeDisplayName(params.name || "匿名"),
+    name: actorName,
     avatar: sanitizeAvatar(params.avatar || "👤"),
     isOfficial,
     body: body.slice(0, 1200),
@@ -450,24 +518,46 @@ export async function sendTimelinePost(params: {
     createdAt: serverTimestamp(),
   };
 
+  let createdPostId = "";
+
   if (!params.replyToId) {
-    await addDoc(collection(db, TIMELINE_POSTS), payload);
-    return;
+    const newDoc = await addDoc(collection(db, TIMELINE_POSTS), payload);
+    createdPostId = newDoc.id;
+  } else {
+    const replyRef = doc(collection(db, TIMELINE_POSTS));
+    const parentRef = doc(db, TIMELINE_POSTS, params.replyToId);
+    await runTransaction(db, async (tx) => {
+      const parentSnap = await tx.get(parentRef);
+      if (!parentSnap.exists()) {
+        tx.set(replyRef, payload);
+        return;
+      }
+
+      tx.set(replyRef, payload);
+      const nextReplyCount = Math.max(0, Number(parentSnap.data().replyCount || 0)) + 1;
+      tx.set(parentRef, { replyCount: nextReplyCount }, { merge: true });
+    });
+    createdPostId = replyRef.id;
   }
 
-  const replyRef = doc(collection(db, TIMELINE_POSTS));
-  const parentRef = doc(db, TIMELINE_POSTS, params.replyToId);
-  await runTransaction(db, async (tx) => {
-    const parentSnap = await tx.get(parentRef);
-    if (!parentSnap.exists()) {
-      tx.set(replyRef, payload);
-      return;
-    }
+  if (createdPostId) {
+    await notifyTimelineMentions({
+      body,
+      actorUid: params.uid,
+      actorName,
+      postId: createdPostId,
+    }).catch(() => {});
+  }
 
-    tx.set(replyRef, payload);
-    const nextReplyCount = Math.max(0, Number(parentSnap.data().replyCount || 0)) + 1;
-    tx.set(parentRef, { replyCount: nextReplyCount }, { merge: true });
-  });
+  if (params.quoteTarget?.uid && params.quoteTarget.uid !== params.uid && createdPostId) {
+    await sendUserNotification({
+      toUid: params.quoteTarget.uid,
+      type: "repost",
+      title: "引用リポストされました",
+      body: `${actorName} さんがあなたの投稿を引用しました`,
+      link: `/timeline/${createdPostId}`,
+    }).catch(() => {});
+  }
 }
 
 export async function sendTimelineImagePost(params: {
@@ -480,13 +570,15 @@ export async function sendTimelineImagePost(params: {
   const imageUrl = params.imageUrl.trim();
   if (!params.uid || !imageUrl) return;
   const isOfficial = await fetchIsOfficial(params.uid);
-  await addDoc(collection(db, TIMELINE_POSTS), {
+  const actorName = sanitizeDisplayName(params.name || "匿名");
+  const caption = (params.caption || "").trim().slice(0, 1200);
+  const created = await addDoc(collection(db, TIMELINE_POSTS), {
     uid: params.uid,
     userId: params.uid,
-    name: sanitizeDisplayName(params.name || "匿名"),
+    name: actorName,
     avatar: sanitizeAvatar(params.avatar || "👤"),
     isOfficial,
-    body: (params.caption || "").trim().slice(0, 1200),
+    body: caption,
     imageUrl: imageUrl.slice(0, 700_000),
     messageType: "image",
     replyCount: 0,
@@ -495,6 +587,15 @@ export async function sendTimelineImagePost(params: {
     likeCount: 0,
     createdAt: serverTimestamp(),
   });
+
+  if (caption) {
+    await notifyTimelineMentions({
+      body: caption,
+      actorUid: params.uid,
+      actorName,
+      postId: created.id,
+    }).catch(() => {});
+  }
 }
 
 function timelineReactDocId(postId: string, uid: string) {
@@ -547,38 +648,68 @@ export async function toggleTimelineRespect(params: { postId: string; uid: strin
   if (!params.postId || !params.uid) return;
   const postRef = doc(db, TIMELINE_POSTS, params.postId);
   const reactRef = doc(db, TIMELINE_POST_RESPECTS, timelineReactDocId(params.postId, params.uid));
+  let added = false;
+  let ownerUid = "";
 
   await runTransaction(db, async (tx) => {
     const [postSnap, reactSnap] = await Promise.all([tx.get(postRef), tx.get(reactRef)]);
     if (!postSnap.exists()) return;
+    ownerUid = String(postSnap.data().uid || postSnap.data().userId || "");
     const current = Math.max(0, Number(postSnap.data().respectCount || 0));
     if (reactSnap.exists()) {
       tx.delete(reactRef);
       tx.set(postRef, { respectCount: Math.max(0, current - 1) }, { merge: true });
       return;
     }
+    added = true;
     tx.set(reactRef, { postId: params.postId, uid: params.uid, createdAt: serverTimestamp() });
     tx.set(postRef, { respectCount: current + 1 }, { merge: true });
   });
+
+  if (added && ownerUid && ownerUid !== params.uid) {
+    const actorName = await fetchActorName(params.uid);
+    await sendUserNotification({
+      toUid: ownerUid,
+      type: "repost",
+      title: "リポストされました",
+      body: `${actorName} さんがあなたの投稿をリポストしました`,
+      link: `/timeline/${params.postId}`,
+    }).catch(() => {});
+  }
 }
 
 export async function toggleTimelineLike(params: { postId: string; uid: string }) {
   if (!params.postId || !params.uid) return;
   const postRef = doc(db, TIMELINE_POSTS, params.postId);
   const reactRef = doc(db, TIMELINE_POST_LIKES, timelineReactDocId(params.postId, params.uid));
+  let added = false;
+  let ownerUid = "";
 
   await runTransaction(db, async (tx) => {
     const [postSnap, reactSnap] = await Promise.all([tx.get(postRef), tx.get(reactRef)]);
     if (!postSnap.exists()) return;
+    ownerUid = String(postSnap.data().uid || postSnap.data().userId || "");
     const current = Math.max(0, Number(postSnap.data().likeCount || 0));
     if (reactSnap.exists()) {
       tx.delete(reactRef);
       tx.set(postRef, { likeCount: Math.max(0, current - 1) }, { merge: true });
       return;
     }
+    added = true;
     tx.set(reactRef, { postId: params.postId, uid: params.uid, createdAt: serverTimestamp() });
     tx.set(postRef, { likeCount: current + 1 }, { merge: true });
   });
+
+  if (added && ownerUid && ownerUid !== params.uid) {
+    const actorName = await fetchActorName(params.uid);
+    await sendUserNotification({
+      toUid: ownerUid,
+      type: "like",
+      title: "いいねされました",
+      body: `${actorName} さんがあなたの投稿にいいねしました`,
+      link: `/timeline/${params.postId}`,
+    }).catch(() => {});
+  }
 }
 
 export async function editTimelinePost(params: {
