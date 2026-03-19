@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
+    "build:pages": "prisma generate && next build && npx --yes @cloudflare/next-on-pages@1.13.16",
+    "deploy:pages": "npm run build:pages && npx --yes wrangler pages deploy .vercel/output/static",
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate"
