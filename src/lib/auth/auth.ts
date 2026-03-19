@@ -15,33 +15,6 @@ const googleProvider =
       ]
     : [];
 
-const lineProvider =
-  process.env.LINE_CLIENT_ID && process.env.LINE_CLIENT_SECRET
-    ? [
-        {
-          id: "line",
-          name: "LINE",
-          type: "oauth" as const,
-          authorization: {
-            url: "https://access.line.me/oauth2/v2.1/authorize",
-            params: { scope: "profile openid email", bot_prompt: "normal" },
-          },
-          token: "https://api.line.me/oauth2/v2.1/token",
-          userinfo: "https://api.line.me/v2/profile",
-          checks: ["state"] as ["state"],
-          clientId: process.env.LINE_CLIENT_ID,
-          clientSecret: process.env.LINE_CLIENT_SECRET,
-          profile(profile: { userId: string; displayName: string; pictureUrl?: string }) {
-            return {
-              id: profile.userId,
-              name: profile.displayName,
-              image: profile.pictureUrl,
-            };
-          },
-        },
-      ]
-    : [];
-
 export const { handlers, auth, signIn, signOut } = NextAuth({
   // Prisma アダプターなし → JWT のみで動作（DB 不要）
   session: { strategy: "jwt" },
@@ -50,7 +23,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   providers: [
     ...googleProvider,
-    ...lineProvider,
     Credentials({
       name: "Email",
       credentials: {
