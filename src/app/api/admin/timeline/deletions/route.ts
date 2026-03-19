@@ -1,3 +1,4 @@
+﻿export const runtime = "edge";
 import { NextResponse } from "next/server";
 import { collection, doc, getDoc, getDocs, limit, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -58,8 +59,8 @@ export async function GET() {
         id: row.id,
         postId: String(data.postId || ""),
         postUid: String(data.postUid || ""),
-        postUserName: sanitizeDisplayName(data.postUserName || "匿名"),
-        postUserAvatar: sanitizeAvatar(data.postUserAvatar || "👤"),
+        postUserName: sanitizeDisplayName(data.postUserName || "Anonymous"),
+        postUserAvatar: sanitizeAvatar(data.postUserAvatar || "🙂"),
         postBody: String(data.postBody || ""),
         postImageUrl: typeof data.postImageUrl === "string" ? data.postImageUrl : "",
         postCreatedAt: toIso(data.postCreatedAt),
@@ -81,8 +82,8 @@ export async function GET() {
       id: `post_${row.id}`,
       postId: row.id,
       postUid: String(data.uid || data.userId || ""),
-      postUserName: sanitizeDisplayName(data.name || "匿名"),
-      postUserAvatar: sanitizeAvatar(data.avatar || "👤"),
+      postUserName: sanitizeDisplayName(data.name || "Anonymous"),
+      postUserAvatar: sanitizeAvatar(data.avatar || "🙂"),
       postBody: String(data.body || ""),
       postImageUrl: typeof data.imageUrl === "string" ? data.imageUrl : "",
       postCreatedAt: toIso(data.createdAt),
@@ -108,14 +109,14 @@ export async function GET() {
     deleterUids.map(async (uid) => {
       const snap = await getDoc(doc(db, "userProfiles", uid));
       if (!snap.exists()) {
-        return [uid, { name: uid, avatar: "🛡️" }] as const;
+        return [uid, { name: uid, avatar: "🙂" }] as const;
       }
       const data = snap.data();
       return [
         uid,
         {
           name: sanitizeDisplayName(data.name || uid),
-          avatar: sanitizeAvatar(data.avatar || "🛡️"),
+          avatar: sanitizeAvatar(data.avatar || "🙂"),
         },
       ] as const;
     })
@@ -123,13 +124,14 @@ export async function GET() {
   const deleterMap = new Map(deleterProfiles);
 
   const mergedLogs = mergedRaw.map((row) => {
-    const deleter = deleterMap.get(row.deletedByUid) || { name: row.deletedByUid, avatar: "🛡️" };
+    const deleter = deleterMap.get(row.deletedByUid) || { name: row.deletedByUid, avatar: "🙂" };
     return {
       ...row,
-      deletedByName: deleter.name || "不明",
-      deletedByAvatar: deleter.avatar || "🛡️",
+      deletedByName: deleter.name || "Admin",
+      deletedByAvatar: deleter.avatar || "🙂",
     };
   });
 
   return NextResponse.json({ logs: mergedLogs.slice(0, 200) });
 }
+

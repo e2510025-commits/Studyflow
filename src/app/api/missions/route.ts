@@ -11,6 +11,8 @@ import {
   resolveActiveMissions,
 } from "@/lib/server/missions";
 
+export const runtime = "edge";
+
 function toError(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
@@ -70,12 +72,19 @@ export async function GET() {
     })
   );
 
-  return NextResponse.json({
-    seasonName: config.seasonName,
-    seasonStartAt: config.seasonStartAt,
-    seasonEndAt: config.seasonEndAt,
-    missions,
-  });
+  return NextResponse.json(
+    {
+      seasonName: config.seasonName,
+      seasonStartAt: config.seasonStartAt,
+      seasonEndAt: config.seasonEndAt,
+      missions,
+    },
+    {
+      headers: {
+        "Cache-Control": "private, max-age=30",
+      },
+    }
+  );
 }
 
 export async function POST(request: Request) {

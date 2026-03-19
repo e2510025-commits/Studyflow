@@ -1,3 +1,4 @@
+﻿export const runtime = "edge";
 import { NextResponse } from "next/server";
 import { addDoc, collection, deleteDoc, doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -40,8 +41,8 @@ export async function POST(request: Request) {
 
   await addDoc(collection(db, BULLETIN_POSTS), {
     uid: sessionUser.uid,
-    name: sanitizeDisplayName(sessionUser.name || "匿名"),
-    avatar: sanitizeAvatar(sessionUser.avatar || "👤"),
+    name: sanitizeDisplayName(sessionUser.name || "Anonymous"),
+    avatar: sanitizeAvatar(sessionUser.avatar || "🙂"),
     isOfficial,
     title,
     content,
@@ -158,3 +159,4 @@ export async function DELETE(request: Request) {
   await deleteDoc(postRef);
   return NextResponse.json({ ok: true });
 }
+

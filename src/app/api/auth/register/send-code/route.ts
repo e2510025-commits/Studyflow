@@ -9,8 +9,9 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
-import { createHash } from "node:crypto";
 import { db } from "@/lib/firebase";
+
+export const runtime = "edge";
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 const RESEND_COOLDOWN_MS = 60 * 1000;
@@ -23,9 +24,13 @@ function createCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-function hashCode(email: string, code: string) {
+async function hashCode(email: string, code: string) {
   const pepper = process.env.EMAIL_VERIFICATION_SECRET || "study-timer-email-code";
-  return createHash("sha256").update(`${email}:${code}:${pepper}`).digest("hex");
+  const input = `${email}:${code}:${pepper}`;
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 export async function POST(req: Request) {
@@ -98,7 +103,7 @@ export async function POST(req: Request) {
       verifyRef,
       {
         email,
-        codeHash: hashCode(email, code),
+        codeHash: await hashCode(email, code),
         sentAtMs: now,
         expiresAtMs: now + CODE_TTL_MS,
         attempts: 0,

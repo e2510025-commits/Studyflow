@@ -3,6 +3,8 @@ import { collection, getDocs, query, where, Timestamp, orderBy, limit } from "fi
 import { db } from "@/lib/firebase";
 import { resolveSessionUser } from "@/lib/server/sessionUser";
 
+export const runtime = "edge";
+
 function formatIcsDate(date: Date): string {
   const y = date.getUTCFullYear();
   const m = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -66,7 +68,7 @@ export async function GET() {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
       "Content-Disposition": `attachment; filename="studyflow-${new Date().toISOString().slice(0, 10)}.ics"`,
-      "Cache-Control": "no-store",
+      "Cache-Control": "private, max-age=300",
     },
   });
 }

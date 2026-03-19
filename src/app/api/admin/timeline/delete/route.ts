@@ -1,3 +1,4 @@
+﻿export const runtime = "edge";
 import { NextResponse } from "next/server";
 import { addDoc, collection, doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -37,8 +38,8 @@ export async function DELETE(request: Request) {
   await addDoc(collection(db, ADMIN_TIMELINE_DELETION_LOGS), {
     postId,
     postUid: String(data.uid || data.userId || ""),
-    postUserName: String(data.name || "匿名"),
-    postUserAvatar: String(data.avatar || "👤"),
+    postUserName: String(data.name || "Anonymous"),
+    postUserAvatar: String(data.avatar || "🙂"),
     postBody: String(data.body || ""),
     postImageUrl: typeof data.imageUrl === "string" ? data.imageUrl : "",
     postCreatedAt: toIso(data.createdAt),
@@ -60,3 +61,4 @@ export async function DELETE(request: Request) {
 
   return NextResponse.json({ ok: true });
 }
+

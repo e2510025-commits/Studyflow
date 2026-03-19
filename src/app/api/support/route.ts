@@ -14,6 +14,8 @@ import { db } from "@/lib/firebase";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 import { resolveSessionUser } from "@/lib/server/sessionUser";
 
+export const runtime = "edge";
+
 function toIso(value: unknown): string {
   if (typeof value === "string") return value;
   if (value && typeof value === "object" && "toDate" in value) {
@@ -57,17 +59,24 @@ export async function GET() {
     );
   }
 
-  return NextResponse.json({
-    thread: thread
-      ? {
-          status: thread.status || "open",
-          lastMessage: thread.lastMessage || "",
-          updatedAt: toIso(thread.updatedAt),
-          unreadByUser: Boolean(thread.unreadByUser),
-        }
-      : null,
-    messages,
-  });
+  return NextResponse.json(
+    {
+      thread: thread
+        ? {
+            status: thread.status || "open",
+            lastMessage: thread.lastMessage || "",
+            updatedAt: toIso(thread.updatedAt),
+            unreadByUser: Boolean(thread.unreadByUser),
+          }
+        : null,
+      messages,
+    },
+    {
+      headers: {
+        "Cache-Control": "private, max-age=15",
+      },
+    }
+  );
 }
 
 export async function POST(request: Request) {

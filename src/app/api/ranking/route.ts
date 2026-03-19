@@ -10,6 +10,35 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
+export const runtime = "edge";
+
+const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
+const profileCache = new Map<string, { name: string; avatar: string; expiresAt: number }>();
+
+async function getProfile(uid: string) {
+  const cached = profileCache.get(uid);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) {
+    return { name: cached.name, avatar: cached.avatar };
+  }
+
+  let name = "匿名";
+  let avatar = "👤";
+  try {
+    const snap = await getDoc(doc(db, "userProfiles", uid));
+    if (snap.exists()) {
+      const d = snap.data();
+      name = d.name || "匿名";
+      avatar = d.avatar || "👤";
+    }
+  } catch {
+    // Keep default fallback values when profile lookup fails.
+  }
+
+  profileCache.set(uid, { name, avatar, expiresAt: now + PROFILE_CACHE_TTL_MS });
+  return { name, avatar };
+}
+
 /**
  * GET /api/ranking
  *
@@ -112,18 +141,7 @@ export async function GET(request: Request) {
     /* ── Enrich with user profiles ─────────────────── */
     const ranking = await Promise.all(
       page.map(async (entry, i) => {
-        let name = "匿名";
-        let avatar = "👤";
-        try {
-          const snap = await getDoc(doc(db, "userProfiles", entry.userId));
-          if (snap.exists()) {
-            const d = snap.data();
-            name = d.name || "匿名";
-            avatar = d.avatar || "👤";
-          }
-        } catch {
-          /* skip */
-        }
+        const { name, avatar } = await getProfile(entry.userId);
         return {
           userId: entry.userId,
           name,
@@ -149,7 +167,14 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json({ ranking, myRank, myTotal, totalUsers });
+    return NextResponse.json(
+      { ranking, myRank, myTotal, totalUsers },
+      {
+        headers: {
+          "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=600",
+        },
+      }
+    );
   } catch (error) {
     console.error("Ranking API error:", error);
     return NextResponse.json(

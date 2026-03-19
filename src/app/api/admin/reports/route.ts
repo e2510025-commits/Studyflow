@@ -1,3 +1,4 @@
+﻿export const runtime = "edge";
 import { NextResponse } from "next/server";
 import {
   collection,
@@ -38,7 +39,7 @@ export async function GET() {
       targetUid: String(data.targetUid || ""),
       targetBody: String(data.targetBody || ""),
       reporterUid: String(data.reporterUid || ""),
-      reporterName: String(data.reporterName || "匿名"),
+      reporterName: String(data.reporterName || "Anonymous"),
       reason: String(data.reason || ""),
       detail: String(data.detail || ""),
       status: String(data.status || "open"),
@@ -85,3 +86,4 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ ok: true });
 }
+

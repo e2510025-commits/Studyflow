@@ -1,3 +1,4 @@
+﻿export const runtime = "edge";
 import { NextResponse } from "next/server";
 import {
   addDoc,
@@ -57,8 +58,8 @@ export async function POST() {
   let notificationCount = 0;
 
   for (const announcement of dueAnnouncements) {
-    const title = String(announcement.title || "ミッション開始");
-    const body = String(announcement.body || "新しいミッションが開始されました");
+    const title = String(announcement.title || "New mission announcement");
+    const body = String(announcement.body || "A new mission has started.");
 
     await Promise.all(
       userUids.map(async (uid) => {
@@ -90,3 +91,4 @@ export async function POST() {
     notifications: notificationCount,
   });
 }
+

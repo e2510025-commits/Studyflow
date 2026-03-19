@@ -1,3 +1,4 @@
+﻿export const runtime = "edge";
 import { NextResponse } from "next/server";
 import { addDoc, collection, doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
     targetUid,
     targetBody: String(targetData.body || "").slice(0, 280),
     reporterUid: sessionUser.uid,
-    reporterName: sessionUser.name || "匿名",
+    reporterName: sessionUser.name || "Anonymous",
     reason,
     detail,
     status: "open",
@@ -67,3 +68,4 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ ok: true });
 }
+

@@ -58,3 +58,23 @@ Set your required environment variables in the Pages project settings before dep
 
 `@cloudflare/next-on-pages` is known to be unreliable on native Windows shells.
 If local `npm run build:pages` fails on Windows, run it in WSL or rely on Cloudflare Pages CI (Linux) for the production build.
+
+### Runtime strategy (Edge + Node)
+
+- Most `src/app/api/**/route.ts` handlers are configured with `export const runtime = "edge"`.
+- Auth handlers that depend on `bcryptjs` stay on Node runtime:
+	- `src/app/api/auth/[...nextauth]/route.ts`
+	- `src/app/api/auth/register/route.ts`
+- Email verification hashing routes are edge-compatible (`crypto.subtle`):
+	- `src/app/api/auth/register/send-code/route.ts`
+	- `src/app/api/auth/register/verify-code/route.ts`
+
+### Applied API optimizations
+
+- `src/app/api/ranking/route.ts`
+	- Added response caching headers.
+	- Added short-lived in-isolate profile cache to reduce repeated Firestore profile reads.
+- `src/app/api/admin/overview/route.ts`, `src/app/api/admin/users/route.ts`, `src/app/api/support/route.ts`, `src/app/api/missions/route.ts`
+	- Added private cache headers for repeated dashboard/session polling traffic.
+- `src/app/api/calendar/export/route.ts`
+	- Changed from `no-store` to `private, max-age=300` to reduce repeated export load.

@@ -1,3 +1,4 @@
+﻿export const runtime = "edge";
 import { NextResponse } from "next/server";
 import { addDoc, collection, deleteDoc, doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -156,3 +157,4 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ error: "unknown action" }, { status: 400 });
 }
+

@@ -14,6 +14,8 @@ import { db } from "@/lib/firebase";
 import { requireAdmin } from "@/lib/server/adminGuard";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 
+export const runtime = "edge";
+
 export async function GET(request: Request) {
   const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
@@ -48,7 +50,14 @@ export async function GET(request: Request) {
     })
     .sort((a, b) => a.name.localeCompare(b.name, "ja"));
 
-  return NextResponse.json({ users: filtered });
+  return NextResponse.json(
+    { users: filtered },
+    {
+      headers: {
+        "Cache-Control": "private, max-age=30",
+      },
+    }
+  );
 }
 
 export async function POST(request: Request) {

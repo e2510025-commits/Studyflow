@@ -1,3 +1,4 @@
+﻿export const runtime = "edge";
 import { NextResponse } from "next/server";
 import { addDoc, collection, deleteDoc, doc, getDocs, limit, orderBy, query, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -102,3 +103,4 @@ export async function DELETE(request: Request) {
   await deleteDoc(doc(db, "announcements", id));
   return NextResponse.json({ ok: true });
 }
+

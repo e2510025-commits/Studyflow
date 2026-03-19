@@ -3,6 +3,8 @@ import { collection, getDocs, query, where, Timestamp } from "firebase/firestore
 import { db } from "@/lib/firebase";
 import { requireAdmin } from "@/lib/server/adminGuard";
 
+export const runtime = "edge";
+
 export async function GET() {
   const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
@@ -81,17 +83,24 @@ export async function GET() {
     .sort((a, b) => b.dropRate - a.dropRate)
     .slice(0, 20);
 
-  return NextResponse.json({
-    users: usersSnap.size,
-    profiles: profilesSnap.size,
-    activeUsers24h: activeUserSet.size,
-    studyLogs: logsSnap.size,
-    chatMessages: chatsSnap.size,
-    friends: friendsSnap.size,
-    groups: groupsSnap.size,
-    announcements: announcementsSnap.size,
-    notifications: notificationsSnap.size,
-    droppingUsers: dropAlerts.length,
-    dropAlerts,
-  });
+  return NextResponse.json(
+    {
+      users: usersSnap.size,
+      profiles: profilesSnap.size,
+      activeUsers24h: activeUserSet.size,
+      studyLogs: logsSnap.size,
+      chatMessages: chatsSnap.size,
+      friends: friendsSnap.size,
+      groups: groupsSnap.size,
+      announcements: announcementsSnap.size,
+      notifications: notificationsSnap.size,
+      droppingUsers: dropAlerts.length,
+      dropAlerts,
+    },
+    {
+      headers: {
+        "Cache-Control": "private, max-age=60",
+      },
+    }
+  );
 }

@@ -1,3 +1,4 @@
+﻿export const runtime = "edge";
 import { NextResponse } from "next/server";
 import {
   arrayRemove,
@@ -176,3 +177,4 @@ export async function POST() {
 
   return NextResponse.json({ ok: true, deletedCount: refsToDelete.length });
 }
+

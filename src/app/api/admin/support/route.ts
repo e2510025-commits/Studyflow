@@ -1,3 +1,4 @@
+﻿export const runtime = "edge";
 import { NextResponse } from "next/server";
 import {
   addDoc,
@@ -72,8 +73,8 @@ export async function GET(request: Request) {
       const row = d.data();
       return {
         uid: d.id,
-        userName: row.userName || "匿名",
-        userAvatar: row.userAvatar || "👤",
+        userName: row.userName || "Anonymous",
+        userAvatar: row.userAvatar || "🙂",
         status: row.status || "open",
         lastMessage: row.lastMessage || "",
         lastMessageBy: row.lastMessageBy || "user",
@@ -146,7 +147,7 @@ export async function POST(request: Request) {
     await addDoc(collection(db, "notifications"), {
       toUid: uid,
       type: "support_reply",
-      title: "お問い合わせに返信が届きました",
+      title: "New support reply",
       body: message,
       read: false,
       link: "/support",
@@ -158,3 +159,4 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ error: "invalid action" }, { status: 400 });
 }
+
