@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import AppShell from "@/components/layout/AppShell";
 
@@ -47,11 +48,22 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const analyticsEnabled = process.env.NEXT_PUBLIC_SIMPLE_ANALYTICS_ENABLED === "true";
+  const analyticsDomain = process.env.NEXT_PUBLIC_SIMPLE_ANALYTICS_DOMAIN || "";
+
   return (
     <html lang="ja" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        {analyticsEnabled ? (
+          <Script
+            src="https://scripts.simpleanalyticscdn.com/latest.js"
+            strategy="afterInteractive"
+            data-collect-dnt="true"
+            {...(analyticsDomain ? { "data-hostname": analyticsDomain } : {})}
+          />
+        ) : null}
         <AppShell>{children}</AppShell>
       </body>
     </html>

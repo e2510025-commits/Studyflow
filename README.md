@@ -158,3 +158,40 @@ npm run mongo:indexes
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_CLIENT_EMAIL`
 - `FIREBASE_PRIVATE_KEY`
+
+## Monitoring and analytics setup
+
+### Simple Analytics
+
+- Script is injected from `src/app/layout.tsx`.
+- Enabled only when `NEXT_PUBLIC_SIMPLE_ANALYTICS_ENABLED=true`.
+- Optional custom domain support via `NEXT_PUBLIC_SIMPLE_ANALYTICS_DOMAIN`.
+
+### Sentry (Next.js)
+
+Added files:
+
+- `instrumentation.ts`
+- `instrumentation-client.ts`
+- `sentry.server.config.ts`
+- `sentry.edge.config.ts`
+
+Next config integration:
+
+- `next.config.ts` now uses `withSentryConfig(...)`.
+- Upload tunnel route is set to `/monitoring`.
+
+Required env vars:
+
+- Runtime capture:
+	- `NEXT_PUBLIC_SENTRY_DSN`
+	- `SENTRY_DSN`
+- Sampling:
+	- `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`
+	- `NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE`
+	- `NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE`
+	- `SENTRY_TRACES_SAMPLE_RATE`
+- Build-time source map upload (recommended):
+	- `SENTRY_ORG`
+	- `SENTRY_PROJECT`
+	- `SENTRY_AUTH_TOKEN`
