@@ -9,6 +9,8 @@
     "deploy:pages": "npm run build:pages && npx --yes wrangler pages deploy .vercel/output/static",
     "start": "next start",
     "lint": "eslint",
+    "migrate:firestore:mongo": "tsx scripts/migrate/firestore-to-mongodb.ts",
+    "mongo:indexes": "tsx scripts/migrate/mongo-create-indexes.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -19,12 +21,15 @@
     "bcryptjs": "^3.0.3",
     "date-fns": "^4.1.0",
     "firebase": "^12.10.0",
+    "firebase-admin": "^13.4.0",
     "framer-motion": "^12.34.3",
     "lucide-react": "^0.576.0",
+    "mongoose": "^8.18.0",
     "next": "16.1.6",
     "next-auth": "^5.0.0-beta.30",
     "prisma": "^5.22.0",
     "browser-image-compression": "^2.0.2",
+    "dotenv": "^16.6.1",
     "react": "19.2.3",
     "react-easy-crop": "^5.5.6",
     "react-dom": "19.2.3",
@@ -42,6 +47,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
+    "tsx": "^4.20.6",
     "typescript": "^5"
   }
 }

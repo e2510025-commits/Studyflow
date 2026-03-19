@@ -107,3 +107,54 @@ Required env vars:
 - `R2_PUBLIC_BASE_URL`
 
 R2 bucket CORS must allow `PUT` from your site origin for browser uploads.
+
+## MongoDB Atlas migration design (Firestore-compatible)
+
+This repository now includes a parallel MongoDB layer that keeps Firestore-style collection names and IDs.
+
+### 1) Mongo connection and models
+
+- Connection: `src/lib/mongo/client.ts`
+- Schemas (Mongoose):
+	- `src/lib/mongo/models/user.model.ts`
+	- `src/lib/mongo/models/userProfile.model.ts`
+	- `src/lib/mongo/models/studyLog.model.ts`
+	- `src/lib/mongo/models/timelinePost.model.ts`
+
+All schemas use Firestore document IDs as `_id` (string) so existing references can be preserved.
+
+### 2) Next.js CRUD routes (Mongo)
+
+- Users collection:
+	- `GET/POST /api/mongo/users`
+	- `GET/PATCH/DELETE /api/mongo/users/[uid]`
+- Timeline posts:
+	- `GET/POST /api/mongo/timeline`
+
+### 3) Existing data migration (Firestore -> Mongo)
+
+Script:
+
+- `scripts/migrate/firestore-to-mongodb.ts`
+
+Behavior:
+
+- Migrates every root Firestore collection.
+- Preserves document IDs as `_id`.
+- Converts Firestore `Timestamp` to `Date`.
+- Preserves nested subcollections in `__subcollections`.
+- Upsert-safe (re-runnable).
+
+Run:
+
+```bash
+npm run migrate:firestore:mongo
+npm run mongo:indexes
+```
+
+### 4) Required env vars for migration
+
+- `MONGODB_URI`
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_CLIENT_EMAIL`
+- `FIREBASE_PRIVATE_KEY`
