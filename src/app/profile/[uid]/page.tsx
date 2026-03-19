@@ -44,6 +44,7 @@ import { formatHoursMinutes } from "@/lib/utils";
 import { Clock3, Flame, MessageCircle, PenLine, Repeat2, Search, Send, Share2, UserRound } from "lucide-react";
 import OfficialMark from "@/components/ui/OfficialMark";
 import ImageLightbox from "@/components/ui/ImageLightbox";
+import { useR2CompressedImageUpload } from "@/hooks/useR2CompressedImageUpload";
 import type { CommunityStreamMessage } from "@/types";
 
 type PresenceColor = "online" | "away" | "offline" | "studying";
@@ -217,6 +218,9 @@ export default function PublicProfilePage() {
   const [composerText, setComposerText] = useState("");
   const [composerImage, setComposerImage] = useState("");
   const [postingTimeline, setPostingTimeline] = useState(false);
+  const { compressAndUpload, isUploading: imageUploading } = useR2CompressedImageUpload({
+    folder: "timeline",
+  });
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const headerInputRef = useRef<HTMLInputElement>(null);
@@ -574,17 +578,12 @@ export default function PublicProfilePage() {
   const onPickComposerImage = async (file?: File | null) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) return;
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(new Error("IMAGE_READ_FAILED"));
-      reader.readAsDataURL(file);
-    });
-    if (dataUrl.length > 700_000) {
-      alert("画像サイズが大きすぎます (700KB相当以下)");
-      return;
+    try {
+      const uploaded = await compressAndUpload(file);
+      setComposerImage(uploaded.fileUrl);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "画像アップロードに失敗しました");
     }
-    setComposerImage(dataUrl);
   };
 
   const submitTimelinePost = async () => {
@@ -845,11 +844,11 @@ export default function PublicProfilePage() {
             </button>
             <button
               onClick={() => void submitTimelinePost()}
-              disabled={postingTimeline || (!composerText.trim() && !composerImage)}
+              disabled={postingTimeline || imageUploading || (!composerText.trim() && !composerImage)}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
               style={{ background: "var(--accent)" }}
             >
-              {postingTimeline ? "投稿中..." : "投稿（島弧）"}
+              {postingTimeline ? "投稿中..." : imageUploading ? "画像処理中..." : "投稿（島弧）"}
             </button>
           </div>
         </section>

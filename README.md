@@ -78,3 +78,32 @@ If local `npm run build:pages` fails on Windows, run it in WSL or rely on Cloudf
 	- Added private cache headers for repeated dashboard/session polling traffic.
 - `src/app/api/calendar/export/route.ts`
 	- Changed from `no-store` to `private, max-age=300` to reduce repeated export load.
+
+### Image optimization (R2 + client compression)
+
+Images selected in these UIs are compressed in the browser before upload and sent to Cloudflare R2 via pre-signed URL:
+
+- `src/app/global-chat/page.tsx`
+- `src/app/timeline/page.tsx`
+- `src/app/profile/[uid]/page.tsx`
+
+Compression policy:
+
+- Max file size: 300KB
+- Max long edge: 1200px
+- Library: `browser-image-compression`
+
+Server endpoint:
+
+- `POST /api/uploads/r2/presign`
+- File: `src/app/api/uploads/r2/presign/route.ts`
+
+Required env vars:
+
+- `R2_ACCOUNT_ID`
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `R2_BUCKET`
+- `R2_PUBLIC_BASE_URL`
+
+R2 bucket CORS must allow `PUT` from your site origin for browser uploads.

@@ -19,6 +19,7 @@ import {
 import { submitViolationReport } from "@/lib/firestore/moderation";
 import OfficialMark from "@/components/ui/OfficialMark";
 import ImageLightbox from "@/components/ui/ImageLightbox";
+import { useR2CompressedImageUpload } from "@/hooks/useR2CompressedImageUpload";
 import type { BulletinCategory, CommunityStreamMessage } from "@/types";
 
 function formatTime(iso: string): string {
@@ -67,6 +68,9 @@ export default function GlobalChatPage() {
   const [reportReason, setReportReason] = useState("迷惑行為");
   const [reportDetail, setReportDetail] = useState("");
   const [reporting, setReporting] = useState(false);
+  const { compressAndUpload, isUploading: imageUploading } = useR2CompressedImageUpload({
+    folder: "global-chat",
+  });
 
   useEffect(() => {
     return subscribeGlobalStreamMessages(setRows);
@@ -187,22 +191,13 @@ export default function GlobalChatPage() {
     setSending(true);
     setErrorText("");
     try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ""));
-        reader.onerror = () => reject(new Error("画像読み込みに失敗しました"));
-        reader.readAsDataURL(file);
-      });
-
-      if (dataUrl.length > 700_000) {
-        throw new Error("画像サイズが大きすぎます (700KB相当以下)");
-      }
+      const uploaded = await compressAndUpload(file);
 
       await sendGlobalStreamImageMessage({
         uid: userProfile.uid,
         name: userProfile.name,
         avatar: userProfile.avatar,
-        imageUrl: dataUrl,
+        imageUrl: uploaded.fileUrl,
         caption: file.name,
       });
       setQuickOpen(false);
@@ -527,11 +522,11 @@ export default function GlobalChatPage() {
         />
         <button
           onClick={() => void onSend()}
-          disabled={!text.trim() || sending}
+          disabled={!text.trim() || sending || imageUploading}
           className="px-3 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50 inline-flex items-center gap-1"
           style={{ background: "var(--accent)" }}
         >
-          {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} 投稿
+          {sending || imageUploading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} 投稿
         </button>
       </section>
       {errorText && <p className="text-xs" style={{ color: "#ef4444" }}>{errorText}</p>}
