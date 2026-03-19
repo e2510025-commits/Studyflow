@@ -1,5 +1,27 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Development policy (cost-first)
+
+- Primary domain: `https://studyflow.studio`
+- Goal: stay in free tiers and avoid additional paid usage whenever possible.
+- Student policy: any new feature must include a cost impact check before rollout.
+
+Stack policy:
+
+- Hosting: Cloudflare Pages (commercial use OK, bandwidth-friendly)
+- Storage: Cloudflare R2 (free egress model)
+- Database: MongoDB Atlas (credit-aware query/index design)
+- Analytics: Simple Analytics
+- Monitoring: Sentry (keep event volume in free tier)
+
+Credit safety rules:
+
+- Prefer cache-first responses for read-heavy endpoints.
+- Avoid `no-store` unless strictly required.
+- Add and verify indexes before enabling new list/search filters.
+- Keep Sentry sampling low by default (`0.02`) and increase only when debugging incidents.
+- Use R2 + browser compression for image uploads to avoid transfer-cost spikes.
+
 ## Getting Started
 
 First, run the development server:

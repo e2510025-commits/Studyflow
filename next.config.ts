@@ -10,6 +10,14 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "firebasestorage.googleapis.com",
       },
+      {
+        protocol: "https",
+        hostname: "studyflow.studio",
+      },
+      {
+        protocol: "https",
+        hostname: "cdn.studyflow.studio",
+      },
     ],
   },
   // Reduce bundle size for icon-heavy client components.

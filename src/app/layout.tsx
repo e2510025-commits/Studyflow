@@ -15,9 +15,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://studyflow.studio"),
   title: "StudyFlow - 学習管理アプリ",
   description:
     "教科ごとの学習時間を計測し、美しいグラフで可視化する学習管理ダッシュボード",
+  alternates: {
+    canonical: "https://studyflow.studio",
+  },
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/favicon.png",
@@ -49,7 +53,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const analyticsEnabled = process.env.NEXT_PUBLIC_SIMPLE_ANALYTICS_ENABLED === "true";
-  const analyticsDomain = process.env.NEXT_PUBLIC_SIMPLE_ANALYTICS_DOMAIN || "";
+  const analyticsDomain = process.env.NEXT_PUBLIC_SIMPLE_ANALYTICS_DOMAIN || "studyflow.studio";
 
   return (
     <html lang="ja" suppressHydrationWarning>
