@@ -3,7 +3,7 @@ import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { resolveSessionUser } from "@/lib/server/sessionUser";
 
-export const runtime = "nodejs";
+export const runtime = "edge";
 
 const MAX_IMAGE_BYTES = 300 * 1024;
 

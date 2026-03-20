@@ -16,7 +16,7 @@ import bcrypt from "bcryptjs";
 import { toAppUid } from "@/lib/identity";
 import { sanitizeDisplayName } from "@/lib/identity";
 
-export const runtime = "nodejs";
+export const runtime = "edge";
 
 export async function POST(req: Request) {
   try {
