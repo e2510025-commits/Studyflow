@@ -1,7 +1,7 @@
-﻿export const runtime = "edge";
+export const runtime = "edge";
 import { NextResponse } from "next/server";
-import { addDoc, collection, deleteDoc, doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { addDoc, collection, deleteDoc, doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore/lite";
+import { db } from "@/lib/firebase-server";
 import { requireAdmin } from "@/lib/server/adminGuard";
 import type { MissionScope } from "@/types";
 import { getMissionConfig, getMissionTemplates } from "@/lib/server/missions";

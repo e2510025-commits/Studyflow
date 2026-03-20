@@ -9,8 +9,8 @@ import {
   query,
   serverTimestamp,
   setDoc,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
+} from "firebase/firestore/lite";
+import { db } from "@/lib/firebase-server";
 import { requireAdmin } from "@/lib/server/adminGuard";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 

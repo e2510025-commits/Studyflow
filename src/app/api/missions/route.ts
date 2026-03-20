@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { addDoc, arrayUnion, collection, doc, getDoc, increment, serverTimestamp, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { addDoc, arrayUnion, collection, doc, getDoc, increment, serverTimestamp, setDoc } from "firebase/firestore/lite";
+import { db } from "@/lib/firebase-server";
 import type { MissionScope, MissionStatus } from "@/types";
 import { resolveSessionUser } from "@/lib/server/sessionUser";
 import {

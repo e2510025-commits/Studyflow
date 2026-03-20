@@ -1,7 +1,7 @@
-﻿export const runtime = "edge";
+export const runtime = "edge";
 import { NextResponse } from "next/server";
-import { addDoc, collection, doc, getDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { addDoc, collection, doc, getDoc, serverTimestamp } from "firebase/firestore/lite";
+import { db } from "@/lib/firebase-server";
 import { resolveSessionUser } from "@/lib/server/sessionUser";
 
 type ViolationTargetType = "timeline" | "global_chat";

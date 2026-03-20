@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { collection, getDocs, query, where, Timestamp, orderBy, limit } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { collection, getDocs, query, where, Timestamp, orderBy, limit } from "firebase/firestore/lite";
+import { db } from "@/lib/firebase-server";
 import { resolveSessionUser } from "@/lib/server/sessionUser";
 
 export const runtime = "edge";

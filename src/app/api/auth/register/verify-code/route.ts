@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore/lite";
+import { db } from "@/lib/firebase-server";
 
 export const runtime = "edge";
 

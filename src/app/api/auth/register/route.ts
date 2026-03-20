@@ -10,8 +10,8 @@ import {
   setDoc,
   getDoc,
   deleteDoc,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
+} from "firebase/firestore/lite";
+import { db } from "@/lib/firebase-server";
 import bcrypt from "bcryptjs";
 import { toAppUid } from "@/lib/identity";
 import { sanitizeDisplayName } from "@/lib/identity";

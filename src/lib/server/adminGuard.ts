@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/auth";
 import { isAdminUid } from "@/lib/admin";
 import { toAppUid } from "@/lib/identity";
-import { db } from "@/lib/firebase";
-import { collection, getDocs, limit, query, where } from "firebase/firestore";
+import { db } from "@/lib/firebase-server";
+import { collection, getDocs, limit, query, where } from "firebase/firestore/lite";
 
 async function resolveSessionAppUid() {
   const session = await auth();

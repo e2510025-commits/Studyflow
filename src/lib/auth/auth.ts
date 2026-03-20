@@ -1,8 +1,8 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
-import { collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { collection, query, where, getDocs } from "firebase/firestore/lite";
+import { db } from "@/lib/firebase-server";
 import bcrypt from "bcryptjs";
 
 const googleProvider =

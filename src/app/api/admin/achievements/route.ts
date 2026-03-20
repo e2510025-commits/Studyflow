@@ -1,7 +1,7 @@
-﻿export const runtime = "edge";
+export const runtime = "edge";
 import { NextResponse } from "next/server";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore/lite";
+import { db } from "@/lib/firebase-server";
 import { requireAdmin } from "@/lib/server/adminGuard";
 import type { AchievementCategory, AchievementTemplate } from "@/types";
 import { DEFAULT_ACHIEVEMENTS, DEFAULT_ACHIEVEMENT_CATEGORIES } from "@/lib/achievements";

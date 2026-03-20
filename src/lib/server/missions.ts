@@ -7,8 +7,8 @@ import {
   serverTimestamp,
   setDoc,
   where,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
+} from "firebase/firestore/lite";
+import { db } from "@/lib/firebase-server";
 import type {
   MissionConfig,
   MissionScope,

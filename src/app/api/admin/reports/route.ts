@@ -1,4 +1,4 @@
-﻿export const runtime = "edge";
+export const runtime = "edge";
 import { NextResponse } from "next/server";
 import {
   collection,
@@ -10,8 +10,8 @@ import {
   serverTimestamp,
   setDoc,
   Timestamp,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
+} from "firebase/firestore/lite";
+import { db } from "@/lib/firebase-server";
 import { requireAdmin } from "@/lib/server/adminGuard";
 
 type ReportStatus = "open" | "reviewing" | "resolved" | "dismissed";

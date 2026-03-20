@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { collection, getDocs, query, where, Timestamp } from "firebase/firestore/lite";
+import { db } from "@/lib/firebase-server";
 import { requireAdmin } from "@/lib/server/adminGuard";
 
 export const runtime = "edge";

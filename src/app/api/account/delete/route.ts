@@ -1,4 +1,4 @@
-﻿export const runtime = "edge";
+export const runtime = "edge";
 import { NextResponse } from "next/server";
 import {
   arrayRemove,
@@ -11,9 +11,9 @@ import {
   serverTimestamp,
   updateDoc,
   where,
-} from "firebase/firestore";
+} from "firebase/firestore/lite";
 import { auth } from "@/lib/auth/auth";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firebase-server";
 import { resolveSessionUser } from "@/lib/server/sessionUser";
 
 type DeletePlan = {

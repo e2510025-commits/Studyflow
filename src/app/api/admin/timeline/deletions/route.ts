@@ -1,7 +1,7 @@
-﻿export const runtime = "edge";
+export const runtime = "edge";
 import { NextResponse } from "next/server";
-import { collection, doc, getDoc, getDocs, limit, query, where } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { collection, doc, getDoc, getDocs, limit, query, where } from "firebase/firestore/lite";
+import { db } from "@/lib/firebase-server";
 import { requireAdmin } from "@/lib/server/adminGuard";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 
