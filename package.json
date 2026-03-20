@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
-    "build:pages": "opennextjs-cloudflare build",
+    "build:pages": "opennextjs-cloudflare build && node -e \"const fs=require('fs');fs.mkdirSync('.vercel/output',{recursive:true});fs.rmSync('.vercel/output/static',{recursive:true,force:true});fs.cpSync('.open-next/assets','.vercel/output/static',{recursive:true});\"",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
