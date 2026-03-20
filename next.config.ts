@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
 const nextConfig: NextConfig = {
   // Cloudflare Pages: avoid server-side image optimization invocations.
@@ -24,5 +25,7 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ["lucide-react"],
   },
 };
+
+initOpenNextCloudflareForDev();
 
 export default nextConfig;

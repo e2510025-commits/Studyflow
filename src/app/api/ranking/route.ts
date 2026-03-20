@@ -10,8 +10,6 @@ import {
 } from "firebase/firestore/lite";
 import { db } from "@/lib/firebase-server";
 
-export const runtime = "edge";
-
 const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
 const profileCache = new Map<string, { name: string; avatar: string; expiresAt: number }>();
 

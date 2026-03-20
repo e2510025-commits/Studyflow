@@ -1,4 +1,3 @@
-﻿export const runtime = "edge";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/server/adminGuard";
 import { fetchAppVersion, saveAppVersion } from "@/lib/firestore/appConfig";

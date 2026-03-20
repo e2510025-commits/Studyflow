@@ -3,8 +3,6 @@ import { collection, getDocs, query, where, Timestamp } from "firebase/firestore
 import { db } from "@/lib/firebase-server";
 import { requireAdmin } from "@/lib/server/adminGuard";
 
-export const runtime = "edge";
-
 export async function GET() {
   const guard = await requireAdmin();
   if (!guard.ok) return guard.response;

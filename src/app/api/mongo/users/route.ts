@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
 
-export const runtime = "edge";
-
 function notSupported() {
   return NextResponse.json(
     { error: "mongo_routes_not_supported_on_cloudflare_pages" },

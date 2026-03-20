@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveSessionUser } from "@/lib/server/sessionUser";
 
-export const runtime = "edge";
-
 const MAX_IMAGE_BYTES = 300 * 1024;
 const PRESIGN_EXPIRES_SECONDS = 60;
 

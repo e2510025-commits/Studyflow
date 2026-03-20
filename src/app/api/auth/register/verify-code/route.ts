@@ -2,8 +2,6 @@ import { NextResponse } from "next/server";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore/lite";
 import { db } from "@/lib/firebase-server";
 
-export const runtime = "edge";
-
 const MAX_ATTEMPTS = 6;
 
 function normalizeEmail(value: string) {

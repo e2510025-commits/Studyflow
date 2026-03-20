@@ -1,4 +1,3 @@
-export const runtime = "edge";
 import { NextResponse } from "next/server";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore/lite";
 import { db } from "@/lib/firebase-server";
@@ -28,7 +27,7 @@ function normalizeCategories(input: unknown): AchievementCategory[] {
       const id = toSafeId(String(r.id || label || `category_${idx + 1}`));
       return {
         id: id || `category_${idx + 1}`,
-        label: label || `繧ｫ繝・ざ繝ｪ${idx + 1}`,
+        label: label || `カテゴリ${idx + 1}`,
         order: Number.isFinite(Number(r.order)) ? Number(r.order) : idx,
       };
     })

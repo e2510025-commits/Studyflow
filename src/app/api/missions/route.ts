@@ -11,8 +11,6 @@ import {
   resolveActiveMissions,
 } from "@/lib/server/missions";
 
-export const runtime = "edge";
-
 function toError(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }

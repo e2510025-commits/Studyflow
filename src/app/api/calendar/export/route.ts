@@ -3,8 +3,6 @@ import { collection, getDocs, query, where, Timestamp, orderBy, limit } from "fi
 import { db } from "@/lib/firebase-server";
 import { resolveSessionUser } from "@/lib/server/sessionUser";
 
-export const runtime = "edge";
-
 function formatIcsDate(date: Date): string {
   const y = date.getUTCFullYear();
   const m = String(date.getUTCMonth() + 1).padStart(2, "0");

@@ -14,8 +14,6 @@ import { db } from "@/lib/firebase-server";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 import { resolveSessionUser } from "@/lib/server/sessionUser";
 
-export const runtime = "edge";
-
 function toIso(value: unknown): string {
   if (typeof value === "string") return value;
   if (value && typeof value === "object" && "toDate" in value) {

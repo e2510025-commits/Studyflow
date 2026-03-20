@@ -11,8 +11,6 @@ import {
 } from "firebase/firestore/lite";
 import { db } from "@/lib/firebase-server";
 
-export const runtime = "edge";
-
 const CODE_TTL_MS = 10 * 60 * 1000;
 const RESEND_COOLDOWN_MS = 60 * 1000;
 

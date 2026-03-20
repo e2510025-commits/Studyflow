@@ -1,4 +1,3 @@
-export const runtime = "edge";
 import { NextResponse } from "next/server";
 import { collection, doc, getDoc, getDocs, limit, query, where } from "firebase/firestore/lite";
 import { db } from "@/lib/firebase-server";
