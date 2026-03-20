@@ -1,11 +1,109 @@
 import { NextResponse } from "next/server";
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { resolveSessionUser } from "@/lib/server/sessionUser";
 
 export const runtime = "edge";
 
 const MAX_IMAGE_BYTES = 300 * 1024;
+const PRESIGN_EXPIRES_SECONDS = 60;
+
+function toAmzDateParts(date: Date) {
+  const iso = date.toISOString().replace(/[:-]|\.\d{3}/g, "");
+  return {
+    amzDate: iso,
+    dateStamp: iso.slice(0, 8),
+  };
+}
+
+function encodeRfc3986(value: string) {
+  return encodeURIComponent(value).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+function encodeKeyPath(key: string) {
+  return key.split("/").map(encodeRfc3986).join("/");
+}
+
+function bytesToHex(bytes: Uint8Array) {
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function sha256Hex(input: string) {
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return bytesToHex(new Uint8Array(hash));
+}
+
+async function hmacSha256Raw(key: Uint8Array | string, data: string) {
+  const rawKey = typeof key === "string" ? new TextEncoder().encode(key) : key;
+  const keyBuffer = Uint8Array.from(rawKey).buffer;
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    keyBuffer,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign("HMAC", cryptoKey, new TextEncoder().encode(data));
+  return new Uint8Array(signature);
+}
+
+async function createR2PresignedPutUrl(params: {
+  accountId: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  bucket: string;
+  key: string;
+  expiresSeconds: number;
+}) {
+  const { accountId, accessKeyId, secretAccessKey, bucket, key, expiresSeconds } = params;
+  const host = `${accountId}.r2.cloudflarestorage.com`;
+  const region = "auto";
+  const service = "s3";
+  const method = "PUT";
+  const now = new Date();
+  const { amzDate, dateStamp } = toAmzDateParts(now);
+  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+  const canonicalUri = `/${encodeRfc3986(bucket)}/${encodeKeyPath(key)}`;
+
+  const query = new URLSearchParams({
+    "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
+    "X-Amz-Credential": `${accessKeyId}/${credentialScope}`,
+    "X-Amz-Date": amzDate,
+    "X-Amz-Expires": String(expiresSeconds),
+    "X-Amz-SignedHeaders": "host",
+  });
+
+  const canonicalQueryString = query
+    .toString()
+    .split("&")
+    .sort()
+    .join("&");
+
+  const canonicalRequest = [
+    method,
+    canonicalUri,
+    canonicalQueryString,
+    `host:${host}`,
+    "",
+    "host",
+    "UNSIGNED-PAYLOAD",
+  ].join("\n");
+
+  const stringToSign = [
+    "AWS4-HMAC-SHA256",
+    amzDate,
+    credentialScope,
+    await sha256Hex(canonicalRequest),
+  ].join("\n");
+
+  const kDate = await hmacSha256Raw(`AWS4${secretAccessKey}`, dateStamp);
+  const kRegion = await hmacSha256Raw(kDate, region);
+  const kService = await hmacSha256Raw(kRegion, service);
+  const kSigning = await hmacSha256Raw(kService, "aws4_request");
+  const signature = bytesToHex(await hmacSha256Raw(kSigning, stringToSign));
+
+  return `https://${host}${canonicalUri}?${canonicalQueryString}&X-Amz-Signature=${signature}`;
+}
 
 function readEnv(name: string) {
   const value = process.env[name];
@@ -67,27 +165,18 @@ export async function POST(request: Request) {
     const bucket = readEnv("R2_BUCKET");
     const publicBaseUrl = readEnv("R2_PUBLIC_BASE_URL").replace(/\/$/, "");
 
-    const s3 = new S3Client({
-      region: "auto",
-      endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-      credentials: {
-        accessKeyId,
-        secretAccessKey,
-      },
-    });
-
     const safeUid = user.uid.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) || "anon";
     const ext = detectExtension(contentType, fileName);
     const key = `${folder}/${safeUid}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
 
-    const command = new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      ContentType: contentType,
-      CacheControl: "public, max-age=31536000, immutable",
+    const uploadUrl = await createR2PresignedPutUrl({
+      accountId,
+      accessKeyId,
+      secretAccessKey,
+      bucket,
+      key,
+      expiresSeconds: PRESIGN_EXPIRES_SECONDS,
     });
-
-    const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 60 });
     const fileUrl = `${publicBaseUrl}/${key}`;
 
     return NextResponse.json({
