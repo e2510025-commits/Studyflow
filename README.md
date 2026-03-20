@@ -12,14 +12,12 @@ Stack policy:
 - Storage: Cloudflare R2 (free egress model)
 - Database: MongoDB Atlas (credit-aware query/index design)
 - Analytics: Simple Analytics
-- Monitoring: Sentry (keep event volume in free tier)
 
 Credit safety rules:
 
 - Prefer cache-first responses for read-heavy endpoints.
 - Avoid `no-store` unless strictly required.
 - Add and verify indexes before enabling new list/search filters.
-- Keep Sentry sampling low by default (`0.02`) and increase only when debugging incidents.
 - Use R2 + browser compression for image uploads to avoid transfer-cost spikes.
 
 ## Getting Started
@@ -189,31 +187,3 @@ npm run mongo:indexes
 - Enabled only when `NEXT_PUBLIC_SIMPLE_ANALYTICS_ENABLED=true`.
 - Optional custom domain support via `NEXT_PUBLIC_SIMPLE_ANALYTICS_DOMAIN`.
 
-### Sentry (Next.js)
-
-Added files:
-
-- `instrumentation.ts`
-- `instrumentation-client.ts`
-- `sentry.server.config.ts`
-- `sentry.edge.config.ts`
-
-Next config integration:
-
-- `next.config.ts` now uses `withSentryConfig(...)`.
-- Upload tunnel route is set to `/monitoring`.
-
-Required env vars:
-
-- Runtime capture:
-	- `NEXT_PUBLIC_SENTRY_DSN`
-	- `SENTRY_DSN`
-- Sampling:
-	- `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`
-	- `NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE`
-	- `NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE`
-	- `SENTRY_TRACES_SAMPLE_RATE`
-- Build-time source map upload (recommended):
-	- `SENTRY_ORG`
-	- `SENTRY_PROJECT`
-	- `SENTRY_AUTH_TOKEN`
