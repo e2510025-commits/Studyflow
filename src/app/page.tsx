@@ -1,14 +1,16 @@
 "use client";
 
 import React from "react";
+import dynamic from "next/dynamic";
 import { useStore } from "@/store/useStore";
 import StatsCards from "@/components/dashboard/StatsCards";
-import DailyPieChart from "@/components/dashboard/DailyPieChart";
-import WeeklyBarChart from "@/components/dashboard/WeeklyBarChart";
-import HeatMap from "@/components/dashboard/HeatMap";
 import RecentLogs from "@/components/dashboard/RecentLogs";
 import MotivationPanel from "@/components/dashboard/MotivationPanel";
 import { motion } from "framer-motion";
+
+const DailyPieChart = dynamic(() => import("@/components/dashboard/DailyPieChart"));
+const WeeklyBarChart = dynamic(() => import("@/components/dashboard/WeeklyBarChart"));
+const HeatMap = dynamic(() => import("@/components/dashboard/HeatMap"));
 
 export default function DashboardPage() {
   const { userProfile } = useStore();

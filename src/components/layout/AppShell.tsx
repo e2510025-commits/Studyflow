@@ -16,7 +16,6 @@ import { subscribeFriends } from "@/lib/firestore/friends";
 import { fetchPublicProfile, saveDisplayProfile } from "@/lib/firestore/profile";
 import {
   markNotificationAsRead,
-  subscribeUserNotifications,
 } from "@/lib/firestore/notifications";
 import { sanitizeAvatar, sanitizeDisplayName, toAppUid } from "@/lib/identity";
 import {
@@ -247,18 +246,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!userProfile.uid) return;
-    return subscribeUserNotifications(userProfile.uid, (rows) => {
-      const critical = rows.find(
-        (row) =>
-          !row.read &&
-          (row.type === "warning" || row.type === "ban" || row.type === "suspend")
-      );
-      setCriticalNotice(critical || null);
-    });
-  }, [userProfile.uid]);
-
-  useEffect(() => {
-    if (!userProfile.uid) return;
     let disposed = false;
 
     const syncBadges = async () => {
@@ -480,7 +467,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <HeaderMenu />
           <FriendBell />
           <DmBell />
-          <NotificationBell />
+          <NotificationBell onCriticalNotice={setCriticalNotice} />
           <RankingBadge />
         </>
       )}

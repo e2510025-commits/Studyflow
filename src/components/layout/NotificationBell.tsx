@@ -30,7 +30,11 @@ function AvatarPill({ avatar }: { avatar: string }) {
   );
 }
 
-export default function NotificationBell() {
+type NotificationBellProps = {
+  onCriticalNotice?: (notice: AppNotification | null) => void;
+};
+
+export default function NotificationBell({ onCriticalNotice }: NotificationBellProps) {
   const { userProfile } = useStore();
   const [open, setOpen] = useState(false);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
@@ -68,6 +72,15 @@ export default function NotificationBell() {
     if (unreadIds.length === 0) return;
     void Promise.all(unreadIds.map((id) => markNotificationAsRead(id))).catch(() => {});
   }, [open, personalNotifications]);
+
+  useEffect(() => {
+    const critical = personalNotifications.find(
+      (row) =>
+        !row.read &&
+        (row.type === "warning" || row.type === "ban" || row.type === "suspend")
+    );
+    onCriticalNotice?.(critical || null);
+  }, [onCriticalNotice, personalNotifications]);
 
   const hasIncoming = useMemo(
     () => requests.length > 0 || personalNotifications.some((n) => !n.read),
