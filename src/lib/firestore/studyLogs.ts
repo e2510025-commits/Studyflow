@@ -96,25 +96,32 @@ export async function upsertStudyLogById(
     recomputeAchievements?: boolean;
   }
 ): Promise<void> {
+  const logData = {
+    userUid,
+    subjectId: log.subjectId,
+    duration: log.duration,
+    memo: log.memo || "",
+    focusRating: log.focusRating,
+    focusBonus: log.focusBonus,
+    points: log.points,
+    createdAt: options?.createdAt ? Timestamp.fromDate(options.createdAt) : serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
   await setDoc(
     doc(db, LOGS_COLLECTION, logId),
-    {
-      userUid,
-      ...log,
-      createdAt: options?.createdAt ? Timestamp.fromDate(options.createdAt) : serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    },
+    logData,
     { merge: true }
   );
 
   if (options?.userProfile) {
-    setDoc(
+    await setDoc(
       doc(db, "userProfiles", userUid),
       {
         uid: userUid,
         name: options.userProfile.name,
         avatar: options.userProfile.avatar,
-        updatedAt: new Date(),
+        updatedAt: serverTimestamp(),
       },
       { merge: true }
     ).catch(() => {});

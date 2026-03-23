@@ -45,6 +45,7 @@ async function getProfile(uid: string) {
  *   period  – "today" | "week" | "month" | "all" (default "all")
  *   limit   – page size (default 100, max 500)
  *   offset  – pagination offset (default 0)
+ *   subject – subject name filter (optional)
  *
  * Response:
  * {
@@ -59,6 +60,7 @@ export async function GET(request: Request) {
     const period = searchParams.get("period") || "all";
     const limit = Math.min(Number(searchParams.get("limit") || 100), 500);
     const offset = Number(searchParams.get("offset") || 0);
+    const subjectFilter = searchParams.get("subject") || "";
 
     /* ── Period start ──────────────────────────────── */
     const now = new Date();
@@ -99,10 +101,28 @@ export async function GET(request: Request) {
       { totalDuration: number; totalPoints: number; sessions: number }
     >();
 
+    // Get subject mapping if filtering by subject
+    let subjectIdMap = new Map<string, string>();
+    if (subjectFilter) {
+      const subjectsSnap = await getDocs(collection(db, "userSubjects"));
+      subjectsSnap.docs.forEach((d) => {
+        const data = d.data();
+        if (data.name && data.name.toLowerCase().includes(subjectFilter.toLowerCase())) {
+          subjectIdMap.set(d.id, data.name);
+        }
+      });
+    }
+
     for (const d of snapshot.docs) {
       const data = d.data();
       const uid: string | undefined = data.userUid;
       if (!uid) continue;
+
+      // Filter by subject if specified
+      if (subjectFilter && subjectIdMap.size > 0) {
+        if (!subjectIdMap.has(data.subjectId)) continue;
+      }
+
       const existing = userMap.get(uid) || {
         totalDuration: 0,
         totalPoints: 0,
@@ -115,18 +135,21 @@ export async function GET(request: Request) {
       userMap.set(uid, existing);
     }
 
-    for (const d of rewardSnapshot.docs) {
-      const data = d.data();
-      const uid: string | undefined = data.uid;
-      if (!uid) continue;
+    // Only add mission rewards if not filtering by subject
+    if (!subjectFilter) {
+      for (const d of rewardSnapshot.docs) {
+        const data = d.data();
+        const uid: string | undefined = data.uid;
+        if (!uid) continue;
 
-      const existing = userMap.get(uid) || {
-        totalDuration: 0,
-        totalPoints: 0,
-        sessions: 0,
-      };
-      existing.totalPoints += Number(data.points || 0);
-      userMap.set(uid, existing);
+        const existing = userMap.get(uid) || {
+          totalDuration: 0,
+          totalPoints: 0,
+          sessions: 0,
+        };
+        existing.totalPoints += Number(data.points || 0);
+        userMap.set(uid, existing);
+      }
     }
 
     const sorted = Array.from(userMap.entries())

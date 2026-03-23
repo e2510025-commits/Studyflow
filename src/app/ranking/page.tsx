@@ -77,7 +77,7 @@ function Avatar({
 
 export default function RankingPage() {
   const [period, setPeriod] = useState<RankingPeriod>("today");
-  const { userProfile, friends } = useStore();
+  const { userProfile, friends, subjects } = useStore();
 
   /* ── State ─────────────────────────────────────── */
   const [rawData, setRawData] = useState<AggregatedUser[]>([]);
@@ -87,6 +87,7 @@ export default function RankingPage() {
   const [dailyTrend, setDailyTrend] = useState<Map<string, number>>(new Map());
   const [rivalUids, setRivalUids] = useState<Set<string>>(new Set());
   const [rivalOnly, setRivalOnly] = useState(false);
+  const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -273,6 +274,30 @@ export default function RankingPage() {
           </button>
         ))}
       </motion.div>
+
+      {/* ── Subject Filter ─────────────────────────── */}
+      {subjects.length > 0 && (
+        <motion.div
+          className="glass-card p-4"
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <h3 className="text-sm font-bold mb-2" style={{ color: "var(--foreground)" }}>教科別ランキング</h3>
+          <select
+            value={selectedSubject}
+            onChange={(e) => setSelectedSubject(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg text-sm"
+            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+          >
+            <option value="">全教科</option>
+            {subjects.map((subject) => (
+              <option key={subject.id} value={subject.name}>
+                {subject.icon} {subject.name}
+              </option>
+            ))}
+          </select>
+        </motion.div>
+      )}
 
       <motion.div
         className="glass-card p-4 space-y-3"

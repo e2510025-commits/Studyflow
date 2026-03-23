@@ -71,11 +71,15 @@ export async function saveDisplayProfile(params: {
 }) {
   const safeName = sanitizeDisplayName(params.name);
   const safeAvatar = sanitizeAvatar(params.avatar);
+  const safeBio = (params.bio || "").trim().slice(0, 280);
+  const safeStatus = typeof params.statusMessage === "string" ? params.statusMessage.trim().slice(0, 120) : "";
+  
   const payload: Record<string, unknown> = {
     uid: params.uid,
     name: safeName,
     avatar: safeAvatar,
-    bio: (params.bio || "").trim().slice(0, 280),
+    bio: safeBio,
+    statusMessage: safeStatus,
     visibility: params.visibility || "public",
     dailyGoal: typeof params.dailyGoal === "number" ? params.dailyGoal : 0,
     totalPoints: typeof params.totalPoints === "number" ? params.totalPoints : 0,
@@ -87,9 +91,6 @@ export async function saveDisplayProfile(params: {
   }
   if (Array.isArray(params.equippedBadges)) {
     payload.equippedBadges = params.equippedBadges.slice(0, 3);
-  }
-  if (typeof params.statusMessage === "string") {
-    payload.statusMessage = params.statusMessage.trim().slice(0, 120);
   }
   if (typeof params.headerImage === "string") {
     const safeHeader = params.headerImage.slice(0, 2_000_000);
