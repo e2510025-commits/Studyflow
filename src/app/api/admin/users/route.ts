@@ -12,7 +12,7 @@ import {
 } from "firebase/firestore/lite";
 import { db } from "@/lib/firebase-server";
 import { requireAdmin } from "@/lib/server/adminGuard";
-import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
+import { sanitizeAvatar, sanitizeDisplayName, toAppUid } from "@/lib/identity";
 
 export async function GET(request: Request) {
   const guard = await requireAdmin();
@@ -70,11 +70,13 @@ export async function POST(request: Request) {
     days?: number;
   };
 
-  if (!body.targetUid || !body.action) {
+  const targetUidRaw = String(body.targetUid || "").trim();
+  if (!targetUidRaw || !body.action) {
     return NextResponse.json({ error: "invalid request" }, { status: 400 });
   }
+  const targetUid = toAppUid(targetUidRaw);
 
-  const moderationRef = doc(db, "userModeration", body.targetUid);
+  const moderationRef = doc(db, "userModeration", targetUid);
   const reasonText = (body.reason || body.message || "").trim();
 
   if (body.action === "warn") {
@@ -97,7 +99,7 @@ export async function POST(request: Request) {
     );
 
     await addDoc(collection(db, "notifications"), {
-      toUid: body.targetUid,
+      toUid: targetUid,
       type: "warning",
       title: "運営からの警告",
       body: entry.message,
@@ -122,7 +124,7 @@ export async function POST(request: Request) {
       { merge: true }
     );
     await addDoc(collection(db, "notifications"), {
-      toUid: body.targetUid,
+      toUid: targetUid,
       type: "ban",
       title: banned ? "利用停止のお知らせ" : "利用停止解除のお知らせ",
       body: banned
@@ -150,7 +152,7 @@ export async function POST(request: Request) {
       { merge: true }
     );
     await addDoc(collection(db, "notifications"), {
-      toUid: body.targetUid,
+      toUid: targetUid,
       type: "suspend",
       title: "一時利用停止のお知らせ",
       body: `${days}日間の一時利用停止となりました。理由: ${reasonText}`,
@@ -166,7 +168,7 @@ export async function POST(request: Request) {
 
   if (body.action === "official" || body.action === "unofficial") {
     await setDoc(
-      doc(db, "userProfiles", body.targetUid),
+      doc(db, "userProfiles", targetUid),
       { isOfficial: body.action === "official", updatedAt: serverTimestamp() },
       { merge: true }
     );
@@ -178,9 +180,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "message required" }, { status: 400 });
     }
     await addDoc(collection(db, "chatMessages"), {
-      conversationId: [guard.appUid, body.targetUid].sort().join("__"),
+      conversationId: [guard.appUid, targetUid].sort().join("__"),
       fromUid: guard.appUid,
-      toUid: body.targetUid,
+      toUid: targetUid,
       type: "text",
       content: text,
       readBy: [guard.appUid],
