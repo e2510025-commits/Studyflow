@@ -25,7 +25,11 @@ function toIso(value: unknown): string {
 }
 
 export function subscribeAnnouncements(callback: (rows: Announcement[]) => void) {
-  const q = query(collection(db, ANNOUNCEMENTS_COLLECTION), orderBy("createdAt", "desc"));
+  const q = query(
+    collection(db, ANNOUNCEMENTS_COLLECTION),
+    orderBy("createdAt", "desc"),
+    limit(50)
+  );
   return onSnapshot(q, (snapshot) => {
     const now = Date.now();
     const rows = snapshot.docs
@@ -54,7 +58,9 @@ export function subscribeUserNotifications(
 ) {
   const q = query(
     collection(db, NOTIFICATIONS_COLLECTION),
-    where("toUid", "==", uid)
+    where("toUid", "==", uid),
+    orderBy("createdAt", "desc"),
+    limit(100)
   );
 
   return onSnapshot(q, (snapshot) => {

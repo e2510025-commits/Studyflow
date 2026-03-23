@@ -55,7 +55,9 @@ export function subscribeChatMessages(
   const conversationId = getConversationId(myUid, friendUid);
   const q = query(
     collection(db, CHAT_COLLECTION),
-    where("conversationId", "==", conversationId)
+    where("conversationId", "==", conversationId),
+    orderBy("createdAt", "desc"),
+    limit(200)
   );
 
   return onSnapshot(q, (snapshot) => {
@@ -170,23 +172,68 @@ export async function sendMediaMessage(
   const path = `chat/${conversationId}/${Date.now()}_${sanitizeFileName(file.name)}`;
   const storageRef = ref(storage, path);
 
-  const sendAsDataUrl = async () => {
-    const dataUrl = await fileToDataUrl(file);
+  const sendAsDataUrl = async (fileToSend: File) => {
+    const dataUrl = await fileToDataUrl(fileToSend);
     await addDoc(collection(db, CHAT_COLLECTION), {
       conversationId,
       fromUid,
       toUid,
       type,
       content: dataUrl,
-      fileName: file.name,
+      fileName: fileToSend.name,
       readBy: [fromUid],
       createdAtMs: now,
       createdAt: serverTimestamp(),
     });
   };
 
-  if (type === "image" && !process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET) {
-    await sendAsDataUrl();
+  // Compress image before upload
+  if (type === "image") {
+    try {
+      const imageCompression = (await import("browser-image-compression")).default;
+      const compressed = await imageCompression(file, {
+        maxSizeMB: 0.8,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+      });
+      
+      if (!process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET) {
+        await sendAsDataUrl(compressed);
+        return;
+      }
+
+      const compressedPath = `chat/${conversationId}/${Date.now()}_${sanitizeFileName(compressed.name || file.name)}`;
+      const compressedRef = ref(storage, compressedPath);
+
+      await Promise.race([
+        uploadBytes(compressedRef, compressed),
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("UPLOAD_TIMEOUT")), 30000);
+        }),
+      ]);
+      const url = await getDownloadURL(compressedRef);
+
+      await addDoc(collection(db, CHAT_COLLECTION), {
+        conversationId,
+        fromUid,
+        toUid,
+        type,
+        content: url,
+        fileName: compressed.name || file.name,
+        storagePath: compressedPath,
+        readBy: [fromUid],
+        createdAtMs: now,
+        createdAt: serverTimestamp(),
+      });
+      return;
+    } catch (error) {
+      console.error("Image compression failed:", error);
+      // Fall through to original upload
+    }
+  }
+
+  if (!process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET) {
+    await sendAsDataUrl(file);
     return;
   }
 
@@ -262,7 +309,12 @@ export function subscribeUnreadDirectMessageCounts(
   myUid: string,
   callback: (counts: DirectMessageUnreadCounts) => void
 ) {
-  const q = query(collection(db, CHAT_COLLECTION), where("toUid", "==", myUid));
+  const q = query(
+    collection(db, CHAT_COLLECTION),
+    where("toUid", "==", myUid),
+    orderBy("createdAt", "desc"),
+    limit(500)
+  );
 
   return onSnapshot(q, (snapshot) => {
     const byUser: Record<string, number> = {};

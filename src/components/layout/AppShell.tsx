@@ -260,6 +260,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!userProfile.uid) return;
     let disposed = false;
+    let timeoutId: NodeJS.Timeout;
 
     const syncBadges = async () => {
       try {
@@ -297,15 +298,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       } catch {
         // ignore profile polling errors
       }
+
+      if (!disposed) {
+        // Poll every 30 seconds instead of 5 seconds to reduce reads
+        timeoutId = setTimeout(syncBadges, 30000);
+      }
     };
 
     void syncBadges();
-    const intervalId = window.setInterval(syncBadges, 25_000);
+
     return () => {
       disposed = true;
-      window.clearInterval(intervalId);
+      if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [userProfile.uid, studyLogs.length, updateUserProfile]);
+  }, [userProfile.uid, updateUserProfile]);
 
   useEffect(() => {
     if (currentAward || awardQueue.length === 0) return;
