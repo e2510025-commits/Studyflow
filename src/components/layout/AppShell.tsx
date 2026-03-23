@@ -99,6 +99,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [awardQueue, setAwardQueue] = useState<string[]>([]);
   const [currentAward, setCurrentAward] = useState<string | null>(null);
   const announcedAwardsRef = useRef<Set<string>>(new Set());
+  const handleCriticalNotice = useCallback((notice: AppNotification | null) => {
+    setCriticalNotice(notice);
+  }, []);
 
   useEffect(() => {
     if (typeof navigator === "undefined") return;
@@ -467,7 +470,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <HeaderMenu />
           <FriendBell />
           <DmBell />
-          <NotificationBell onCriticalNotice={setCriticalNotice} />
+          <NotificationBell onCriticalNotice={handleCriticalNotice} />
           <RankingBadge />
         </>
       )}

@@ -8,9 +8,15 @@ import RecentLogs from "@/components/dashboard/RecentLogs";
 import MotivationPanel from "@/components/dashboard/MotivationPanel";
 import { motion } from "framer-motion";
 
-const DailyPieChart = dynamic(() => import("@/components/dashboard/DailyPieChart"));
-const WeeklyBarChart = dynamic(() => import("@/components/dashboard/WeeklyBarChart"));
-const HeatMap = dynamic(() => import("@/components/dashboard/HeatMap"));
+const DailyPieChart = dynamic(() => import("@/components/dashboard/DailyPieChart"), {
+  loading: () => <div className="h-[320px] rounded-2xl glass-card animate-pulse" />,
+});
+const WeeklyBarChart = dynamic(() => import("@/components/dashboard/WeeklyBarChart"), {
+  loading: () => <div className="h-[320px] rounded-2xl glass-card animate-pulse" />,
+});
+const HeatMap = dynamic(() => import("@/components/dashboard/HeatMap"), {
+  loading: () => <div className="h-[420px] rounded-2xl glass-card animate-pulse" />,
+});
 
 export default function DashboardPage() {
   const { userProfile } = useStore();
