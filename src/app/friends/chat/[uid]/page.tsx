@@ -110,11 +110,13 @@ export default function ChatPage() {
   const [actionMenuId, setActionMenuId] = useState<string>("");
   const [editingMessageId, setEditingMessageId] = useState<string>("");
   const [editingText, setEditingText] = useState("");
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const longPressRef = useRef<number | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   /* ── Subscribe to Firestore messages ────────────────── */
   useEffect(() => {
@@ -168,8 +170,16 @@ export default function ChatPage() {
         await sendMediaMessage(userProfile.uid, friendUid, media.type, media.file);
       }
       if (text.trim()) {
-        await sendTextMessage(userProfile.uid, friendUid, text.trim());
+        const replyData = replyingTo
+          ? {
+              messageId: replyingTo.id,
+              content: replyingTo.content,
+              fromUid: replyingTo.fromUid,
+            }
+          : undefined;
+        await sendTextMessage(userProfile.uid, friendUid, text.trim(), replyData);
         setText("");
+        setReplyingTo(null);
       }
       mediaQueue.forEach((m) => URL.revokeObjectURL(m.previewUrl));
       setMediaQueue([]);
@@ -180,7 +190,7 @@ export default function ChatPage() {
       setSending(false);
       textareaRef.current?.focus();
     }
-  }, [text, mediaQueue, friendUid, userProfile.uid, sending]);
+  }, [text, mediaQueue, friendUid, userProfile.uid, sending, replyingTo]);
 
   const handleShareTask = useCallback(async () => {
     if (!taskTitle.trim() || sending) return;
@@ -241,13 +251,41 @@ export default function ChatPage() {
     if (longPressRef.current) window.clearTimeout(longPressRef.current);
     longPressRef.current = window.setTimeout(() => {
       setActionMenuId(msgId);
-    }, 450);
+    }, 500);
   }, []);
 
   const clearLongPress = useCallback(() => {
     if (!longPressRef.current) return;
     window.clearTimeout(longPressRef.current);
     longPressRef.current = null;
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent, msgId: string, isMine: boolean) => {
+    const touch = e.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    beginLongPress(msgId, isMine);
+  }, [beginLongPress]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - touchStartRef.current.x);
+    const dy = Math.abs(touch.clientY - touchStartRef.current.y);
+    if (dx > 10 || dy > 10) {
+      clearLongPress();
+      touchStartRef.current = null;
+    }
+  }, [clearLongPress]);
+
+  const handleTouchEnd = useCallback(() => {
+    clearLongPress();
+    touchStartRef.current = null;
+  }, [clearLongPress]);
+
+  const startReply = useCallback((message: ChatMessage) => {
+    setReplyingTo(message);
+    setActionMenuId("");
+    textareaRef.current?.focus();
   }, []);
 
   /* ── File picker ───────────────────────────────────── */
@@ -458,10 +496,13 @@ export default function ChatPage() {
                     {/* Bubble */}
                     <div
                       className="rounded-2xl px-4 py-2.5 text-sm leading-relaxed break-words"
-                      onPointerDown={() => beginLongPress(msg.id, isMine)}
-                      onPointerUp={clearLongPress}
-                      onPointerCancel={clearLongPress}
-                      onPointerLeave={clearLongPress}
+                      onTouchStart={(e) => handleTouchStart(e, msg.id, isMine)}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={handleTouchEnd}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        if (isMine) setActionMenuId(msg.id);
+                      }}
                       style={{
                         background: isMine
                           ? "var(--accent)"
@@ -477,6 +518,22 @@ export default function ChatPage() {
                         </span>
                       ) : (
                         <>
+                          {/* Reply preview */}
+                          {msg.replyToId && msg.replyToContent && (
+                            <div
+                              className="mb-2 px-2 py-1.5 rounded-lg text-xs opacity-80 border-l-2"
+                              style={{
+                                background: isMine ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.08)",
+                                borderColor: isMine ? "rgba(255,255,255,0.4)" : "var(--accent)",
+                              }}
+                            >
+                              <p className="font-semibold mb-0.5">
+                                {msg.replyToFromUid === userProfile.uid ? "あなた" : safeFriendName}
+                              </p>
+                              <p className="truncate">{msg.replyToContent}</p>
+                            </div>
+                          )}
+
                           {/* Text message */}
                           {msg.type === "text" && (
                             <span className="whitespace-pre-wrap">{msg.content}</span>
@@ -644,6 +701,31 @@ export default function ChatPage() {
                         {msg.type === "text" && (
                           <button
                             onClick={() => startEdit(msg.id, msg.content)}
+                            className="flex items-center gap-1.5 px-2 py-1 rounded text-xs hover:bg-opacity-80 w-full"
+                            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                          >
+                            <Pencil size={12} /> 編集
+                          </button>
+                        )}
+                        <button
+                          onClick={() => startReply(msg)}
+                          className="flex items-center gap-1.5 px-2 py-1 rounded text-xs hover:bg-opacity-80 w-full mt-1"
+                          style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                        >
+                          <Send size={12} /> 返信
+                        </button>
+                        <button
+                          onClick={() => handleDelete(msg.id, msg.storagePath, "soft")}
+                          className="flex items-center gap-1.5 px-2 py-1 rounded text-xs hover:bg-opacity-80 w-full mt-1"
+                          style={{ background: "#ef444420", color: "#ef4444" }}
+                        >
+                          <Trash2 size={12} /> 削除
+                        </button>
+                      </div>
+                    )}
+                        {msg.type === "text" && (
+                          <button
+                            onClick={() => startEdit(msg.id, msg.content)}
                             className="w-full px-2 py-1.5 text-xs rounded flex items-center gap-1"
                             style={{ color: "var(--foreground)" }}
                           >
@@ -721,51 +803,81 @@ export default function ChatPage() {
 
       {/* ─── Input area ───────────────────────────────── */}
       <div
-        className="flex items-end gap-2 px-4 py-3 border-t flex-shrink-0"
+        className="flex-shrink-0"
         style={{
           borderColor: "var(--card-border)",
           background: "var(--card-bg)",
         }}
       >
-        {/* File upload */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*,video/*"
-          multiple
-          className="hidden"
-          onChange={handleFileChange}
-        />
-        <motion.button
-          onClick={() => fileInputRef.current?.click()}
-          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          title="画像・動画をアップロード"
-        >
-          <Paperclip size={18} />
-        </motion.button>
+        {/* Reply preview */}
+        <AnimatePresence>
+          {replyingTo && (
+            <motion.div
+              className="px-4 py-2 border-t flex items-center justify-between gap-2"
+              style={{ borderColor: "var(--card-border)" }}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold" style={{ color: "var(--accent)" }}>
+                  {replyingTo.fromUid === userProfile.uid ? "あなた" : safeFriendName} に返信
+                </p>
+                <p className="text-xs truncate" style={{ color: "var(--muted)" }}>
+                  {replyingTo.content}
+                </p>
+              </div>
+              <button
+                onClick={() => setReplyingTo(null)}
+                className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ background: "var(--muted-bg)" }}
+              >
+                <X size={14} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        <motion.button
-          onClick={() => setTaskDialogOpen(true)}
-          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          title="課題を共有"
-        >
-          <ListTodo size={18} />
-        </motion.button>
+        <div className="flex items-end gap-2 px-4 py-3 border-t" style={{ borderColor: "var(--card-border)" }}>
+          {/* File upload */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          <motion.button
+            onClick={() => fileInputRef.current?.click()}
+            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            title="画像・動画をアップロード"
+          >
+            <Paperclip size={18} />
+          </motion.button>
 
-        {/* Text input */}
-        <div
-          className="flex-1 rounded-2xl overflow-hidden"
-          style={{ background: "var(--muted-bg)" }}
-        >
-          <textarea
-            ref={textareaRef}
-            value={text}
+          <motion.button
+            onClick={() => setTaskDialogOpen(true)}
+            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            title="課題を共有"
+          >
+            <ListTodo size={18} />
+          </motion.button>
+
+          {/* Text input */}
+          <div
+            className="flex-1 rounded-2xl overflow-hidden"
+            style={{ background: "var(--muted-bg)" }}
+          >
+            <textarea
+              ref={textareaRef}
+              value={text}
             onChange={(e) => {
               setText(e.target.value);
               // Auto-resize

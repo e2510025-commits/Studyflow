@@ -76,6 +76,9 @@ export function subscribeChatMessages(
         content: data.content,
         fileName: data.fileName,
         storagePath: data.storagePath,
+        replyToId: data.replyToId,
+        replyToContent: data.replyToContent,
+        replyToFromUid: data.replyToFromUid,
         readBy: Array.isArray(data.readBy) ? data.readBy : [],
         readAt:
           data.readAt instanceof Timestamp
@@ -99,10 +102,15 @@ export function subscribeChatMessages(
 export async function sendTextMessage(
   fromUid: string,
   toUid: string,
-  text: string
+  text: string,
+  replyTo?: {
+    messageId: string;
+    content: string;
+    fromUid: string;
+  }
 ): Promise<void> {
   const now = Date.now();
-  await addDoc(collection(db, CHAT_COLLECTION), {
+  const messageData: Record<string, unknown> = {
     conversationId: getConversationId(fromUid, toUid),
     fromUid,
     toUid,
@@ -111,7 +119,15 @@ export async function sendTextMessage(
     readBy: [fromUid],
     createdAtMs: now,
     createdAt: serverTimestamp(),
-  });
+  };
+
+  if (replyTo) {
+    messageData.replyToId = replyTo.messageId;
+    messageData.replyToContent = replyTo.content.slice(0, 200);
+    messageData.replyToFromUid = replyTo.fromUid;
+  }
+
+  await addDoc(collection(db, CHAT_COLLECTION), messageData);
 }
 
 export async function sendTaskMessage(

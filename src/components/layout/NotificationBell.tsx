@@ -42,7 +42,12 @@ export default function NotificationBell() {
     if (!userProfile.uid) return;
     const unsubReq = subscribeIncomingFriendRequests(userProfile.uid, setRequests);
     const unsubPersonal = subscribeUserNotifications(userProfile.uid, setPersonalNotifications);
-    const unsubAnnouncements = subscribeAnnouncements((rows) => setAnnouncements(rows.slice(0, 20)));
+    const unsubAnnouncements = subscribeAnnouncements((rows) => {
+      // Show only recent announcements (last 7 days)
+      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const recent = rows.filter((row) => new Date(row.createdAt).getTime() > sevenDaysAgo);
+      setAnnouncements(recent.slice(0, 20));
+    });
 
     return () => {
       unsubReq();
@@ -70,14 +75,14 @@ export default function NotificationBell() {
   }, [open, personalNotifications]);
 
   const hasIncoming = useMemo(
-    () => requests.length > 0 || personalNotifications.some((n) => !n.read),
-    [requests, personalNotifications]
+    () => requests.length > 0 || personalNotifications.some((n) => !n.read) || announcements.length > 0,
+    [requests, personalNotifications, announcements]
   );
   const unreadPersonalCount = useMemo(
     () => personalNotifications.filter((row) => !row.read).length,
     [personalNotifications]
   );
-  const incomingCount = requests.length + unreadPersonalCount;
+  const incomingCount = requests.length + unreadPersonalCount + announcements.length;
 
   return (
     <div ref={rootRef} className="fixed top-4 right-16 z-50">
