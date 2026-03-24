@@ -139,7 +139,7 @@ export default function TestPage() {
               return (
                 <span key={idx} className="inline-block relative mx-1">
                   <input
-                    ref={(el) => (inputRefs.current[currentIdx] = el)}
+                    ref={(el) => { inputRefs.current[currentIdx] = el; }}
                     type="text"
                     value={userAnswers[currentIdx] || ""}
                     onChange={(e) => handleAnswerChange(currentIdx, e.target.value)}
