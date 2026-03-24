@@ -109,7 +109,7 @@ export default function CreateQuestionPage() {
           穴埋め問題を作成
         </h1>
         <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
-          テキストを選択して「（ ）」ボタンを押すか、{{"{{"}}答え{{"}}"}}の形式で入力
+          テキストを選択して「（ ）」ボタンを押すか、{'{{答え}}'} の形式で入力
         </p>
       </motion.div>
 
