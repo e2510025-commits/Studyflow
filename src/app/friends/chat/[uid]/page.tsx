@@ -883,6 +883,7 @@ export default function ChatPage() {
           {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
         </motion.button>
       </div>
+      </div>
 
       <ImageLightbox
         src={lightboxType === "image" ? lightbox : null}

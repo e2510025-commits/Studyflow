@@ -260,7 +260,7 @@ export async function sendMediaMessage(
     });
   } catch (error) {
     if (type === "image") {
-      await sendAsDataUrl();
+      await sendAsDataUrl(file);
       return;
     }
     throw error;
