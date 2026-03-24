@@ -69,6 +69,8 @@ model Subject {
 
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   studyLogs StudyLog[]
+  questions FillInBlankQuestion[]
+  decks     Deck[]
 
   createdAt DateTime @default(now())
 }
@@ -88,4 +90,104 @@ model StudyLog {
 
   @@index([userId, createdAt])
   @@index([subjectId])
+}
+
+model FillInBlankQuestion {
+  id          String   @id @default(cuid())
+  userId      String
+  subjectId   String?
+  deckId      String?
+  title       String
+  content     String   @db.Text // 問題文（{{answer}}形式）
+  answers     String[] // 正解リスト
+  mode        String   @default("sequential") // "sequential" | "all-at-once"
+  
+  subject     Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  deck        Deck?    @relation(fields: [deckId], references: [id], onDelete: SetNull)
+  attempts    QuestionAttempt[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([subjectId])
+  @@index([deckId])
+}
+
+model QuestionAttempt {
+  id          String   @id @default(cuid())
+  userId      String
+  questionId  String
+  userAnswers String[] // ユーザーの回答
+  isCorrect   Boolean
+  duration    Int      // 秒
+  
+  question    FillInBlankQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([questionId])
+}
+
+model Deck {
+  id          String   @id @default(cuid())
+  userId      String
+  subjectId   String?
+  name        String
+  description String?  @db.Text
+  isPublic    Boolean  @default(false)
+  color       String   @default("#3b82f6")
+  
+  subject     Subject?  @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  cards       FlashCard[]
+  questions   FillInBlankQuestion[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([subjectId])
+}
+
+model FlashCard {
+  id          String   @id @default(cuid())
+  userId      String
+  deckId      String
+  front       String   @db.Text // 問題面
+  back        String   @db.Text // 解答面
+  hint        String?  @db.Text // ヒント
+  note        String?  @db.Text // 補足説明
+  imageUrl    String?  // 画像URL
+  status      String   @default("new") // "new" | "learning" | "mastered"
+  
+  deck        Deck     @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  reviews     CardReview[]
+  
+  nextReviewAt DateTime? // 次回復習日時
+  easeFactor   Float    @default(2.5) // 難易度係数
+  interval     Int      @default(0) // 復習間隔（日数）
+  repetitions  Int      @default(0) // 連続正解回数
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, deckId])
+  @@index([nextReviewAt])
+  @@index([status])
+}
+
+model CardReview {
+  id          String   @id @default(cuid())
+  userId      String
+  cardId      String
+  rating      Int      // 1-4: 1=忘れた, 2=難しい, 3=普通, 4=簡単
+  duration    Int      // 秒
+  
+  card        FlashCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([cardId])
 }

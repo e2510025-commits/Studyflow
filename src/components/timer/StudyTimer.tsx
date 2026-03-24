@@ -203,7 +203,7 @@ export default function StudyTimer() {
         {
           createdAt: session.createdAt,
           userProfile: { name: userProfile.name, avatar: userProfile.avatar },
-          recomputeAchievements: Boolean(options?.finalize),
+          recomputeAchievements: true, // 常にアチーブメントを再計算
         }
       ).catch(() => {});
 

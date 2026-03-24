@@ -20,12 +20,14 @@ import {
   Shield,
   X,
   Menu,
+  Brain,
 } from "lucide-react";
 
 const baseNavItems = [
   { href: "/", label: "ダッシュボード", icon: LayoutDashboard },
   { href: "/timer", label: "学習タイマー", icon: Timer },
   { href: "/subjects", label: "教科管理", icon: BookMarked },
+  { href: "/memorize", label: "暗記", icon: Brain, badge: true },
   { href: "/ranking", label: "ランキング", icon: Trophy },
   { href: "/global-chat", label: "全体チャット", icon: Wifi },
   { href: "/timeline", label: "タイムライン", icon: Waves },
@@ -38,9 +40,25 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { sidebarOpen, setSidebarOpen, userProfile } = useStore();
   const [appVersion, setAppVersion] = useState("1.0.0");
+  const [dueCount, setDueCount] = useState(0);
   const navItems = isAdminUid(userProfile.uid)
     ? [...baseNavItems, { href: "/admin", label: "管理者", icon: Shield }]
     : baseNavItems;
+
+  useEffect(() => {
+    const fetchDueCount = async () => {
+      try {
+        const res = await fetch("/api/memorize/decks");
+        const data = await res.json();
+        setDueCount(data.totalDue || 0);
+      } catch (error) {
+        console.error("Failed to fetch due count:", error);
+      }
+    };
+    fetchDueCount();
+    const interval = setInterval(fetchDueCount, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     return subscribeAppVersion((version) => {
@@ -114,6 +132,7 @@ export default function Sidebar() {
               pathname === item.href ||
               (item.href !== "/" && pathname.startsWith(`${item.href}/`));
             const Icon = item.icon;
+            const showBadge = item.badge && dueCount > 0;
             return (
               <Link
                 key={item.href}
@@ -138,6 +157,11 @@ export default function Sidebar() {
                 )}
                 <Icon size={20} />
                 <span className="text-sm">{item.label}</span>
+                {showBadge && (
+                  <span className="ml-auto px-2 py-0.5 rounded-full text-xs font-bold" style={{ background: "#ef4444", color: "#fff" }}>
+                    {dueCount}
+                  </span>
+                )}
               </Link>
             );
           })}
