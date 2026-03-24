@@ -5,15 +5,16 @@ import { collection, query, where, getDocs, doc, getDoc, orderBy } from "firebas
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const sessionUser = await resolveSessionUser();
     if (!sessionUser?.uid) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const deckDoc = await getDoc(doc(db, "memoryDecks", params.id));
+    const deckDoc = await getDoc(doc(db, "memoryDecks", id));
 
     if (!deckDoc.exists() || deckDoc.data().uid !== sessionUser.uid) {
       return NextResponse.json({ error: "Deck not found" }, { status: 404 });
@@ -29,7 +30,7 @@ export async function GET(
 
     const cardsQuery = query(
       collection(db, "flashCards"),
-      where("deckId", "==", params.id),
+      where("deckId", "==", id),
       orderBy("createdAt", "desc")
     );
     const cardsSnap = await getDocs(cardsQuery);

@@ -5,15 +5,16 @@ import { doc, getDoc } from "firebase/firestore/lite";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const sessionUser = await resolveSessionUser();
     if (!sessionUser?.uid) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const questionDoc = await getDoc(doc(db, "fillInBlankQuestions", params.id));
+    const questionDoc = await getDoc(doc(db, "fillInBlankQuestions", id));
 
     if (!questionDoc.exists() || questionDoc.data().uid !== sessionUser.uid) {
       return NextResponse.json({ error: "Question not found" }, { status: 404 });

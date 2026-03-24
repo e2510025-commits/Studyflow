@@ -5,9 +5,10 @@ import { collection, query, where, getDocs, Timestamp } from "firebase/firestore
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { deckId: string } }
+  { params }: { params: Promise<{ deckId: string }> }
 ) {
   try {
+    const { deckId } = await params;
     const sessionUser = await resolveSessionUser();
     if (!sessionUser?.uid) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -15,7 +16,7 @@ export async function GET(
 
     const cardsQuery = query(
       collection(db, "flashCards"),
-      where("deckId", "==", params.deckId),
+      where("deckId", "==", deckId),
       where("uid", "==", sessionUser.uid)
     );
     const cardsSnap = await getDocs(cardsQuery);
