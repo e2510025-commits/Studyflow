@@ -723,35 +723,6 @@ export default function ChatPage() {
                         </button>
                       </div>
                     )}
-                        {msg.type === "text" && (
-                          <button
-                            onClick={() => startEdit(msg.id, msg.content)}
-                            className="w-full px-2 py-1.5 text-xs rounded flex items-center gap-1"
-                            style={{ color: "var(--foreground)" }}
-                          >
-                            <Pencil size={12} /> 編集
-                          </button>
-                        )}
-                        <button
-                          onClick={() => void handleDelete(msg.id, msg.storagePath, "soft")}
-                          className="w-full px-2 py-1.5 text-xs rounded flex items-center gap-1"
-                          style={{ color: "var(--foreground)" }}
-                        >
-                          <Trash2 size={12} /> 跡地を残して削除
-                        </button>
-                        <button
-                          onClick={() => {
-                            const ok = window.confirm("このメッセージを完全に削除します。よろしいですか？");
-                            if (!ok) return;
-                            void handleDelete(msg.id, msg.storagePath, "hard");
-                          }}
-                          className="w-full px-2 py-1.5 text-xs rounded flex items-center gap-1"
-                          style={{ color: "#ef4444" }}
-                        >
-                          <Trash2 size={12} /> 完全に削除
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </motion.div>
               );
