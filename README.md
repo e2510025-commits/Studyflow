@@ -82,6 +82,8 @@ If local `npm run build:pages` fails on Windows, run it in WSL or rely on Cloudf
 ### Runtime strategy (Node.js on Vercel)
 
 - API handlers run on the standard Node.js runtime in Vercel.
+- Keep Next.js `experimental` options minimal/off in Vercel builds to avoid Turbopack incompatibilities with platform-specific binaries.
+- Use Edge runtime only for latency-critical, stateless logic that is verified to work with Edge constraints (Web APIs only, no Node-specific modules).
 - Do not use `export const runtime = "edge"` unless you explicitly need and validate Edge runtime behavior.
 
 ### Applied API optimizations
