@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   images: {
     remotePatterns: [
       {
@@ -16,10 +17,6 @@ const nextConfig: NextConfig = {
         hostname: "cdn.studyflow.studio",
       },
     ],
-  },
-  // Reduce bundle size for icon-heavy client components.
-  experimental: {
-    optimizePackageImports: ["lucide-react"],
   },
 };
 

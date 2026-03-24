@@ -79,15 +79,10 @@ Set your required environment variables in the Pages project settings before dep
 `@cloudflare/next-on-pages` is known to be unreliable on native Windows shells.
 If local `npm run build:pages` fails on Windows, run it in WSL or rely on Cloudflare Pages CI (Linux) for the production build.
 
-### Runtime strategy (Edge + Node)
+### Runtime strategy (Node.js on Vercel)
 
-- Most `src/app/api/**/route.ts` handlers are configured with `export const runtime = "edge"`.
-- Auth handlers that depend on `bcryptjs` stay on Node runtime:
-	- `src/app/api/auth/[...nextauth]/route.ts`
-	- `src/app/api/auth/register/route.ts`
-- Email verification hashing routes are edge-compatible (`crypto.subtle`):
-	- `src/app/api/auth/register/send-code/route.ts`
-	- `src/app/api/auth/register/verify-code/route.ts`
+- API handlers run on the standard Node.js runtime in Vercel.
+- Do not use `export const runtime = "edge"` unless you explicitly need and validate Edge runtime behavior.
 
 ### Applied API optimizations
 
@@ -186,4 +181,3 @@ npm run mongo:indexes
 - Script is injected from `src/app/layout.tsx`.
 - Enabled only when `NEXT_PUBLIC_SIMPLE_ANALYTICS_ENABLED=true`.
 - Optional custom domain support via `NEXT_PUBLIC_SIMPLE_ANALYTICS_DOMAIN`.
-
