@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
       updatedAt: Timestamp.now(),
     });
 
-    return NextResponse.json({ deck: { id: deckRef.id, name, description, color } });
+    return NextResponse.json({ deckId: deckRef.id, deck: { id: deckRef.id, name, description, color } });
   } catch (error) {
     console.error("Failed to create deck:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

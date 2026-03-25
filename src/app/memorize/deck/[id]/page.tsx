@@ -53,27 +53,27 @@ export default function DeckDetailPage() {
   const dueCards = cards.filter(c => !c.nextReviewAt || new Date(c.nextReviewAt) <= new Date());
 
   if (loading) {
-    return <div className="text-center py-12" style={{ color: "var(--muted)" }}>読み込み中...</div>;
+    return <div className="text-center py-12 text-zinc-600 dark:text-zinc-400">読み込み中...</div>;
   }
 
   if (!deck) {
-    return <div className="text-center py-12" style={{ color: "var(--muted)" }}>デッキが見つかりません</div>;
+    return <div className="text-center py-12 text-zinc-600 dark:text-zinc-400">デッキが見つかりません</div>;
   }
 
   return (
     <div className="max-w-5xl mx-auto space-y-5">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-        <Link href="/memorize" className="inline-flex items-center gap-2 mb-3 font-medium" style={{ color: "var(--primary)" }}>
+        <Link href="/memorize" className="inline-flex items-center gap-2 mb-3 font-medium text-indigo-600 dark:text-indigo-400">
           <ArrowLeft size={20} />
           戻る
         </Link>
         <div className="flex items-center gap-4">
           <div className="w-2 h-16 rounded-full" style={{ background: deck.color }} />
           <div>
-            <h1 className="text-2xl sm:text-4xl font-black" style={{ color: "var(--foreground)" }}>
+            <h1 className="text-2xl sm:text-4xl font-black text-zinc-900 dark:text-white">
               {deck.name}
             </h1>
-            <p className="text-base mt-1" style={{ color: "var(--muted)" }}>
+            <p className="text-base mt-1 text-zinc-600 dark:text-zinc-400">
               {deck.description || "説明なし"}
             </p>
           </div>
@@ -110,7 +110,7 @@ export default function DeckDetailPage() {
       </div>
 
       {cards.length === 0 && !showAddCard && (
-        <div className="text-center py-12" style={{ color: "var(--muted)" }}>
+        <div className="text-center py-12 text-zinc-600 dark:text-zinc-400">
           カードがありません。カードを追加しましょう。
         </div>
       )}
@@ -156,42 +156,39 @@ function AddCardForm({ deckId, onClose, onAdded }: { deckId: string; onClose: ()
   };
 
   return (
-    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-6 rounded-2xl space-y-4" style={{ background: "var(--card)" }}>
-      <h3 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>新しいカード</h3>
+    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-6 rounded-2xl space-y-4 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700">
+      <h3 className="text-lg font-bold text-zinc-900 dark:text-white">新しいカード</h3>
       
       <div>
-        <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>問題（表面）</label>
+        <label className="block text-sm font-semibold mb-2 text-zinc-900 dark:text-white">問題（表面）</label>
         <textarea
           value={front}
           onChange={(e) => setFront(e.target.value)}
           placeholder="例: apple"
           rows={2}
-          className="w-full px-4 py-3 rounded-xl outline-none resize-none"
-          style={{ background: "var(--background)", color: "var(--foreground)" }}
+          className="w-full px-4 py-3 rounded-xl outline-none resize-none bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>解答（裏面）</label>
+        <label className="block text-sm font-semibold mb-2 text-zinc-900 dark:text-white">解答（裏面）</label>
         <textarea
           value={back}
           onChange={(e) => setBack(e.target.value)}
           placeholder="例: りんご"
           rows={2}
-          className="w-full px-4 py-3 rounded-xl outline-none resize-none"
-          style={{ background: "var(--background)", color: "var(--foreground)" }}
+          className="w-full px-4 py-3 rounded-xl outline-none resize-none bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>ヒント（任意）</label>
+        <label className="block text-sm font-semibold mb-2 text-zinc-900 dark:text-white">ヒント（任意）</label>
         <input
           type="text"
           value={hint}
           onChange={(e) => setHint(e.target.value)}
           placeholder="例: 果物"
-          className="w-full px-4 py-3 rounded-xl outline-none"
-          style={{ background: "var(--background)", color: "var(--foreground)" }}
+          className="w-full px-4 py-3 rounded-xl outline-none bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700"
         />
       </div>
 
@@ -206,8 +203,7 @@ function AddCardForm({ deckId, onClose, onAdded }: { deckId: string; onClose: ()
         </button>
         <button
           onClick={onClose}
-          className="px-6 py-3 rounded-xl font-semibold"
-          style={{ background: "var(--accent)", color: "var(--foreground)" }}
+          className="px-6 py-3 rounded-xl font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
         >
           キャンセル
         </button>

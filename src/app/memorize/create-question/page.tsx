@@ -65,12 +65,9 @@ export default function CreateQuestionPage() {
             <input
               type="text"
               disabled
-              className="px-3 py-2 rounded-lg outline-none text-center font-semibold border-2"
+              className="px-3 py-2 rounded-lg outline-none text-center font-semibold border-2 bg-white dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border-indigo-600 dark:border-indigo-400"
               style={{
                 width: `${Math.max(answerLength * 1.5, 4)}em`,
-                background: "var(--background)",
-                color: "var(--muted)",
-                borderColor: "var(--primary)",
               }}
               placeholder="___"
             />
@@ -122,35 +119,34 @@ export default function CreateQuestionPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-5">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-        <Link href="/memorize" className="inline-flex items-center gap-2 mb-3 font-medium" style={{ color: "var(--primary)" }}>
+        <Link href="/memorize" className="inline-flex items-center gap-2 mb-3 font-medium text-indigo-600 dark:text-indigo-400">
           <ArrowLeft size={20} />
           戻る
         </Link>
-        <h1 className="text-2xl sm:text-4xl font-black" style={{ color: "var(--foreground)" }}>
+        <h1 className="text-2xl sm:text-4xl font-black text-zinc-900 dark:text-white">
           穴埋め問題を作成
         </h1>
-        <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
+        <p className="text-sm mt-1 text-zinc-600 dark:text-zinc-400">
           テキストを選択して「（ ）」ボタンを押すと、自動で穴埋めになります
         </p>
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="space-y-4">
-          <div className="p-6 rounded-2xl space-y-4 border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+          <div className="p-6 rounded-2xl space-y-4 border bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700">
             <div>
-              <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>タイトル</label>
+              <label className="block text-sm font-semibold mb-2 text-zinc-900 dark:text-white">タイトル</label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="例: 日本史 江戸時代"
-                className="w-full px-4 py-3 rounded-xl outline-none border"
-                style={{ background: "var(--background)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
+                className="w-full px-4 py-3 rounded-xl outline-none border bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-white border-zinc-200 dark:border-zinc-700"
               />
             </div>
 
             <div className="relative">
-              <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>問題文</label>
+              <label className="block text-sm font-semibold mb-2 text-zinc-900 dark:text-white">問題文</label>
               <textarea
                 ref={textareaRef}
                 value={content}
@@ -159,8 +155,7 @@ export default function CreateQuestionPage() {
                 onBlur={() => setTimeout(() => setIsFocused(false), 200)}
                 placeholder="問題文を入力し、答えにしたい部分を選択して「（ ）」ボタンを押してください"
                 rows={10}
-                className="w-full px-4 py-3 rounded-xl outline-none resize-none border"
-                style={{ background: "var(--background)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
+                className="w-full px-4 py-3 rounded-xl outline-none resize-none border bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-white border-zinc-200 dark:border-zinc-700"
               />
               
               {isFocused && (
@@ -179,31 +174,37 @@ export default function CreateQuestionPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>解答モード</label>
+              <label className="block text-sm font-semibold mb-2 text-zinc-900 dark:text-white">解答モード</label>
               <div className="flex gap-3">
                 <button
                   onClick={() => setMode("sequential")}
-                  className="flex-1 py-2 rounded-xl font-semibold"
-                  style={{ background: mode === "sequential" ? "var(--primary)" : "var(--accent)", color: mode === "sequential" ? "#fff" : "var(--foreground)" }}
+                  className={`flex-1 py-2 rounded-xl font-semibold transition-all ${
+                    mode === "sequential" 
+                      ? "bg-indigo-600 text-white" 
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
+                  }`}
                 >
                   順次解答
                 </button>
                 <button
                   onClick={() => setMode("all-at-once")}
-                  className="flex-1 py-2 rounded-xl font-semibold"
-                  style={{ background: mode === "all-at-once" ? "var(--primary)" : "var(--accent)", color: mode === "all-at-once" ? "#fff" : "var(--foreground)" }}
+                  className={`flex-1 py-2 rounded-xl font-semibold transition-all ${
+                    mode === "all-at-once" 
+                      ? "bg-indigo-600 text-white" 
+                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
+                  }`}
                 >
                   一括解答
                 </button>
               </div>
-              <p className="text-xs mt-2" style={{ color: "var(--muted)" }}>
+              <p className="text-xs mt-2 text-zinc-600 dark:text-zinc-400">
                 順次解答: Enterで次の穴埋めへ移動 | 一括解答: すべて入力してから判定
               </p>
             </div>
 
             {answers.length > 0 && (
-              <div className="p-4 rounded-xl border" style={{ background: "var(--background)", borderColor: "var(--card-border)" }}>
-                <div className="text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>自動抽出された答え ({answers.length}個)</div>
+              <div className="p-4 rounded-xl border bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700">
+                <div className="text-sm font-semibold mb-2 text-zinc-900 dark:text-white">自動抽出された答え ({answers.length}個)</div>
                 <div className="flex flex-wrap gap-2">
                   {answers.map((ans, idx) => (
                     <span key={idx} className="px-3 py-1 rounded-lg text-sm font-medium" style={{ background: "#22c55e22", color: "#22c55e" }}>
@@ -226,18 +227,18 @@ export default function CreateQuestionPage() {
           </button>
         </div>
 
-        <div className="p-6 rounded-2xl sticky top-5 h-fit border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+        <div className="p-6 rounded-2xl sticky top-5 h-fit border bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center gap-2 mb-4">
-            <Eye size={20} style={{ color: "var(--primary)" }} />
-            <h3 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>テストモードプレビュー</h3>
+            <Eye size={20} className="text-indigo-600 dark:text-indigo-400" />
+            <h3 className="text-lg font-bold text-zinc-900 dark:text-white">テストモードプレビュー</h3>
           </div>
-          <div className="p-5 rounded-xl min-h-[300px] border" style={{ background: "var(--background)", borderColor: "var(--card-border)" }}>
-            {title && <h4 className="text-xl font-bold mb-4" style={{ color: "var(--foreground)" }}>{title}</h4>}
-            <div className="text-lg leading-relaxed pb-8" style={{ color: "var(--foreground)" }}>
-              {content ? renderPreview() : <span style={{ color: "var(--muted)" }}>問題文を入力するとプレビューが表示されます</span>}
+          <div className="p-5 rounded-xl min-h-[300px] border bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700">
+            {title && <h4 className="text-xl font-bold mb-4 text-zinc-900 dark:text-white">{title}</h4>}
+            <div className="text-lg leading-relaxed pb-8 text-zinc-900 dark:text-white">
+              {content ? renderPreview() : <span className="text-zinc-600 dark:text-zinc-400">問題文を入力するとプレビューが表示されます</span>}
             </div>
           </div>
-          <div className="mt-4 p-3 rounded-xl text-xs border" style={{ background: "var(--accent)", color: "var(--foreground)", borderColor: "var(--card-border)" }}>
+          <div className="mt-4 p-3 rounded-xl text-xs border bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white border-zinc-200 dark:border-zinc-700">
             💡 ヒント: テキストを選択して「（ ）」ボタンを押すと、自動で穴埋めになります。全角（）でも半角()でもOK！
           </div>
         </div>

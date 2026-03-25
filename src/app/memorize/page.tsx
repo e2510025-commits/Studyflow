@@ -315,17 +315,17 @@ export default function MemorizePage() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md p-6 rounded-2xl shadow-2xl"
-              style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md p-6 rounded-2xl shadow-2xl bg-white dark:bg-zinc-900"
+              style={{ border: "1px solid var(--card-border)" }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="text-2xl font-black mb-4" style={{ color: "var(--foreground)" }}>
+              <h2 className="text-2xl font-black mb-4 text-zinc-900 dark:text-white">
                 新しいデッキを作成
               </h2>
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>
+                  <label className="block text-sm font-semibold mb-2 text-zinc-900 dark:text-white">
                     デッキ名
                   </label>
                   <input
@@ -339,13 +339,12 @@ export default function MemorizePage() {
                     }}
                     placeholder="例: 英単語 TOEIC"
                     autoFocus
-                    className="w-full px-4 py-3 rounded-xl outline-none border"
-                    style={{ background: "var(--background)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
+                    className="w-full px-4 py-3 rounded-xl outline-none border bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-white border-zinc-200 dark:border-zinc-700"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>
+                  <label className="block text-sm font-semibold mb-2 text-zinc-900 dark:text-white">
                     カラー
                   </label>
                   <div className="flex gap-2">
@@ -367,8 +366,7 @@ export default function MemorizePage() {
                 <div className="flex gap-3 pt-2">
                   <button
                     onClick={() => setShowCreateModal(false)}
-                    className="flex-1 py-3 rounded-xl font-bold"
-                    style={{ background: "var(--accent)", color: "var(--foreground)" }}
+                    className="flex-1 py-3 rounded-xl font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
                   >
                     キャンセル
                   </button>
