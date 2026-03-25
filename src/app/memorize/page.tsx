@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, BookOpen, Clock, TrendingUp, Search, Edit, Trash2, Share2 } from "lucide-react";
 import Link from "next/link";
@@ -168,7 +168,6 @@ export default function MemorizePage() {
         <StatCard icon={<TrendingUp />} label="習得済み" value={decks.reduce((sum, d) => sum + d.masteredCount, 0)} color="#22c55e" />
       </div>
 
-      {/* 検索バー */}
       <div className="relative">
         <Search className="absolute left-4 top-1/2 transform -translate-y-1/2" size={20} style={{ color: "var(--muted)" }} />
         <input
@@ -181,7 +180,6 @@ export default function MemorizePage() {
         />
       </div>
 
-      {/* カテゴリータブ */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
         {categories.map((cat) => (
           <button
@@ -203,22 +201,11 @@ export default function MemorizePage() {
         </Link>
       </div>
 
-      <div className="flex gap-3">
-        <button
-          onClick={() => router.push("/memorize/create-deck")}
-          className="px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg"
-          style={{ background: "var(--primary)", color: "#fff" }}
-        >
-          <Plus size={20} />
-          作成
-        </button>
-      </div>
-
       {loading ? (
         <div className="text-center py-12" style={{ color: "var(--muted)" }}>読み込み中...</div>
       ) : filteredDecks.length === 0 ? (
         <div className="text-center py-12" style={{ color: "var(--muted)" }}>
-          {searchQuery ? "検索結果がありません" : "デッキがありません。新しいデッキを作成しましょう。"}
+          {searchQuery ? "検索結果がありません" : "デッキがありません。右上の「作成」ボタンから新しいデッキを作成しましょう。"}
         </div>
       ) : (
         <div className="space-y-3">
@@ -232,14 +219,11 @@ export default function MemorizePage() {
               onSaveRename={() => saveRename(deck.id)}
               onCancelEdit={() => setEditingDeckId(null)}
               onContextMenu={handleContextMenu}
-              onRename={() => handleRename(deck)}
-              onDelete={() => handleDelete(deck.id)}
             />
           ))}
         </div>
       )}
 
-      {/* コンテキストメニュー */}
       <AnimatePresence>
         {contextMenu && (
           <motion.div
@@ -306,8 +290,6 @@ function DeckTile({
   onSaveRename,
   onCancelEdit,
   onContextMenu,
-  onRename,
-  onDelete,
 }: {
   deck: Deck;
   isEditing: boolean;
@@ -316,8 +298,6 @@ function DeckTile({
   onSaveRename: () => void;
   onCancelEdit: () => void;
   onContextMenu: (e: React.MouseEvent, deckId: string) => void;
-  onRename: () => void;
-  onDelete: () => void;
 }) {
   const router = useRouter();
   const progress = deck.cardCount > 0 ? (deck.masteredCount / deck.cardCount) * 100 : 0;
@@ -325,11 +305,13 @@ function DeckTile({
   return (
     <motion.div
       whileHover={{ scale: 1.01 }}
-      className="p-5 rounded-2xl cursor-pointer flex items-center justify-between"
+      className="p-5 rounded-2xl flex items-center justify-between group"
       style={{ background: "var(--card)", borderLeft: `4px solid ${deck.color}` }}
-      onClick={() => !isEditing && router.push(`/memorize/deck/${deck.id}`)}
     >
-      <div className="flex-1 min-w-0">
+      <div
+        className="flex-1 min-w-0 cursor-pointer"
+        onClick={() => !isEditing && router.push(`/memorize/deck/${deck.id}`)}
+      >
         {isEditing ? (
           <input
             type="text"
@@ -358,18 +340,13 @@ function DeckTile({
           <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: deck.color }} />
         </div>
       </div>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onContextMenu(e, deck.id);
-        }}
-        className="ml-4 p-3 rounded-lg transition-all flex-shrink-0"
-        style={{ color: "var(--muted)", background: "transparent" }}
-        onMouseEnter={(e) => e.currentTarget.style.background = "var(--accent)"}
-        onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+      <div
+        className="ml-4 w-24 h-full flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={(e) => onContextMenu(e, deck.id)}
+        style={{ color: "var(--muted)" }}
       >
-        <MoreVertical size={20} />
-      </button>
+        <span className="text-2xl">⋮</span>
+      </div>
     </motion.div>
   );
 }

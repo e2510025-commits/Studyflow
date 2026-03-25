@@ -30,6 +30,12 @@ export default function TestPage() {
     fetchQuestion();
   }, [params.questionId]);
 
+  useEffect(() => {
+    if (question && !showResults && inputRefs.current[0]) {
+      inputRefs.current[0]?.focus();
+    }
+  }, [question, showResults]);
+
   const fetchQuestion = async () => {
     try {
       const res = await fetch(`/api/memorize/questions/${params.questionId}`);
@@ -46,7 +52,11 @@ export default function TestPage() {
     return answer
       .trim()
       .toLowerCase()
-      .replace(/[（）\(\)\s]/g, "")
+      // Remove all types of brackets and spaces
+      .replace(/[（）\(\)\s　]/g, "")
+      // Convert full-width alphanumeric to half-width
+      .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+      // Convert katakana to hiragana for comparison
       .replace(/[ァ-ン]/g, (s) => String.fromCharCode(s.charCodeAt(0) + 0x60));
   };
 
@@ -87,13 +97,28 @@ export default function TestPage() {
   };
 
   const handleKeyPress = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && question?.mode === "sequential") {
+    if (e.key === "Enter") {
       e.preventDefault();
-      if (index < question.answers.length - 1) {
-        inputRefs.current[index + 1]?.focus();
-        setCurrentBlankIndex(index + 1);
+      if (question?.mode === "sequential") {
+        if (index < question.answers.length - 1) {
+          inputRefs.current[index + 1]?.focus();
+          setCurrentBlankIndex(index + 1);
+        } else {
+          handleSubmit();
+        }
       } else {
-        handleSubmit();
+        // In all-at-once mode, Enter also submits if all fields are filled
+        const allFilled = userAnswers.every((ans) => ans.trim().length > 0);
+        if (allFilled) {
+          handleSubmit();
+        } else {
+          // Move to next empty field
+          const nextEmptyIndex = userAnswers.findIndex((ans, idx) => idx > index && !ans.trim());
+          if (nextEmptyIndex !== -1) {
+            inputRefs.current[nextEmptyIndex]?.focus();
+            setCurrentBlankIndex(nextEmptyIndex);
+          }
+        }
       }
     }
   };
@@ -139,11 +164,14 @@ export default function TestPage() {
               return (
                 <span key={idx} className="inline-block relative mx-1">
                   <input
-                    ref={(el) => { inputRefs.current[currentIdx] = el; }}
+                    ref={(el) => {
+                      inputRefs.current[currentIdx] = el;
+                    }}
                     type="text"
                     value={userAnswers[currentIdx] || ""}
                     onChange={(e) => handleAnswerChange(currentIdx, e.target.value)}
-                    onKeyPress={(e) => handleKeyPress(currentIdx, e)}
+                    onKeyDown={(e) => handleKeyPress(currentIdx, e)}
+                    onFocus={() => setCurrentBlankIndex(currentIdx)}
                     disabled={showResults}
                     className="px-3 py-2 rounded-lg outline-none text-center font-semibold transition-all"
                     style={{
