@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, BookOpen, Clock, TrendingUp, Search, MoreVertical, Edit, Trash2, Share2, FileText } from "lucide-react";
+import { Plus, BookOpen, Clock, TrendingUp, Search, Edit, Trash2, Share2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -144,11 +144,21 @@ export default function MemorizePage() {
               フラッシュカードと穴埋め問題で効率的に記憶
             </p>
           </div>
-          {totalDue > 0 && (
-            <div className="px-4 py-2 rounded-xl font-bold" style={{ background: "#ef444422", color: "#ef4444" }}>
-              今日の復習: {totalDue}枚
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            {totalDue > 0 && (
+              <div className="px-4 py-2 rounded-xl font-bold" style={{ background: "#ef444422", color: "#ef4444" }}>
+                {totalDue}枚
+              </div>
+            )}
+            <button
+              onClick={() => router.push("/memorize/create-deck")}
+              className="px-5 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg"
+              style={{ background: "var(--primary)", color: "#fff" }}
+            >
+              <Plus size={20} />
+              作成
+            </button>
+          </div>
         </div>
       </motion.div>
 
@@ -194,18 +204,14 @@ export default function MemorizePage() {
       </div>
 
       <div className="flex gap-3">
-        <Link href="/memorize/create-deck" className="px-4 py-2 rounded-xl font-semibold flex items-center gap-2" style={{ background: "var(--primary)", color: "#fff" }}>
+        <button
+          onClick={() => router.push("/memorize/create-deck")}
+          className="px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg"
+          style={{ background: "var(--primary)", color: "#fff" }}
+        >
           <Plus size={20} />
-          新しいデッキ
-        </Link>
-        <Link href="/memorize/create-question" className="px-4 py-2 rounded-xl font-semibold flex items-center gap-2" style={{ background: "var(--accent)", color: "var(--foreground)" }}>
-          <Plus size={20} />
-          穴埋め問題
-        </Link>
-        <Link href="/memorize/questions" className="px-4 py-2 rounded-xl font-semibold flex items-center gap-2" style={{ background: "var(--accent)", color: "var(--foreground)" }}>
-          <FileText size={20} />
-          問題一覧
-        </Link>
+          作成
+        </button>
       </div>
 
       {loading ? (
@@ -353,9 +359,14 @@ function DeckTile({
         </div>
       </div>
       <button
-        onClick={(e) => onContextMenu(e, deck.id)}
-        className="ml-4 p-2 rounded-lg hover:bg-opacity-10 transition-all"
-        style={{ color: "var(--muted)" }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onContextMenu(e, deck.id);
+        }}
+        className="ml-4 p-3 rounded-lg transition-all flex-shrink-0"
+        style={{ color: "var(--muted)", background: "transparent" }}
+        onMouseEnter={(e) => e.currentTarget.style.background = "var(--accent)"}
+        onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
       >
         <MoreVertical size={20} />
       </button>
