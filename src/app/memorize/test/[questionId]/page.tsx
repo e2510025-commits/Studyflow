@@ -133,7 +133,8 @@ export default function TestPage() {
     return <div className="text-center py-12" style={{ color: "var(--muted)" }}>読み込み中...</div>;
   }
 
-  const parts = question.content.split(/(\{\{[^}]+\}\})/g);
+  // Support both full-width （） and half-width ()
+  const parts = question.content.split(/([（(][^）)]+[）)])/g);
   let blankIndex = -1;
 
   return (
@@ -151,10 +152,10 @@ export default function TestPage() {
         </p>
       </motion.div>
 
-      <div className="p-8 rounded-2xl" style={{ background: "var(--card)" }}>
+      <div className="p-8 rounded-2xl border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
         <div className="text-xl leading-relaxed" style={{ color: "var(--foreground)" }}>
           {parts.map((part, idx) => {
-            if (part.match(/\{\{[^}]+\}\}/)) {
+            if (part.match(/[（(][^）)]+[）)]/)) {
               blankIndex++;
               const currentIdx = blankIndex;
               const answerLength = question.answers[currentIdx]?.length || 5;
@@ -173,12 +174,12 @@ export default function TestPage() {
                     onKeyDown={(e) => handleKeyPress(currentIdx, e)}
                     onFocus={() => setCurrentBlankIndex(currentIdx)}
                     disabled={showResults}
-                    className="px-3 py-2 rounded-lg outline-none text-center font-semibold transition-all"
+                    className="px-3 py-2 rounded-lg outline-none text-center font-semibold transition-all border-2"
                     style={{
                       width: `${Math.max(answerLength * 1.2, 3)}em`,
                       background: isCorrect ? "#22c55e22" : isWrong ? "#ef444422" : "var(--background)",
                       color: isCorrect ? "#22c55e" : isWrong ? "#ef4444" : "var(--foreground)",
-                      border: currentBlankIndex === currentIdx && !showResults ? "2px solid var(--primary)" : "2px solid transparent",
+                      borderColor: currentBlankIndex === currentIdx && !showResults ? "var(--primary)" : isCorrect ? "#22c55e" : isWrong ? "#ef4444" : "var(--card-border)",
                     }}
                     placeholder="___"
                   />

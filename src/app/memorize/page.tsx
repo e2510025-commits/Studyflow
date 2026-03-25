@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, BookOpen, Clock, TrendingUp, Search, Edit, Trash2, Share2 } from "lucide-react";
+import { Plus, BookOpen, Clock, TrendingUp, Search, Edit, Trash2, Share2, BookMarked } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -34,6 +34,10 @@ export default function MemorizePage() {
   const [contextMenu, setContextMenu] = useState<{ deckId: string; x: number; y: number } | null>(null);
   const [editingDeckId, setEditingDeckId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newDeckName, setNewDeckName] = useState("");
+  const [newDeckColor, setNewDeckColor] = useState("#6366f1");
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     fetchDecks();
@@ -127,6 +131,38 @@ export default function MemorizePage() {
     setContextMenu(null);
   };
 
+  const handleCreateDeck = async () => {
+    if (!newDeckName.trim()) return;
+    
+    setCreating(true);
+    try {
+      const res = await fetch("/api/memorize/decks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newDeckName,
+          description: "",
+          color: newDeckColor,
+          subjectId: selectedCategory !== "all" ? selectedCategory : undefined,
+        }),
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setShowCreateModal(false);
+        setNewDeckName("");
+        setNewDeckColor("#6366f1");
+        // Redirect to deck page
+        router.push(`/memorize/deck/${data.deckId}`);
+      }
+    } catch (error) {
+      console.error("Failed to create deck:", error);
+      alert("デッキの作成に失敗しました");
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const categories = [
     { id: "all", name: "全て", color: "#6366f1" },
     ...subjects.map(s => ({ id: s.id, name: s.name, color: s.color })),
@@ -151,7 +187,7 @@ export default function MemorizePage() {
               </div>
             )}
             <button
-              onClick={() => router.push("/memorize/create-deck")}
+              onClick={() => setShowCreateModal(true)}
               className="px-5 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg"
               style={{ background: "var(--primary)", color: "#fff" }}
             >
@@ -240,6 +276,7 @@ export default function MemorizePage() {
             onClick={(e) => e.stopPropagation()}
           >
             {[
+              { icon: <BookMarked size={16} />, label: "編集", onClick: () => { setContextMenu(null); router.push(`/memorize/deck/${contextMenu.deckId}`); } },
               { icon: <Edit size={16} />, label: "名前変更", onClick: () => handleRename(decks.find(d => d.id === contextMenu.deckId)!) },
               { icon: <Share2 size={16} />, label: "共有", onClick: () => alert("共有機能は開発中です") },
               { icon: <Trash2 size={16} />, label: "削除", onClick: () => handleDelete(contextMenu.deckId), danger: true },
@@ -260,6 +297,93 @@ export default function MemorizePage() {
               </button>
             ))}
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Create Deck Modal */}
+      <AnimatePresence>
+        {showCreateModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/50"
+              onClick={() => setShowCreateModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md p-6 rounded-2xl shadow-2xl"
+              style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-2xl font-black mb-4" style={{ color: "var(--foreground)" }}>
+                新しいデッキを作成
+              </h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>
+                    デッキ名
+                  </label>
+                  <input
+                    type="text"
+                    value={newDeckName}
+                    onChange={(e) => setNewDeckName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newDeckName.trim()) {
+                        handleCreateDeck();
+                      }
+                    }}
+                    placeholder="例: 英単語 TOEIC"
+                    autoFocus
+                    className="w-full px-4 py-3 rounded-xl outline-none border"
+                    style={{ background: "var(--background)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>
+                    カラー
+                  </label>
+                  <div className="flex gap-2">
+                    {["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#8b5cf6", "#ef4444"].map((color) => (
+                      <button
+                        key={color}
+                        onClick={() => setNewDeckColor(color)}
+                        className="w-10 h-10 rounded-lg transition-all"
+                        style={{
+                          background: color,
+                          border: newDeckColor === color ? "3px solid var(--foreground)" : "3px solid transparent",
+                          transform: newDeckColor === color ? "scale(1.1)" : "scale(1)",
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setShowCreateModal(false)}
+                    className="flex-1 py-3 rounded-xl font-bold"
+                    style={{ background: "var(--accent)", color: "var(--foreground)" }}
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    onClick={handleCreateDeck}
+                    disabled={!newDeckName.trim() || creating}
+                    className="flex-1 py-3 rounded-xl font-bold text-white disabled:opacity-50"
+                    style={{ background: "var(--primary)" }}
+                  >
+                    {creating ? "作成中..." : "作成して編集"}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </div>
@@ -305,8 +429,8 @@ function DeckTile({
   return (
     <motion.div
       whileHover={{ scale: 1.01 }}
-      className="p-5 rounded-2xl flex items-center justify-between group"
-      style={{ background: "var(--card)", borderLeft: `4px solid ${deck.color}` }}
+      className="p-5 rounded-2xl flex items-center justify-between group border"
+      style={{ background: "var(--card)", borderLeft: `4px solid ${deck.color}`, borderColor: "var(--card-border)" }}
     >
       <div
         className="flex-1 min-w-0 cursor-pointer"
@@ -323,8 +447,8 @@ function DeckTile({
             }}
             onBlur={onSaveRename}
             autoFocus
-            className="text-lg font-bold mb-1 px-2 py-1 rounded outline-none"
-            style={{ background: "var(--background)", color: "var(--foreground)" }}
+            className="text-lg font-bold mb-1 px-2 py-1 rounded outline-none border"
+            style={{ background: "var(--background)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
@@ -341,11 +465,12 @@ function DeckTile({
         </div>
       </div>
       <div
-        className="ml-4 w-24 h-full flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+        className="ml-4 w-24 h-full flex items-center justify-center cursor-pointer transition-opacity"
         onClick={(e) => onContextMenu(e, deck.id)}
         style={{ color: "var(--muted)" }}
+        title="オプション"
       >
-        <span className="text-2xl">⋮</span>
+        <span className="text-2xl opacity-0 group-hover:opacity-100 transition-opacity">⋮</span>
       </div>
     </motion.div>
   );
