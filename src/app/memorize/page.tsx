@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Plus, BookOpen, Clock, TrendingUp } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Plus, BookOpen, Clock, TrendingUp, Search, MoreVertical, Edit, Trash2, Share2, FileText } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface Deck {
   id: string;
@@ -13,15 +14,36 @@ interface Deck {
   cardCount: number;
   dueCount: number;
   masteredCount: number;
+  subjectId?: string;
+}
+
+interface Subject {
+  id: string;
+  name: string;
+  color: string;
 }
 
 export default function MemorizePage() {
+  const router = useRouter();
   const [decks, setDecks] = useState<Deck[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalDue, setTotalDue] = useState(0);
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [contextMenu, setContextMenu] = useState<{ deckId: string; x: number; y: number } | null>(null);
+  const [editingDeckId, setEditingDeckId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
 
   useEffect(() => {
     fetchDecks();
+    fetchSubjects();
+  }, []);
+
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null);
+    window.addEventListener("click", handleClick);
+    return () => window.removeEventListener("click", handleClick);
   }, []);
 
   const fetchDecks = async () => {
@@ -36,6 +58,79 @@ export default function MemorizePage() {
       setLoading(false);
     }
   };
+
+  const fetchSubjects = async () => {
+    try {
+      const res = await fetch("/api/subjects");
+      const data = await res.json();
+      setSubjects(data.subjects || []);
+    } catch (error) {
+      console.error("Failed to fetch subjects:", error);
+    }
+  };
+
+  const filteredDecks = useMemo(() => {
+    let filtered = decks;
+    
+    if (selectedCategory !== "all") {
+      filtered = filtered.filter(d => d.subjectId === selectedCategory);
+    }
+    
+    if (searchQuery) {
+      filtered = filtered.filter(d => 
+        d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        d.description.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    
+    return filtered;
+  }, [decks, selectedCategory, searchQuery]);
+
+  const handleContextMenu = (e: React.MouseEvent, deckId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ deckId, x: e.clientX, y: e.clientY });
+  };
+
+  const handleRename = (deck: Deck) => {
+    setEditingDeckId(deck.id);
+    setEditingName(deck.name);
+    setContextMenu(null);
+  };
+
+  const saveRename = async (deckId: string) => {
+    if (!editingName.trim()) return;
+    
+    try {
+      await fetch(`/api/memorize/decks/${deckId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editingName }),
+      });
+      fetchDecks();
+    } catch (error) {
+      console.error("Failed to rename deck:", error);
+    } finally {
+      setEditingDeckId(null);
+    }
+  };
+
+  const handleDelete = async (deckId: string) => {
+    if (!confirm("このデッキを削除しますか？")) return;
+    
+    try {
+      await fetch(`/api/memorize/decks/${deckId}`, { method: "DELETE" });
+      fetchDecks();
+    } catch (error) {
+      console.error("Failed to delete deck:", error);
+    }
+    setContextMenu(null);
+  };
+
+  const categories = [
+    { id: "all", name: "全て", color: "#6366f1" },
+    ...subjects.map(s => ({ id: s.id, name: s.name, color: s.color })),
+  ];
 
   return (
     <div className="space-y-5">
@@ -63,6 +158,41 @@ export default function MemorizePage() {
         <StatCard icon={<TrendingUp />} label="習得済み" value={decks.reduce((sum, d) => sum + d.masteredCount, 0)} color="#22c55e" />
       </div>
 
+      {/* 検索バー */}
+      <div className="relative">
+        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2" size={20} style={{ color: "var(--muted)" }} />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="デッキを検索..."
+          className="w-full pl-12 pr-4 py-3 rounded-xl outline-none"
+          style={{ background: "var(--card)", color: "var(--foreground)" }}
+        />
+      </div>
+
+      {/* カテゴリータブ */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+        {categories.map((cat) => (
+          <button
+            key={cat.id}
+            onClick={() => setSelectedCategory(cat.id)}
+            className="px-4 py-2 rounded-xl font-semibold whitespace-nowrap transition-all flex-shrink-0"
+            style={{
+              background: selectedCategory === cat.id ? `${cat.color}22` : "var(--card)",
+              color: selectedCategory === cat.id ? cat.color : "var(--muted)",
+              border: selectedCategory === cat.id ? `2px solid ${cat.color}40` : "2px solid transparent",
+            }}
+          >
+            {cat.name}
+          </button>
+        ))}
+        <Link href="/subjects" className="px-4 py-2 rounded-xl font-semibold whitespace-nowrap flex-shrink-0 flex items-center gap-2" style={{ background: "var(--card)", color: "var(--muted)" }}>
+          <Plus size={18} />
+          カテゴリー追加
+        </Link>
+      </div>
+
       <div className="flex gap-3">
         <Link href="/memorize/create-deck" className="px-4 py-2 rounded-xl font-semibold flex items-center gap-2" style={{ background: "var(--primary)", color: "#fff" }}>
           <Plus size={20} />
@@ -73,24 +203,75 @@ export default function MemorizePage() {
           穴埋め問題
         </Link>
         <Link href="/memorize/questions" className="px-4 py-2 rounded-xl font-semibold flex items-center gap-2" style={{ background: "var(--accent)", color: "var(--foreground)" }}>
-          <BookOpen size={20} />
+          <FileText size={20} />
           問題一覧
         </Link>
       </div>
 
       {loading ? (
         <div className="text-center py-12" style={{ color: "var(--muted)" }}>読み込み中...</div>
-      ) : decks.length === 0 ? (
+      ) : filteredDecks.length === 0 ? (
         <div className="text-center py-12" style={{ color: "var(--muted)" }}>
-          デッキがありません。新しいデッキを作成しましょう。
+          {searchQuery ? "検索結果がありません" : "デッキがありません。新しいデッキを作成しましょう。"}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {decks.map((deck) => (
-            <DeckCard key={deck.id} deck={deck} />
+        <div className="space-y-3">
+          {filteredDecks.map((deck) => (
+            <DeckTile
+              key={deck.id}
+              deck={deck}
+              isEditing={editingDeckId === deck.id}
+              editingName={editingName}
+              onEditingNameChange={setEditingName}
+              onSaveRename={() => saveRename(deck.id)}
+              onCancelEdit={() => setEditingDeckId(null)}
+              onContextMenu={handleContextMenu}
+              onRename={() => handleRename(deck)}
+              onDelete={() => handleDelete(deck.id)}
+            />
           ))}
         </div>
       )}
+
+      {/* コンテキストメニュー */}
+      <AnimatePresence>
+        {contextMenu && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="fixed z-50 p-2 rounded-xl shadow-2xl"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--card-border)",
+              left: contextMenu.x,
+              top: contextMenu.y,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {[
+              { icon: <Edit size={16} />, label: "名前変更", onClick: () => handleRename(decks.find(d => d.id === contextMenu.deckId)!) },
+              { icon: <Share2 size={16} />, label: "共有", onClick: () => alert("共有機能は開発中です") },
+              { icon: <Trash2 size={16} />, label: "削除", onClick: () => handleDelete(contextMenu.deckId), danger: true },
+            ].map((item, idx) => (
+              <button
+                key={idx}
+                onClick={item.onClick}
+                className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                style={{
+                  color: item.danger ? "#ef4444" : "var(--foreground)",
+                  background: "transparent",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "var(--accent)"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -111,18 +292,73 @@ function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label:
   );
 }
 
-function DeckCard({ deck }: { deck: Deck }) {
+function DeckTile({
+  deck,
+  isEditing,
+  editingName,
+  onEditingNameChange,
+  onSaveRename,
+  onCancelEdit,
+  onContextMenu,
+  onRename,
+  onDelete,
+}: {
+  deck: Deck;
+  isEditing: boolean;
+  editingName: string;
+  onEditingNameChange: (name: string) => void;
+  onSaveRename: () => void;
+  onCancelEdit: () => void;
+  onContextMenu: (e: React.MouseEvent, deckId: string) => void;
+  onRename: () => void;
+  onDelete: () => void;
+}) {
+  const router = useRouter();
+  const progress = deck.cardCount > 0 ? (deck.masteredCount / deck.cardCount) * 100 : 0;
+
   return (
-    <Link href={`/memorize/deck/${deck.id}`}>
-      <motion.div whileHover={{ scale: 1.02 }} className="p-5 rounded-2xl cursor-pointer" style={{ background: "var(--card)", borderLeft: `4px solid ${deck.color}` }}>
-        <h3 className="text-lg font-bold mb-1" style={{ color: "var(--foreground)" }}>{deck.name}</h3>
-        <p className="text-sm mb-3" style={{ color: "var(--muted)" }}>{deck.description || "説明なし"}</p>
-        <div className="flex gap-4 text-sm">
+    <motion.div
+      whileHover={{ scale: 1.01 }}
+      className="p-5 rounded-2xl cursor-pointer flex items-center justify-between"
+      style={{ background: "var(--card)", borderLeft: `4px solid ${deck.color}` }}
+      onClick={() => !isEditing && router.push(`/memorize/deck/${deck.id}`)}
+    >
+      <div className="flex-1 min-w-0">
+        {isEditing ? (
+          <input
+            type="text"
+            value={editingName}
+            onChange={(e) => onEditingNameChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onSaveRename();
+              if (e.key === "Escape") onCancelEdit();
+            }}
+            onBlur={onSaveRename}
+            autoFocus
+            className="text-lg font-bold mb-1 px-2 py-1 rounded outline-none"
+            style={{ background: "var(--background)", color: "var(--foreground)" }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <h3 className="text-lg font-bold mb-1" style={{ color: "var(--foreground)" }}>{deck.name}</h3>
+        )}
+        <p className="text-sm mb-2 truncate" style={{ color: "var(--muted)" }}>{deck.description || "説明なし"}</p>
+        <div className="flex items-center gap-4 text-sm mb-2">
           <span style={{ color: "var(--muted)" }}>全{deck.cardCount}枚</span>
           {deck.dueCount > 0 && <span style={{ color: "#ef4444" }}>復習{deck.dueCount}枚</span>}
           <span style={{ color: "#22c55e" }}>習得{deck.masteredCount}枚</span>
         </div>
-      </motion.div>
-    </Link>
+        <div className="w-full h-2 rounded-full" style={{ background: "var(--accent)" }}>
+          <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: deck.color }} />
+        </div>
+      </div>
+      <button
+        onClick={(e) => onContextMenu(e, deck.id)}
+        className="ml-4 p-2 rounded-lg hover:bg-opacity-10 transition-all"
+        style={{ color: "var(--muted)" }}
+      >
+        <MoreVertical size={20} />
+      </button>
+    </motion.div>
   );
 }

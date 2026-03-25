@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Save, Eye, Brackets } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -12,6 +12,7 @@ export default function CreateQuestionPage() {
   const [content, setContent] = useState("");
   const [mode, setMode] = useState<"sequential" | "all-at-once">("sequential");
   const [saving, setSaving] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const insertBrackets = () => {
@@ -53,9 +54,15 @@ export default function CreateQuestionPage() {
     const parts = content.split(/(\{\{[^}]+\}\})/g);
     return parts.map((part, idx) => {
       if (part.match(/\{\{[^}]+\}\}/)) {
+        const answer = part.replace(/\{\{|\}\}/g, "").trim();
         return (
-          <span key={idx} className="inline-block px-3 py-1 mx-1 rounded-lg font-semibold" style={{ background: "#3b82f622", color: "#3b82f6" }}>
-            ___
+          <span key={idx} className="inline-block relative mx-1">
+            <span className="px-3 py-1 rounded-lg font-semibold" style={{ background: "#3b82f622", color: "#3b82f6" }}>
+              ___
+            </span>
+            <span className="absolute -bottom-6 left-0 text-xs font-medium whitespace-nowrap" style={{ color: "#22c55e" }}>
+              {answer}
+            </span>
           </span>
         );
       }
@@ -71,7 +78,7 @@ export default function CreateQuestionPage() {
 
     const answers = extractAnswers(content);
     if (answers.length === 0) {
-      alert("{{答え}}の形式で少なくとも1つの穴埋めを作成してください");
+      alert("{{答え}} の形式で少なくとも1つの穴埋めを作成してください");
       return;
     }
 
@@ -109,12 +116,11 @@ export default function CreateQuestionPage() {
           穴埋め問題を作成
         </h1>
         <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
-          テキストを選択して「（ ）」ボタンを押すか、{'{{答え}}'} の形式で入力
+          テキストを選択して「（ ）」ボタンを押すか、{"{{"} 答え {"}}"} の形式で入力
         </p>
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* エディタ */}
         <div className="space-y-4">
           <div className="p-6 rounded-2xl space-y-4" style={{ background: "var(--card)" }}>
             <div>
@@ -129,27 +135,33 @@ export default function CreateQuestionPage() {
               />
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>問題文</label>
-                <button
-                  onClick={insertBrackets}
-                  className="px-3 py-1.5 rounded-lg font-semibold flex items-center gap-2 text-sm"
-                  style={{ background: "var(--primary)", color: "#fff" }}
-                >
-                  <Brackets size={16} />
-                  （ ）
-                </button>
-              </div>
+            <div className="relative">
+              <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>問題文</label>
               <textarea
                 ref={textareaRef}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setTimeout(() => setIsFocused(false), 200)}
                 placeholder="問題文を入力し、答えにしたい部分を選択して「（ ）」ボタンを押してください"
                 rows={10}
                 className="w-full px-4 py-3 rounded-xl outline-none resize-none"
                 style={{ background: "var(--background)", color: "var(--foreground)" }}
               />
+              
+              {isFocused && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  onClick={insertBrackets}
+                  className="absolute right-4 top-12 px-3 py-2 rounded-lg font-semibold flex items-center gap-2 text-sm shadow-lg"
+                  style={{ background: "var(--primary)", color: "#fff" }}
+                >
+                  <Brackets size={16} />
+                  （ ）
+                </motion.button>
+              )}
             </div>
 
             <div>
@@ -170,6 +182,9 @@ export default function CreateQuestionPage() {
                   一括解答
                 </button>
               </div>
+              <p className="text-xs mt-2" style={{ color: "var(--muted)" }}>
+                順次解答: Enterで次の穴埋めへ移動 | 一括解答: すべて入力してから判定
+              </p>
             </div>
 
             {answers.length > 0 && (
@@ -197,17 +212,19 @@ export default function CreateQuestionPage() {
           </button>
         </div>
 
-        {/* プレビュー */}
-        <div className="p-6 rounded-2xl" style={{ background: "var(--card)" }}>
+        <div className="p-6 rounded-2xl sticky top-5 h-fit" style={{ background: "var(--card)" }}>
           <div className="flex items-center gap-2 mb-4">
             <Eye size={20} style={{ color: "var(--primary)" }} />
-            <h3 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>プレビュー</h3>
+            <h3 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>リアルタイムプレビュー</h3>
           </div>
           <div className="p-5 rounded-xl min-h-[300px]" style={{ background: "var(--background)" }}>
             {title && <h4 className="text-xl font-bold mb-4" style={{ color: "var(--foreground)" }}>{title}</h4>}
-            <div className="text-lg leading-relaxed" style={{ color: "var(--foreground)" }}>
+            <div className="text-lg leading-relaxed pb-8" style={{ color: "var(--foreground)" }}>
               {content ? renderPreview() : <span style={{ color: "var(--muted)" }}>問題文を入力するとプレビューが表示されます</span>}
             </div>
+          </div>
+          <div className="mt-4 p-3 rounded-xl text-xs" style={{ background: "#3b82f622", color: "#3b82f6" }}>
+            💡 ヒント: テキストを選択して「（ ）」ボタンを押すと、選択範囲が自動的に穴埋めになります
           </div>
         </div>
       </div>
