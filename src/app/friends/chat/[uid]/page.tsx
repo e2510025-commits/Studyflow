@@ -404,16 +404,11 @@ export default function ChatPage() {
     <div className="w-full max-w-3xl mx-auto flex flex-col" style={{ height: "calc(100vh - 80px)" }}>
       {/* ─── Chat Header ──────────────────────────────── */}
       <div
-        className="flex items-center gap-3 px-4 py-3 border-b flex-shrink-0"
-        style={{
-          borderColor: "var(--card-border)",
-          background: "var(--card-bg)",
-        }}
+        className="flex items-center gap-3 px-4 py-3 border-b flex-shrink-0 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700"
       >
         <motion.button
           onClick={() => router.push("/conversations")}
-          className="w-9 h-9 rounded-full flex items-center justify-center"
-          style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+          className="w-9 h-9 rounded-full flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
         >
@@ -423,27 +418,26 @@ export default function ChatPage() {
         <div className="flex-1 min-w-0">
           <Link
             href={`/profile/${friend.uid}`}
-            className="text-sm font-bold truncate hover:underline inline-flex items-center gap-1"
-            style={{ color: "var(--foreground)" }}
+            className="text-sm font-bold truncate hover:underline inline-flex items-center gap-1 text-zinc-900 dark:text-white"
           >
             {safeFriendName}
             <OfficialMark uid={friend.uid} isOfficial={friend.isOfficial} size={13} />
           </Link>
-          <span className="text-xs font-mono" style={{ color: "var(--muted)" }}>
+          <span className="text-xs font-mono text-zinc-600 dark:text-zinc-400">
             UID: {friend.uid}
           </span>
         </div>
       </div>
 
       {/* ─── Messages area ────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1 bg-zinc-50 dark:bg-zinc-950">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full">
             <span className="text-4xl mb-3">💬</span>
-            <p className="text-sm" style={{ color: "var(--muted)" }}>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
               まだメッセージがありません
             </p>
-            <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
+            <p className="text-xs mt-1 text-zinc-600 dark:text-zinc-400">
               メッセージを送って会話を始めましょう
             </p>
           </div>
@@ -453,14 +447,13 @@ export default function ChatPage() {
           <React.Fragment key={group.date}>
             {/* Date separator */}
             <div className="flex items-center gap-3 py-3">
-              <div className="flex-1 h-px" style={{ background: "var(--card-border)" }} />
+              <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
               <span
-                className="text-[10px] font-medium px-2"
-                style={{ color: "var(--muted)" }}
+                className="text-[10px] font-medium px-2 text-zinc-600 dark:text-zinc-400"
               >
                 {group.date}
               </span>
-              <div className="flex-1 h-px" style={{ background: "var(--card-border)" }} />
+              <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
             </div>
 
             {group.msgs.map((msg) => {
@@ -495,7 +488,11 @@ export default function ChatPage() {
                   >
                     {/* Bubble */}
                     <div
-                      className="rounded-2xl px-4 py-2.5 text-sm leading-relaxed break-words"
+                      className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed break-words ${
+                        isMine 
+                          ? "bg-indigo-600 text-white" 
+                          : "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white"
+                      }`}
                       onTouchStart={(e) => handleTouchStart(e, msg.id, isMine)}
                       onTouchMove={handleTouchMove}
                       onTouchEnd={handleTouchEnd}
@@ -504,16 +501,12 @@ export default function ChatPage() {
                         if (isMine) setActionMenuId(msg.id);
                       }}
                       style={{
-                        background: isMine
-                          ? "var(--accent)"
-                          : "var(--muted-bg)",
-                        color: isMine ? "#fff" : "var(--foreground)",
                         borderBottomRightRadius: isMine ? 4 : 16,
                         borderBottomLeftRadius: isMine ? 16 : 4,
                       }}
                     >
                       {msg.isDeleted ? (
-                        <span className="italic" style={{ color: isMine ? "rgba(255,255,255,0.82)" : "var(--muted)" }}>
+                        <span className={`italic ${isMine ? "text-white/80" : "text-zinc-500 dark:text-zinc-400"}`}>
                           このメッセージは削除されました
                         </span>
                       ) : (
@@ -609,19 +602,17 @@ export default function ChatPage() {
                     </div>
 
                     {editingMessageId === msg.id && !msg.isDeleted && (
-                      <div className="mt-1.5 rounded-xl p-2" style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}>
+                      <div className="mt-1.5 rounded-xl p-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700">
                         <textarea
                           value={editingText}
                           onChange={(e) => setEditingText(e.target.value.slice(0, 4000))}
                           rows={3}
-                          className="w-full text-sm rounded-lg px-2 py-1.5 resize-none"
-                          style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                          className="w-full text-sm rounded-lg px-2 py-1.5 resize-none bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-white"
                         />
                         <div className="mt-1.5 flex items-center justify-end gap-1.5">
                           <button
                             onClick={cancelEdit}
-                            className="px-2 py-1 rounded text-[11px]"
-                            style={{ background: "var(--muted-bg)", color: "var(--muted)" }}
+                            className="px-2 py-1 rounded text-[11px] bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
                           >
                             キャンセル
                           </button>
@@ -644,18 +635,17 @@ export default function ChatPage() {
                       }`}
                     >
                       <span
-                        className="text-[10px]"
-                        style={{ color: "var(--muted)" }}
+                        className="text-[10px] text-zinc-600 dark:text-zinc-400"
                       >
                         {formatMsgTime(msg.createdAt)}
                       </span>
                       {Boolean(msg.editedAt) && !msg.isDeleted && (
-                        <span className="text-[10px]" style={{ color: "var(--muted)" }}>
+                        <span className="text-[10px] text-zinc-600 dark:text-zinc-400">
                           (編集済み)
                         </span>
                       )}
                       {isMine && (
-                        <span className="text-[10px]" style={{ color: "var(--muted)" }}>
+                        <span className="text-[10px] text-zinc-600 dark:text-zinc-400">
                           {msg.readBy?.includes(friendUid) ? "既読" : "未読"}
                         </span>
                       )}
@@ -697,20 +687,18 @@ export default function ChatPage() {
                     </div>
 
                     {actionMenuId === msg.id && isMine && !msg.isDeleted && (
-                      <div className={`absolute top-full mt-1 ${isMine ? "right-0" : "left-0"} rounded-lg p-1.5 z-20`} style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}>
+                      <div className={`absolute top-full mt-1 ${isMine ? "right-0" : "left-0"} rounded-lg p-1.5 z-20 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700`}>
                         {msg.type === "text" && (
                           <button
                             onClick={() => startEdit(msg.id, msg.content)}
-                            className="flex items-center gap-1.5 px-2 py-1 rounded text-xs hover:bg-opacity-80 w-full"
-                            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                            className="flex items-center gap-1.5 px-2 py-1 rounded text-xs hover:bg-opacity-80 w-full bg-zinc-100 dark:bg-zinc-700 text-zinc-900 dark:text-white"
                           >
                             <Pencil size={12} /> 編集
                           </button>
                         )}
                         <button
                           onClick={() => startReply(msg)}
-                          className="flex items-center gap-1.5 px-2 py-1 rounded text-xs hover:bg-opacity-80 w-full mt-1"
-                          style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                          className="flex items-center gap-1.5 px-2 py-1 rounded text-xs hover:bg-opacity-80 w-full mt-1 bg-zinc-100 dark:bg-zinc-700 text-zinc-900 dark:text-white"
                         >
                           <Send size={12} /> 返信
                         </button>
@@ -736,11 +724,7 @@ export default function ChatPage() {
       <AnimatePresence>
         {mediaQueue.length > 0 && (
           <motion.div
-            className="px-4 py-2 border-t flex items-center gap-3"
-            style={{
-              borderColor: "var(--card-border)",
-              background: "var(--card-bg)",
-            }}
+            className="px-4 py-2 border-t flex items-center gap-3 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
@@ -774,34 +758,28 @@ export default function ChatPage() {
 
       {/* ─── Input area ───────────────────────────────── */}
       <div
-        className="flex-shrink-0"
-        style={{
-          borderColor: "var(--card-border)",
-          background: "var(--card-bg)",
-        }}
+        className="flex-shrink-0 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-700"
       >
         {/* Reply preview */}
         <AnimatePresence>
           {replyingTo && (
             <motion.div
-              className="px-4 py-2 border-t flex items-center justify-between gap-2"
-              style={{ borderColor: "var(--card-border)" }}
+              className="px-4 py-2 border-t flex items-center justify-between gap-2 border-zinc-200 dark:border-zinc-700"
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
             >
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold" style={{ color: "var(--accent)" }}>
+                <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
                   {replyingTo.fromUid === userProfile.uid ? "あなた" : safeFriendName} に返信
                 </p>
-                <p className="text-xs truncate" style={{ color: "var(--muted)" }}>
+                <p className="text-xs truncate text-zinc-600 dark:text-zinc-400">
                   {replyingTo.content}
                 </p>
               </div>
               <button
                 onClick={() => setReplyingTo(null)}
-                className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ background: "var(--muted-bg)" }}
+                className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-zinc-100 dark:bg-zinc-800"
               >
                 <X size={14} />
               </button>
@@ -809,7 +787,7 @@ export default function ChatPage() {
           )}
         </AnimatePresence>
 
-        <div className="flex items-end gap-2 px-4 py-3 border-t" style={{ borderColor: "var(--card-border)" }}>
+        <div className="flex items-end gap-2 px-4 py-3 border-t border-zinc-200 dark:border-zinc-700">
           {/* File upload */}
           <input
             ref={fileInputRef}
@@ -821,8 +799,7 @@ export default function ChatPage() {
           />
           <motion.button
             onClick={() => fileInputRef.current?.click()}
-            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             title="画像・動画をアップロード"
@@ -832,8 +809,7 @@ export default function ChatPage() {
 
           <motion.button
             onClick={() => setTaskDialogOpen(true)}
-            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             title="課題を共有"
@@ -843,8 +819,7 @@ export default function ChatPage() {
 
           {/* Text input */}
           <div
-            className="flex-1 rounded-2xl overflow-hidden"
-            style={{ background: "var(--muted-bg)" }}
+            className="flex-1 rounded-2xl overflow-hidden bg-zinc-100 dark:bg-zinc-800"
           >
             <textarea
               ref={textareaRef}
@@ -858,10 +833,8 @@ export default function ChatPage() {
             onKeyDown={handleKeyDown}
             placeholder="メッセージを入力..."
             rows={1}
-            className="w-full px-4 py-2.5 text-sm outline-none resize-none"
+            className="w-full px-4 py-2.5 text-sm outline-none resize-none bg-transparent text-zinc-900 dark:text-white"
             style={{
-              background: "transparent",
-              color: "var(--foreground)",
               maxHeight: 120,
             }}
           />
@@ -871,12 +844,11 @@ export default function ChatPage() {
         <motion.button
           onClick={handleSend}
           disabled={sending || (!text.trim() && mediaQueue.length === 0)}
-          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white disabled:opacity-40"
-          style={{
-            background:
-              text.trim() || mediaQueue.length > 0 ? "var(--accent)" : "var(--muted-bg)",
-            color: text.trim() || mediaQueue.length > 0 ? "#fff" : "var(--muted)",
-          }}
+          className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white disabled:opacity-40 ${
+            text.trim() || mediaQueue.length > 0 
+              ? "bg-indigo-600" 
+              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+          }`}
           whileHover={text.trim() || mediaQueue.length > 0 ? { scale: 1.1 } : {}}
           whileTap={text.trim() || mediaQueue.length > 0 ? { scale: 0.9 } : {}}
         >
@@ -948,43 +920,39 @@ export default function ChatPage() {
             onClick={() => setTaskDialogOpen(false)}
           >
             <motion.div
-              className="w-full max-w-md rounded-2xl p-4"
-              style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}
+              className="w-full max-w-md rounded-2xl p-4 bg-white dark:bg-zinc-900"
+              style={{ border: "1px solid var(--card-border)" }}
               initial={{ scale: 0.95, y: 10 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 10 }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-base font-bold mb-3" style={{ color: "var(--foreground)" }}>課題を共有</h3>
+              <h3 className="text-base font-bold mb-3 text-zinc-900 dark:text-white">課題を共有</h3>
               <div className="space-y-2">
                 <input
                   value={taskTitle}
                   onChange={(e) => setTaskTitle(e.target.value)}
                   placeholder="課題タイトル"
-                  className="w-full px-3 py-2 rounded-xl text-sm"
-                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                  className="w-full px-3 py-2 rounded-xl text-sm bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
                 />
                 <textarea
                   value={taskDetails}
                   onChange={(e) => setTaskDetails(e.target.value)}
                   placeholder="課題詳細（任意）"
                   rows={3}
-                  className="w-full px-3 py-2 rounded-xl text-sm"
-                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                  className="w-full px-3 py-2 rounded-xl text-sm bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
                 />
                 <input
                   type="date"
                   value={taskDueDate}
                   onChange={(e) => setTaskDueDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl text-sm"
-                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                  className="w-full px-3 py-2 rounded-xl text-sm bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
                 />
               </div>
               <div className="mt-4 flex justify-end gap-2">
                 <button
                   onClick={() => setTaskDialogOpen(false)}
-                  className="px-3 py-2 rounded-xl text-sm"
-                  style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+                  className="px-3 py-2 rounded-xl text-sm bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
                 >
                   キャンセル
                 </button>

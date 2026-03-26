@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import AppShell from "@/components/layout/AppShell";
 
@@ -54,21 +56,46 @@ export default function RootLayout({
 }>) {
   const analyticsEnabled = process.env.NEXT_PUBLIC_SIMPLE_ANALYTICS_ENABLED === "true";
   const analyticsDomain = process.env.NEXT_PUBLIC_SIMPLE_ANALYTICS_DOMAIN || "studyflow.studio";
+  const gaId = process.env.NEXT_PUBLIC_GA_ID;
 
   return (
     <html lang="ja" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {analyticsEnabled ? (
+        {/* Google Analytics */}
+        {gaId && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}
+              strategy="afterInteractive"
+            />
+            <Script id="google-analytics" strategy="afterInteractive">
+              {`
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', '${gaId}');
+              `}
+            </Script>
+          </>
+        )}
+
+        {/* Simple Analytics */}
+        {analyticsEnabled && (
           <Script
             src="https://scripts.simpleanalyticscdn.com/latest.js"
             strategy="afterInteractive"
             data-collect-dnt="true"
             {...(analyticsDomain ? { "data-hostname": analyticsDomain } : {})}
           />
-        ) : null}
+        )}
+
         <AppShell>{children}</AppShell>
+        
+        {/* Vercel Analytics */}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
