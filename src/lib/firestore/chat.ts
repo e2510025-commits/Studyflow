@@ -43,6 +43,39 @@ function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
+function replaceExtensionWithWebp(name: string): string {
+  const lastDot = name.lastIndexOf(".");
+  if (lastDot <= 0) return `${name}.webp`;
+  return `${name.slice(0, lastDot)}.webp`;
+}
+
+async function convertImageToWebp(file: File): Promise<File> {
+  const source = await fileToDataUrl(file);
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("IMAGE_LOAD_FAILED"));
+    img.src = source;
+  });
+
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth || image.width;
+  canvas.height = image.naturalHeight || image.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("CANVAS_CONTEXT_UNAVAILABLE");
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/webp", 0.9);
+  });
+  if (!blob) throw new Error("WEBP_CONVERT_FAILED");
+
+  return new File([blob], replaceExtensionWithWebp(file.name), {
+    type: "image/webp",
+    lastModified: Date.now(),
+  });
+}
+
 /**
  * 2ユーザー間のメッセージをリアルタイム購読
  * @returns unsubscribe 関数
@@ -111,13 +144,16 @@ export async function sendTextMessage(
     fromUid: string;
   }
 ): Promise<void> {
+  const trimmed = text.trim();
+  if (!fromUid || !toUid || !trimmed) return;
+
   const now = Date.now();
   const messageData: Record<string, unknown> = {
     conversationId: getConversationId(fromUid, toUid),
     fromUid,
     toUid,
     type: "text",
-    content: text,
+    content: trimmed,
     readBy: [fromUid],
     createdAtMs: now,
     createdAt: serverTimestamp(),
@@ -167,6 +203,8 @@ export async function sendMediaMessage(
   type: "image" | "video",
   file: File
 ): Promise<void> {
+  if (!fromUid || !toUid) return;
+
   const now = Date.now();
   const conversationId = getConversationId(fromUid, toUid);
   const path = `chat/${conversationId}/${Date.now()}_${sanitizeFileName(file.name)}`;
@@ -187,26 +225,21 @@ export async function sendMediaMessage(
     });
   };
 
-  // Compress image before upload
+  // Convert image to WebP on device while preserving original dimensions
   if (type === "image") {
     try {
-      const imageCompression = (await import("browser-image-compression")).default;
-      const compressed = await imageCompression(file, {
-        maxSizeMB: 0.8,
-        maxWidthOrHeight: 1920,
-        useWebWorker: true,
-      });
+      const converted = await convertImageToWebp(file);
       
       if (!process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET) {
-        await sendAsDataUrl(compressed);
+        await sendAsDataUrl(converted);
         return;
       }
 
-      const compressedPath = `chat/${conversationId}/${Date.now()}_${sanitizeFileName(compressed.name || file.name)}`;
+      const compressedPath = `chat/${conversationId}/${Date.now()}_${sanitizeFileName(converted.name || file.name)}`;
       const compressedRef = ref(storage, compressedPath);
 
       await Promise.race([
-        uploadBytes(compressedRef, compressed),
+        uploadBytes(compressedRef, converted),
         new Promise((_, reject) => {
           setTimeout(() => reject(new Error("UPLOAD_TIMEOUT")), 30000);
         }),
@@ -219,7 +252,7 @@ export async function sendMediaMessage(
         toUid,
         type,
         content: url,
-        fileName: compressed.name || file.name,
+        fileName: converted.name || file.name,
         storagePath: compressedPath,
         readBy: [fromUid],
         createdAtMs: now,
@@ -227,7 +260,7 @@ export async function sendMediaMessage(
       });
       return;
     } catch (error) {
-      console.error("Image compression failed:", error);
+      console.error("Image WebP conversion failed:", error);
       // Fall through to original upload
     }
   }
