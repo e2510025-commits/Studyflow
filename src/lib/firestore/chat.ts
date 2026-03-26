@@ -45,7 +45,7 @@ function fileToDataUrl(file: File): Promise<string> {
 
 function replaceExtensionWithWebp(name: string): string {
   const lastDot = name.lastIndexOf(".");
-  if (lastDot <= 0) return `${name}.webp`;
+  if (lastDot < 0) return `${name}.webp`;
   return `${name.slice(0, lastDot)}.webp`;
 }
 
@@ -72,7 +72,7 @@ async function convertImageToWebp(file: File): Promise<File> {
 
   return new File([blob], replaceExtensionWithWebp(file.name), {
     type: "image/webp",
-    lastModified: Date.now(),
+    lastModified: file.lastModified,
   });
 }
 
