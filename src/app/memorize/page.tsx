@@ -156,7 +156,7 @@ export default function MemorizePage() {
       setNewDeckName("");
       setNewDeckColor("#7c83ff");
       await fetchDecks();
-      router.push(`/memorize/deck/${data.deckId}`);
+      router.push(`/memorize/deck/${data.deckId}/edit`);
     } catch (error) {
       console.error("Failed to create deck:", error);
       alert("デッキの作成に失敗しました");
@@ -407,7 +407,7 @@ export default function MemorizePage() {
                 label: "編集",
                 onClick: () => {
                   setContextMenu(null);
-                  router.push(`/memorize/deck/${contextMenu.deckId}`);
+                  router.push(`/memorize/deck/${contextMenu.deckId}/edit`);
                 },
               },
               {

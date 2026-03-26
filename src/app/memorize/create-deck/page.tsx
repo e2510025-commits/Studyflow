@@ -32,7 +32,7 @@ export default function CreateDeckPage() {
 
       if (res.ok) {
         const data = await res.json();
-        router.push(`/memorize/deck/${data.deck.id}`);
+        router.push(`/memorize/deck/${data.deck.id}/edit`);
       } else {
         alert("保存に失敗しました");
       }

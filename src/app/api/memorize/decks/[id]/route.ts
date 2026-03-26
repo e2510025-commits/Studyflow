@@ -30,23 +30,38 @@ export async function GET(
       userName: sessionUser.name,
     };
 
-    const cardsQuery = query(
-      collection(db, "flashCards"),
-      where("deckId", "==", id),
-      orderBy("createdAt", "desc")
-    );
-    const cardsSnap = await getDocs(cardsQuery);
+    let cardsSnap;
+    try {
+      const cardsQuery = query(
+        collection(db, "flashCards"),
+        where("deckId", "==", id),
+        orderBy("createdAt", "desc")
+      );
+      cardsSnap = await getDocs(cardsQuery);
+    } catch (queryError) {
+      console.warn("Failed ordered cards query, fallback to unordered query:", queryError);
+      const fallbackQuery = query(collection(db, "flashCards"), where("deckId", "==", id));
+      cardsSnap = await getDocs(fallbackQuery);
+    }
 
-    const cards = cardsSnap.docs.map((cardDoc) => {
-      const cardData = cardDoc.data();
-      return {
-        id: cardDoc.id,
-        front: cardData.front,
-        back: cardData.back,
-        status: cardData.status,
-        nextReviewAt: cardData.nextReviewAt?.toDate().toISOString() || null,
-      };
-    });
+    const cards = cardsSnap.docs
+      .map((cardDoc) => {
+        const cardData = cardDoc.data();
+        return {
+          id: cardDoc.id,
+          front: cardData.front,
+          back: cardData.back,
+          status: cardData.status,
+          nextReviewAt: cardData.nextReviewAt?.toDate().toISOString() || null,
+          createdAt: cardData.createdAt?.toDate().toISOString() || null,
+        };
+      })
+      .sort((a, b) => {
+        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return bTime - aTime;
+      })
+      .map(({ createdAt, ...card }) => card);
 
     return NextResponse.json({ deck, cards });
   } catch (error) {
