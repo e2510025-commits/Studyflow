@@ -210,7 +210,7 @@ export default function DeckDetailPage() {
 
       <button
         type="button"
-        onClick={() => router.push(`/memorize/create-question?deckId=${deck.id}`)}
+        onClick={() => router.push(`/memorize/deck/${deck.id}/edit`)}
         className="fixed bottom-5 right-5 h-12 w-12 rounded-xl border flex items-center justify-center shadow-lg"
         style={{
           background: "var(--primary)",
