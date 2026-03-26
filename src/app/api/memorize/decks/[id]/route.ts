@@ -4,7 +4,7 @@ import { db } from "@/lib/firebase-server";
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, orderBy } from "firebase/firestore/lite";
 
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -24,8 +24,10 @@ export async function GET(
     const deck = {
       id: deckDoc.id,
       name: deckData.name,
-      description: deckData.description,
+      description: deckData.description || "",
       color: deckData.color,
+      createdAt: deckData.createdAt?.toDate().toISOString() || null,
+      userName: sessionUser.name,
     };
 
     const cardsQuery = query(

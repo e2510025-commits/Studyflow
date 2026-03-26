@@ -17,6 +17,10 @@
   --page-bg: #ffffff;
   --shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.12);
+  --primary: var(--accent);
+  --primary-foreground: #ffffff;
+  --card: var(--card-bg);
+  --ring: rgba(99, 102, 241, 0.28);
 }
 
 /* ===== Gray Theme ===== */
@@ -35,6 +39,10 @@
   --page-bg: #d1d5db;
   --shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.15);
+  --primary: var(--accent);
+  --primary-foreground: #ffffff;
+  --card: var(--card-bg);
+  --ring: rgba(99, 102, 241, 0.28);
 }
 
 /* ===== Dark Theme ===== */
@@ -53,6 +61,10 @@
   --page-bg: #0a0a0a;
   --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.5);
+  --primary: var(--accent);
+  --primary-foreground: #ffffff;
+  --card: var(--card-bg);
+  --ring: rgba(99, 102, 241, 0.35);
 }
 
 /* ===== Custom Theme (base is dark-ish, bg overridden inline) ===== */
@@ -69,6 +81,10 @@
   --success: #6ee7b7;
   --shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.3);
+  --primary: var(--accent);
+  --primary-foreground: #111827;
+  --card: var(--card-bg);
+  --ring: rgba(255, 255, 255, 0.32);
 }
 
 @theme inline {

@@ -3,19 +3,26 @@ import { resolveSessionUser } from "@/lib/server/sessionUser";
 import { db } from "@/lib/firebase-server";
 import { collection, query, where, getDocs, orderBy, doc, setDoc, Timestamp } from "firebase/firestore/lite";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const sessionUser = await resolveSessionUser();
     if (!sessionUser?.uid) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const decksQuery = query(
-      collection(db, "memoryDecks"),
-      where("uid", "==", sessionUser.uid),
-      orderBy("createdAt", "desc")
-    );
-    const decksSnap = await getDocs(decksQuery);
+    let decksSnap;
+    try {
+      const decksQuery = query(
+        collection(db, "memoryDecks"),
+        where("uid", "==", sessionUser.uid),
+        orderBy("createdAt", "desc")
+      );
+      decksSnap = await getDocs(decksQuery);
+    } catch (queryError) {
+      console.warn("Failed ordered deck query, fallback to unordered query:", queryError);
+      const fallbackQuery = query(collection(db, "memoryDecks"), where("uid", "==", sessionUser.uid));
+      decksSnap = await getDocs(fallbackQuery);
+    }
 
     const decksWithStats = await Promise.all(
       decksSnap.docs.map(async (deckDoc) => {
@@ -45,12 +52,21 @@ export async function GET(req: NextRequest) {
           name: deckData.name || "",
           description: deckData.description || "",
           color: deckData.color || "#3b82f6",
+          subjectId: deckData.subjectId || null,
+          createdAt: deckData.createdAt?.toDate().toISOString() || null,
+          userName: sessionUser.name,
           cardCount: cardsSnap.size,
           dueCount,
           masteredCount,
         };
       })
     );
+
+    decksWithStats.sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    });
 
     const totalDue = decksWithStats.reduce((sum, d) => sum + d.dueCount, 0);
 
@@ -68,7 +84,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { name, description, color, isPublic } = await req.json();
+    const { name, description, color, isPublic, subjectId } = await req.json();
 
     const deckRef = doc(collection(db, "memoryDecks"));
     await setDoc(deckRef, {
@@ -77,11 +93,15 @@ export async function POST(req: NextRequest) {
       description: description || "",
       color: color || "#3b82f6",
       isPublic: isPublic || false,
+      subjectId: subjectId || null,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     });
 
-    return NextResponse.json({ deckId: deckRef.id, deck: { id: deckRef.id, name, description, color } });
+    return NextResponse.json({
+      deckId: deckRef.id,
+      deck: { id: deckRef.id, name, description, color, subjectId: subjectId || null },
+    });
   } catch (error) {
     console.error("Failed to create deck:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
