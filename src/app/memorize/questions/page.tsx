@@ -2,9 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Play, Edit, Trash2 } from "lucide-react";
+import { ArrowLeft, Play } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 interface Question {
   id: string;
@@ -17,7 +16,6 @@ interface Question {
 }
 
 export default function QuestionsPage() {
-  const router = useRouter();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -27,7 +25,7 @@ export default function QuestionsPage() {
 
   const fetchQuestions = async () => {
     try {
-      const res = await fetch("/api/memorize/questions");
+      const res = await fetch("/api/memorize/questions", { cache: "no-store" });
       const data = await res.json();
       setQuestions(data.questions || []);
     } catch (error) {

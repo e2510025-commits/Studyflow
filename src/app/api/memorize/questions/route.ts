@@ -3,19 +3,36 @@ import { resolveSessionUser } from "@/lib/server/sessionUser";
 import { db } from "@/lib/firebase-server";
 import { collection, doc, setDoc, Timestamp, query, where, getDocs, orderBy } from "firebase/firestore/lite";
 
-export async function GET(req: NextRequest) {
+type QuestionEntry = {
+  title: string;
+  content: string;
+  answers: string[];
+  mode?: "sequential" | "all-at-once";
+};
+
+export async function GET() {
   try {
     const sessionUser = await resolveSessionUser();
     if (!sessionUser?.uid) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const questionsQuery = query(
-      collection(db, "fillInBlankQuestions"),
-      where("uid", "==", sessionUser.uid),
-      orderBy("createdAt", "desc")
-    );
-    const questionsSnap = await getDocs(questionsQuery);
+    let questionsSnap;
+    try {
+      const questionsQuery = query(
+        collection(db, "fillInBlankQuestions"),
+        where("uid", "==", sessionUser.uid),
+        orderBy("createdAt", "desc")
+      );
+      questionsSnap = await getDocs(questionsQuery);
+    } catch (queryError) {
+      console.warn("Failed ordered query, fallback to unordered query:", queryError);
+      const fallbackQuery = query(
+        collection(db, "fillInBlankQuestions"),
+        where("uid", "==", sessionUser.uid)
+      );
+      questionsSnap = await getDocs(fallbackQuery);
+    }
 
     const questions = await Promise.all(
       questionsSnap.docs.map(async (questionDoc) => {
@@ -43,6 +60,12 @@ export async function GET(req: NextRequest) {
       })
     );
 
+    questions.sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    });
+
     return NextResponse.json({ questions });
   } catch (error) {
     console.error("Failed to fetch questions:", error);
@@ -57,20 +80,56 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { title, content, answers, mode } = await req.json();
+    const body = await req.json();
+    const entries: QuestionEntry[] = Array.isArray(body?.entries)
+      ? body.entries
+      : [{
+          title: body?.title,
+          content: body?.content,
+          answers: body?.answers,
+          mode: body?.mode,
+        }];
 
-    const questionRef = doc(collection(db, "fillInBlankQuestions"));
-    await setDoc(questionRef, {
-      uid: sessionUser.uid,
-      title,
-      content,
-      answers,
-      mode: mode || "sequential",
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
+    if (!entries.length) {
+      return NextResponse.json({ error: "No entries to save" }, { status: 400 });
+    }
+
+    const normalizedEntries = entries
+      .map((entry) => ({
+        title: String(entry.title ?? "").trim(),
+        content: String(entry.content ?? "").trim(),
+        answers: Array.isArray(entry.answers)
+          ? entry.answers.map((answer) => String(answer).trim()).filter(Boolean)
+          : [],
+        mode: entry.mode === "all-at-once" ? "all-at-once" : "sequential",
+      }))
+      .filter((entry) => entry.title && entry.content && entry.answers.length > 0);
+
+    if (!normalizedEntries.length) {
+      return NextResponse.json({ error: "No valid entries" }, { status: 400 });
+    }
+
+    const createdIds: string[] = [];
+
+    for (const entry of normalizedEntries) {
+      const questionRef = doc(collection(db, "fillInBlankQuestions"));
+      await setDoc(questionRef, {
+        uid: sessionUser.uid,
+        title: entry.title,
+        content: entry.content,
+        answers: entry.answers,
+        mode: entry.mode,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+      createdIds.push(questionRef.id);
+    }
+
+    return NextResponse.json({
+      count: createdIds.length,
+      questions: createdIds.map((id) => ({ id })),
+      question: { id: createdIds[0] },
     });
-
-    return NextResponse.json({ question: { id: questionRef.id } });
   } catch (error) {
     console.error("Failed to create question:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
