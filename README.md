@@ -187,3 +187,10 @@ npm run mongo:indexes
 - Enabled only when `NEXT_PUBLIC_SIMPLE_ANALYTICS_ENABLED=true`.
 - Optional custom domain support via `NEXT_PUBLIC_SIMPLE_ANALYTICS_DOMAIN`.
 
+### Cloudflare Web Analytics
+
+- Script is injected from `src/app/layout.tsx`.
+- Enabled only when `NEXT_PUBLIC_CLOUDFLARE_WEB_ANALYTICS_TOKEN` is set.
+- Add your token in deployment environment variables (Vercel/Cloudflare Pages):
+	- `NEXT_PUBLIC_CLOUDFLARE_WEB_ANALYTICS_TOKEN=<your_token>`
+

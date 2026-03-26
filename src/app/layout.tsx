@@ -57,6 +57,7 @@ export default function RootLayout({
   const analyticsEnabled = process.env.NEXT_PUBLIC_SIMPLE_ANALYTICS_ENABLED === "true";
   const analyticsDomain = process.env.NEXT_PUBLIC_SIMPLE_ANALYTICS_DOMAIN || "studyflow.studio";
   const gaId = process.env.NEXT_PUBLIC_GA_ID;
+  const cloudflareWebAnalyticsToken = process.env.NEXT_PUBLIC_CLOUDFLARE_WEB_ANALYTICS_TOKEN;
 
   return (
     <html lang="ja" suppressHydrationWarning>
@@ -88,6 +89,15 @@ export default function RootLayout({
             strategy="afterInteractive"
             data-collect-dnt="true"
             {...(analyticsDomain ? { "data-hostname": analyticsDomain } : {})}
+          />
+        )}
+
+        {/* Cloudflare Web Analytics */}
+        {cloudflareWebAnalyticsToken && (
+          <Script
+            src="https://static.cloudflareinsights.com/beacon.min.js"
+            strategy="afterInteractive"
+            data-cf-beacon={JSON.stringify({ token: cloudflareWebAnalyticsToken })}
           />
         )}
 
