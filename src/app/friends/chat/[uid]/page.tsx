@@ -121,10 +121,18 @@ export default function ChatPage() {
   /* ── Subscribe to Firestore messages ────────────────── */
   useEffect(() => {
     if (!userProfile.uid || !friendUid) return;
+    
+    console.log("Subscribing to chat messages:", {
+      myUid: userProfile.uid,
+      friendUid,
+      conversationId: [userProfile.uid, friendUid].sort().join("__")
+    });
+    
     const unsubscribe = subscribeChatMessages(
       userProfile.uid,
       friendUid,
       (msgs) => {
+        console.log("Received messages:", msgs.length, msgs);
         setMessages(msgs);
         void markChatMessagesAsRead(userProfile.uid, friendUid).catch(() => {});
       }
@@ -165,6 +173,14 @@ export default function ChatPage() {
   const handleSend = useCallback(async () => {
     if (sending) return;
     setSending(true);
+    
+    console.log("Sending message:", {
+      fromUid: userProfile.uid,
+      toUid: friendUid,
+      text: text.trim(),
+      mediaCount: mediaQueue.length
+    });
+    
     try {
       for (const media of mediaQueue) {
         await sendMediaMessage(userProfile.uid, friendUid, media.type, media.file);
@@ -178,6 +194,7 @@ export default function ChatPage() {
             }
           : undefined;
         await sendTextMessage(userProfile.uid, friendUid, text.trim(), replyData);
+        console.log("Message sent successfully");
         setText("");
         setReplyingTo(null);
       }
@@ -430,7 +447,7 @@ export default function ChatPage() {
       </div>
 
       {/* ─── Messages area ────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1 bg-zinc-50 dark:bg-zinc-950">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1 bg-white dark:bg-zinc-950">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full">
             <span className="text-4xl mb-3">💬</span>
@@ -439,6 +456,9 @@ export default function ChatPage() {
             </p>
             <p className="text-xs mt-1 text-zinc-600 dark:text-zinc-400">
               メッセージを送って会話を始めましょう
+            </p>
+            <p className="text-xs mt-2 text-zinc-500 dark:text-zinc-500 font-mono">
+              Debug: myUid={userProfile.uid}, friendUid={friendUid}
             </p>
           </div>
         )}
@@ -451,7 +471,7 @@ export default function ChatPage() {
               <span
                 className="text-[10px] font-medium px-2 text-zinc-600 dark:text-zinc-400"
               >
-                {group.date}
+                {group.date} ({group.msgs.length}件)
               </span>
               <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
             </div>
@@ -460,6 +480,16 @@ export default function ChatPage() {
               const isMine = msg.fromUid === userProfile.uid;
               const msgAvatar = isMine ? sanitizeAvatar(userProfile.avatar || "👤") : safeFriendAvatar;
               const msgUid = isMine ? userProfile.uid : friend.uid;
+              
+              console.log("Rendering message:", {
+                id: msg.id,
+                fromUid: msg.fromUid,
+                toUid: msg.toUid,
+                myUid: userProfile.uid,
+                isMine,
+                content: msg.content.substring(0, 20)
+              });
+              
               return (
                 <motion.div
                   key={msg.id}
