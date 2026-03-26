@@ -418,7 +418,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="w-full max-w-3xl mx-auto flex flex-col" style={{ height: "calc(100vh - 80px)" }}>
+    <div className="w-full max-w-3xl mx-auto flex flex-col dark:bg-zinc-950" style={{ height: "calc(100vh - 80px)" }}>
       {/* ─── Chat Header ──────────────────────────────── */}
       <div
         className="flex items-center gap-3 px-4 py-3 border-b flex-shrink-0 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700"
@@ -447,7 +447,7 @@ export default function ChatPage() {
       </div>
 
       {/* ─── Messages area ────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1 bg-white dark:bg-zinc-950">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full">
             <span className="text-4xl mb-3">💬</span>
@@ -754,7 +754,7 @@ export default function ChatPage() {
       <AnimatePresence>
         {mediaQueue.length > 0 && (
           <motion.div
-            className="px-4 py-2 border-t flex items-center gap-3 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700"
+            className="px-4 py-2 border-t flex items-center gap-3 border-zinc-200 dark:border-zinc-700"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
@@ -788,7 +788,7 @@ export default function ChatPage() {
 
       {/* ─── Input area ───────────────────────────────── */}
       <div
-        className="flex-shrink-0 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-700"
+        className="flex-shrink-0 border-t border-zinc-200 dark:border-zinc-700"
       >
         {/* Reply preview */}
         <AnimatePresence>
