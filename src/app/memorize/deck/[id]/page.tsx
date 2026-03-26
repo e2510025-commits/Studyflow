@@ -57,7 +57,47 @@ export default function DeckDetailPage() {
   }
 
   if (!deck) {
-    return <div className="text-center py-12 text-zinc-600 dark:text-zinc-400">デッキが見つかりません</div>;
+    return (
+      <div className="max-w-5xl mx-auto">
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }} 
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-5"
+        >
+          <Link href="/memorize" className="inline-flex items-center gap-2 mb-3 font-medium text-indigo-600 dark:text-indigo-400">
+            <ArrowLeft size={20} />
+            戻る
+          </Link>
+        </motion.div>
+        
+        <div className="flex flex-col items-center justify-center py-20">
+          <div className="text-6xl mb-4">📭</div>
+          <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">
+            デッキが見つかりません
+          </h2>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-8">
+            このデッキは削除されたか、存在しない可能性があります
+          </p>
+          
+          <div className="flex gap-3">
+            <button
+              onClick={() => router.push("/memorize")}
+              className="px-6 py-3 rounded-xl font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white hover:opacity-80 transition-opacity"
+            >
+              デッキ一覧へ戻る
+            </button>
+            <button
+              onClick={() => router.push("/memorize/create-question")}
+              className="px-6 py-3 rounded-xl font-bold flex items-center gap-2 text-white hover:opacity-90 transition-opacity"
+              style={{ background: "var(--primary)" }}
+            >
+              <Plus size={20} />
+              暗記カードを作成
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
