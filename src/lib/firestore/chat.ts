@@ -68,7 +68,7 @@ async function convertImageToWebp(file: File): Promise<File> {
   const blob = await new Promise<Blob | null>((resolve) => {
     canvas.toBlob(resolve, "image/webp", 0.9);
   });
-  if (!blob) throw new Error("WEBP_CONVERT_FAILED");
+  if (!blob) throw new Error("WEBP_CONVERT_FAILED: canvas.toBlob returned null");
 
   return new File([blob], replaceExtensionWithWebp(file.name), {
     type: "image/webp",
