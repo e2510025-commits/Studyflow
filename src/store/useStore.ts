@@ -70,6 +70,7 @@ interface AppState {
   resumeTimer: () => void;
   resetTimer: () => void;
   tickTimer: () => void;
+  advanceTimerBy: (seconds: number) => void;
 
   // Pomodoro
   pomodoroConfig: PomodoroConfig;
@@ -279,6 +280,14 @@ export const useStore = create<AppState>()(
         set((state) => ({
           timer: { ...state.timer, elapsed: state.timer.elapsed + 1 },
         })),
+      advanceTimerBy: (seconds) =>
+        set((state) => {
+          const safeSeconds = Math.max(0, Math.floor(seconds || 0));
+          if (safeSeconds <= 0) return state;
+          return {
+            timer: { ...state.timer, elapsed: state.timer.elapsed + safeSeconds },
+          };
+        }),
 
       // Pomodoro
       pomodoroConfig: {

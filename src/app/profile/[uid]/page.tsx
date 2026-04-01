@@ -463,12 +463,19 @@ export default function PublicProfilePage() {
 
   const saveProfileEdit = async () => {
     if (!profile || !isSelf) return;
+
+    const trimmedName = editName.trim();
+    if (!trimmedName) {
+      alert("名前を入力してください");
+      return;
+    }
+
     setSavingProfile(true);
     try {
-      const deviceLabel = profile.deviceLabel || detectDeviceLabel();
+      const deviceLabel = detectDeviceLabel();
       await saveDisplayProfile({
         uid: profile.uid,
-        name: editName,
+        name: trimmedName,
         avatar: editAvatar,
         bio: editBio,
         statusMessage: editStatus,
@@ -493,6 +500,8 @@ export default function PublicProfilePage() {
         });
       }
       setEditOpen(false);
+    } catch {
+      alert("プロフィール保存に失敗しました。ネットワーク接続と画像サイズをご確認ください。");
     } finally {
       setSavingProfile(false);
     }

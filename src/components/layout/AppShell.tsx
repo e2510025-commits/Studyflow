@@ -78,7 +78,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     initializeDefaults,
     immersiveMode,
     timer,
-    tickTimer,
+    advanceTimerBy,
     setStudyLogs,
     setFriends,
     setSubjects,
@@ -91,7 +91,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
   const isBareRoute = BARE_ROUTES.includes(normalizedPathname);
   const isTimerPage = normalizedPathname === "/timer" || normalizedPathname.startsWith("/timer/");
-  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [isTouchDevice] = useState(() =>
+    typeof navigator !== "undefined" ? (navigator.maxTouchPoints || 0) > 0 : false
+  );
   const useTimerPeekSidebar = isTimerPage && !isTouchDevice;
 
   // Sidebar hover-reveal on timer page
@@ -100,11 +102,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [awardQueue, setAwardQueue] = useState<string[]>([]);
   const [currentAward, setCurrentAward] = useState<string | null>(null);
   const announcedAwardsRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (typeof navigator === "undefined") return;
-    setIsTouchDevice((navigator.maxTouchPoints || 0) > 0);
-  }, []);
+  const timerLastTickMsRef = useRef<number>(0);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (e.clientX <= 12) setSidebarPeek(true);
@@ -119,14 +117,38 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     initializeDefaults();
   }, [initializeDefaults]);
 
-  // Keep timer ticking globally so it continues even when leaving /timer.
+  // Keep timer synced with wall clock so hidden tabs can catch up after throttling.
   useEffect(() => {
-    if (timer.status !== "running") return;
-    const intervalId = setInterval(() => {
-      tickTimer();
-    }, 1000);
-    return () => clearInterval(intervalId);
-  }, [timer.status, tickTimer]);
+    if (timer.status !== "running") {
+      timerLastTickMsRef.current = Date.now();
+      return;
+    }
+
+    const flushElapsed = () => {
+      const now = Date.now();
+      const deltaSec = Math.floor((now - timerLastTickMsRef.current) / 1000);
+      if (deltaSec > 0) {
+        advanceTimerBy(deltaSec);
+        timerLastTickMsRef.current += deltaSec * 1000;
+      }
+    };
+
+    const intervalId = window.setInterval(flushElapsed, 250);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        flushElapsed();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", flushElapsed);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", flushElapsed);
+    };
+  }, [advanceTimerBy, timer.status]);
 
   useEffect(() => {
     let unsubscribeLogs: (() => void) | undefined;
@@ -260,7 +282,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!userProfile.uid) return;
     let disposed = false;
-    let timeoutId: NodeJS.Timeout;
 
     const syncBadges = async () => {
       try {
@@ -298,20 +319,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       } catch {
         // ignore profile polling errors
       }
-
-      if (!disposed) {
-        // Poll every 30 seconds instead of 5 seconds to reduce reads
-        timeoutId = setTimeout(syncBadges, 30000);
-      }
     };
 
     void syncBadges();
-
+    const intervalId = window.setInterval(syncBadges, 25_000);
     return () => {
       disposed = true;
-      if (timeoutId) clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
     };
-  }, [userProfile.uid, updateUserProfile]);
+  }, [userProfile.uid, studyLogs.length, updateUserProfile]);
 
   useEffect(() => {
     if (currentAward || awardQueue.length === 0) return;

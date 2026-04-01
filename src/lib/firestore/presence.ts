@@ -6,7 +6,6 @@ import {
   query,
   runTransaction,
   serverTimestamp,
-  setDoc,
   Timestamp,
   where,
 } from "firebase/firestore";
@@ -156,7 +155,7 @@ export function subscribeUserPresenceAgents(
   const emit = (data?: Record<string, unknown>) => {
     const now = Date.now();
     const sessions = readSessions(data);
-    const agents = Object.entries(sessions)
+    const rows = Object.entries(sessions)
       .filter(([, row]) => row.updatedAtMs > 0 && now - row.updatedAtMs <= 1000 * 60 * 60 * 24)
       .map(([sessionId, row]) => ({
         sessionId,
@@ -165,7 +164,21 @@ export function subscribeUserPresenceAgents(
         updatedAtMs: row.updatedAtMs,
       }))
       .sort((a, b) => b.updatedAtMs - a.updatedAtMs);
-    callback(agents);
+
+    const dedupedByLabel = new Map<string, PresenceAgentInfo>();
+    rows.forEach((row) => {
+      const key = (row.label || "Unknown").trim().toLowerCase();
+      const existing = dedupedByLabel.get(key);
+      if (!existing) {
+        dedupedByLabel.set(key, row);
+        return;
+      }
+      if (row.isOnline && !existing.isOnline) {
+        dedupedByLabel.set(key, row);
+      }
+    });
+
+    callback(Array.from(dedupedByLabel.values()));
   };
 
   void getDoc(ref)
@@ -213,7 +226,6 @@ export function subscribeUsersOnlineStatus(
     const unsub = onSnapshot(
       q,
       (snapshot) => {
-        const now = Date.now();
         const online = new Set<string>();
         snapshot.docs.forEach((row) => {
           const data = row.data();
