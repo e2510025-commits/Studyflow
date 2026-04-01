@@ -10,7 +10,7 @@ import RecentLogs from "@/components/dashboard/RecentLogs";
 import MotivationPanel from "@/components/dashboard/MotivationPanel";
 import { motion } from "framer-motion";
 import { GripVertical, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
-import { Responsive, WidthProvider, type Layout, type Layouts } from "react-grid-layout";
+import { Responsive, WidthProvider, type LayoutItem, type ResponsiveLayouts } from "react-grid-layout/legacy";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
@@ -26,13 +26,13 @@ type WidgetId =
 
 interface WidgetMeta {
   title: string;
-  defaultLayout: Layout;
-  render: () => JSX.Element;
+  defaultLayout: LayoutItem;
+  render: () => React.ReactElement;
 }
 
 interface DashboardConfig {
   enabledWidgets: WidgetId[];
-  layouts: Layouts;
+  layouts: ResponsiveLayouts;
 }
 
 const STORAGE_KEY = "dashboard-layout-v1";
@@ -72,7 +72,7 @@ const WIDGETS: Record<WidgetId, WidgetMeta> = {
 
 const allWidgetIds = Object.keys(WIDGETS) as WidgetId[];
 
-const buildDefaultLayouts = (enabled: WidgetId[]): Layouts => {
+const buildDefaultLayouts = (enabled: WidgetId[]): ResponsiveLayouts => {
   const base = enabled.map((id) => ({ ...WIDGETS[id].defaultLayout }));
 
   return {
@@ -83,9 +83,9 @@ const buildDefaultLayouts = (enabled: WidgetId[]): Layouts => {
   };
 };
 
-const normalizeLayouts = (layouts: Layouts, enabled: WidgetId[]): Layouts => {
+const normalizeLayouts = (layouts: ResponsiveLayouts, enabled: WidgetId[]): ResponsiveLayouts => {
   const enabledSet = new Set(enabled);
-  const normalized: Layouts = {};
+  const normalized: ResponsiveLayouts = {};
 
   Object.entries(layouts).forEach(([bp, list]) => {
     normalized[bp] = (list || [])
@@ -98,9 +98,11 @@ const normalizeLayouts = (layouts: Layouts, enabled: WidgetId[]): Layouts => {
   });
 
   Object.keys(normalized).forEach((bp) => {
+    let bucket = normalized[bp] || [];
     enabled.forEach((id) => {
-      if (!normalized[bp].some((item) => item.i === id)) {
-        normalized[bp].push({ ...WIDGETS[id].defaultLayout });
+      if (!bucket.some((item) => item.i === id)) {
+        bucket = [...bucket, { ...WIDGETS[id].defaultLayout }];
+        normalized[bp] = bucket;
       }
     });
   });
@@ -124,7 +126,7 @@ const readStoredConfig = (): DashboardConfig => {
   }
 
   try {
-    const parsed = JSON.parse(raw) as { enabledWidgets?: WidgetId[]; layouts?: Layouts };
+    const parsed = JSON.parse(raw) as { enabledWidgets?: WidgetId[]; layouts?: ResponsiveLayouts };
     const safeEnabled = (parsed.enabledWidgets || []).filter(
       (id): id is WidgetId => allWidgetIds.includes(id as WidgetId)
     );
@@ -162,7 +164,7 @@ export default function DashboardPage() {
   const removeWidget = useCallback((id: WidgetId) => {
     setConfig((prev) => {
       const nextEnabled = prev.enabledWidgets.filter((item) => item !== id);
-      const next: Layouts = {};
+      const next: ResponsiveLayouts = {};
       Object.entries(prev.layouts).forEach(([bp, list]) => {
         next[bp] = (list || []).filter((l) => l.i !== id);
       });
@@ -180,7 +182,7 @@ export default function DashboardPage() {
       }
 
       const nextEnabled = [...prev.enabledWidgets, id];
-      const next: Layouts = { ...prev.layouts };
+      const next: ResponsiveLayouts = { ...prev.layouts };
       Object.keys(next).forEach((bp) => {
         const current = next[bp] || [];
         if (!current.some((layout) => layout.i === id)) {
@@ -200,7 +202,7 @@ export default function DashboardPage() {
 
   const alignAllWidths = useCallback(() => {
     setConfig((prev) => {
-      const next: Layouts = {};
+      const next: ResponsiveLayouts = {};
       Object.entries(prev.layouts).forEach(([bp, list]) => {
         next[bp] = (list || []).map((item) => ({
           ...item,
@@ -216,7 +218,7 @@ export default function DashboardPage() {
 
   const alignAllHeights = useCallback(() => {
     setConfig((prev) => {
-      const next: Layouts = {};
+      const next: ResponsiveLayouts = {};
       Object.entries(prev.layouts).forEach(([bp, list]) => {
         next[bp] = (list || []).map((item) => ({
           ...item,

@@ -217,6 +217,9 @@ export interface ChatMessage {
   toUid: string;   // receiver UID
   type: ChatMessageType;
   content: string; // text body, or data-url / blob-url for media
+  replyToId?: string;
+  replyToContent?: string;
+  replyToFromUid?: string;
   fileName?: string; // original file name for media
   storagePath?: string;
   createdAt: string; // ISO string
