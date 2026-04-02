@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Volume2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -40,6 +40,7 @@ export default function ReviewPage() {
   const [swipeEnabled, setSwipeEnabled] = useState(true);
   const [startTime, setStartTime] = useState(Date.now());
   const [isAdvancing, setIsAdvancing] = useState(false);
+  const [transitionDirection, setTransitionDirection] = useState<1 | -1>(1);
 
   const touchStartX = useRef<number | null>(null);
 
@@ -128,6 +129,7 @@ export default function ReviewPage() {
     if (cards.length === 0) return;
     if (nextIndex < 0 || nextIndex >= cards.length) return;
 
+    setTransitionDirection(nextIndex >= currentIndex ? 1 : -1);
     setCurrentIndex(nextIndex);
     setFlipped(false);
     setStartTime(Date.now());
@@ -201,7 +203,7 @@ export default function ReviewPage() {
     return (
       <div className="max-w-4xl mx-auto text-center py-12">
         <p className="text-lg mb-4" style={{ color: "var(--muted)" }}>
-          暗記カードがありません
+          この単語帳には暗記カードがありません
         </p>
         <Link
           href={`/memorize/deck/${params.deckId}`}
@@ -235,51 +237,61 @@ export default function ReviewPage() {
           onTouchEnd={handleTouchEnd}
         >
           <div className="w-full max-w-6xl" style={{ perspective: "1600px" }}>
-            <motion.button
-              type="button"
-              onClick={() => void handleCardClick()}
-              whileTap={{ scale: 0.992 }}
-              className="w-full rounded-2xl px-4 sm:px-10 py-10 sm:py-16 text-left sm:text-center cursor-pointer"
-              style={{
-                background: "#f4f4f5",
-                boxShadow: "0 8px 24px rgba(99, 102, 241, 0.08)",
-                color: textColor,
-              }}
-              disabled={isAdvancing}
-              aria-label="暗記カード"
-            >
+            <AnimatePresence mode="wait" initial={false}>
               <motion.div
-                animate={{ rotateY: flipped ? 180 : 0 }}
-                transition={{ duration: 0.35, ease: "easeInOut" }}
-                style={{ transformStyle: "preserve-3d", position: "relative", minHeight: "180px" }}
+                key={currentCard.id}
+                initial={{ opacity: 0, x: transitionDirection * 56, rotateX: transitionDirection * 6 }}
+                animate={{ opacity: 1, x: 0, rotateX: 0 }}
+                exit={{ opacity: 0, x: transitionDirection * -56, rotateX: transitionDirection * -6 }}
+                transition={{ duration: 0.28, ease: "easeOut" }}
               >
-                <div
+                <motion.button
+                  type="button"
+                  onClick={() => void handleCardClick()}
+                  whileTap={{ scale: 0.992 }}
+                  className="w-full rounded-2xl px-4 sm:px-10 py-10 sm:py-16 text-left sm:text-center cursor-pointer"
                   style={{
-                    backfaceVisibility: "hidden",
-                    WebkitBackfaceVisibility: "hidden",
-                    position: "absolute",
-                    inset: 0,
-                    display: "grid",
-                    placeItems: "center",
+                    background: "#f4f4f5",
+                    boxShadow: "0 8px 24px rgba(99, 102, 241, 0.08)",
+                    color: textColor,
                   }}
+                  disabled={isAdvancing}
+                  aria-label="暗記カード"
                 >
-                  <div className="text-3xl sm:text-7xl font-extrabold leading-tight break-words">{currentCard.front}</div>
-                </div>
-                <div
-                  style={{
-                    backfaceVisibility: "hidden",
-                    WebkitBackfaceVisibility: "hidden",
-                    transform: "rotateY(180deg)",
-                    position: "absolute",
-                    inset: 0,
-                    display: "grid",
-                    placeItems: "center",
-                  }}
-                >
-                  <div className="text-3xl sm:text-7xl font-extrabold leading-tight break-words">{currentCard.back}</div>
-                </div>
+                  <motion.div
+                    animate={{ rotateY: flipped ? 180 : 0 }}
+                    transition={{ duration: 0.35, ease: "easeInOut" }}
+                    style={{ transformStyle: "preserve-3d", position: "relative", minHeight: "180px" }}
+                  >
+                    <div
+                      style={{
+                        backfaceVisibility: "hidden",
+                        WebkitBackfaceVisibility: "hidden",
+                        position: "absolute",
+                        inset: 0,
+                        display: "grid",
+                        placeItems: "center",
+                      }}
+                    >
+                      <div className="text-3xl sm:text-7xl font-extrabold leading-tight break-words">{currentCard.front}</div>
+                    </div>
+                    <div
+                      style={{
+                        backfaceVisibility: "hidden",
+                        WebkitBackfaceVisibility: "hidden",
+                        transform: "rotateY(180deg)",
+                        position: "absolute",
+                        inset: 0,
+                        display: "grid",
+                        placeItems: "center",
+                      }}
+                    >
+                      <div className="text-3xl sm:text-7xl font-extrabold leading-tight break-words">{currentCard.back}</div>
+                    </div>
+                  </motion.div>
+                </motion.button>
               </motion.div>
-            </motion.button>
+            </AnimatePresence>
           </div>
 
           <button

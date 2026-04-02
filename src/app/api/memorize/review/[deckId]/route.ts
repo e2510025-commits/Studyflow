@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveSessionUser } from "@/lib/server/sessionUser";
 import { db } from "@/lib/firebase-server";
-import { collection, query, where, getDocs, Timestamp } from "firebase/firestore/lite";
+import { collection, query, where, getDocs } from "firebase/firestore/lite";
 
 export async function GET(
   req: NextRequest,
@@ -22,11 +22,7 @@ export async function GET(
     const cardsSnap = await getDocs(cardsQuery);
 
     const now = new Date();
-    const dueCards = cardsSnap.docs
-      .filter((cardDoc) => {
-        const cardData = cardDoc.data();
-        return !cardData.nextReviewAt || cardData.nextReviewAt.toDate() <= now;
-      })
+    const allCards = cardsSnap.docs
       .map((cardDoc) => {
         const cardData = cardDoc.data();
         return {
@@ -34,10 +30,20 @@ export async function GET(
           front: cardData.front,
           back: cardData.back,
           hint: cardData.hint || null,
+          nextReviewAt: cardData.nextReviewAt ?? null,
         };
       });
 
-    return NextResponse.json({ cards: dueCards });
+    const dueCards = allCards
+      .filter((cardDoc) => {
+        return !cardDoc.nextReviewAt || cardDoc.nextReviewAt.toDate() <= now;
+      });
+
+    const cardsForReview = dueCards.length > 0 ? dueCards : allCards;
+
+    return NextResponse.json({
+      cards: cardsForReview.map(({ nextReviewAt: _nextReviewAt, ...card }) => card),
+    });
   } catch (error) {
     console.error("Failed to fetch review cards:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
