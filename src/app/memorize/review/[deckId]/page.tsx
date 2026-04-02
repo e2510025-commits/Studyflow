@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { Volume2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -38,6 +39,7 @@ export default function ReviewPage() {
   const [textColor, setTextColor] = useState(textColorMap.blue);
   const [swipeEnabled, setSwipeEnabled] = useState(true);
   const [startTime, setStartTime] = useState(Date.now());
+  const [isAdvancing, setIsAdvancing] = useState(false);
 
   const touchStartX = useRef<number | null>(null);
 
@@ -131,20 +133,27 @@ export default function ReviewPage() {
     setStartTime(Date.now());
   };
 
-  const handleNext = async () => {
+  const handleCardClick = async () => {
+    if (isAdvancing) return;
+
     if (!flipped) {
       setFlipped(true);
       return;
     }
 
-    await postReview();
+    setIsAdvancing(true);
+    try {
+      await postReview();
 
-    if (currentIndex >= cards.length - 1) {
-      router.push(`/memorize/review/${params.deckId}/done`);
-      return;
+      if (currentIndex >= cards.length - 1) {
+        router.push(`/memorize/review/${params.deckId}/done`);
+        return;
+      }
+
+      moveToIndex(currentIndex + 1);
+    } finally {
+      setIsAdvancing(false);
     }
-
-    moveToIndex(currentIndex + 1);
   };
 
   const handleProgressBarClick = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -225,16 +234,53 @@ export default function ReviewPage() {
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
-          <button
-            type="button"
-            onClick={() => setFlipped((prev) => !prev)}
-            className="max-w-5xl w-full text-left sm:text-center"
-            style={{ color: textColor }}
-          >
-            <div className="text-3xl sm:text-7xl font-extrabold leading-tight">
-              {flipped ? currentCard.back : currentCard.front}
-            </div>
-          </button>
+          <div className="w-full max-w-6xl" style={{ perspective: "1600px" }}>
+            <motion.button
+              type="button"
+              onClick={() => void handleCardClick()}
+              whileTap={{ scale: 0.992 }}
+              className="w-full rounded-2xl px-4 sm:px-10 py-10 sm:py-16 text-left sm:text-center cursor-pointer"
+              style={{
+                background: "#f4f4f5",
+                boxShadow: "0 8px 24px rgba(99, 102, 241, 0.08)",
+                color: textColor,
+              }}
+              disabled={isAdvancing}
+              aria-label="暗記カード"
+            >
+              <motion.div
+                animate={{ rotateY: flipped ? 180 : 0 }}
+                transition={{ duration: 0.35, ease: "easeInOut" }}
+                style={{ transformStyle: "preserve-3d", position: "relative", minHeight: "180px" }}
+              >
+                <div
+                  style={{
+                    backfaceVisibility: "hidden",
+                    WebkitBackfaceVisibility: "hidden",
+                    position: "absolute",
+                    inset: 0,
+                    display: "grid",
+                    placeItems: "center",
+                  }}
+                >
+                  <div className="text-3xl sm:text-7xl font-extrabold leading-tight break-words">{currentCard.front}</div>
+                </div>
+                <div
+                  style={{
+                    backfaceVisibility: "hidden",
+                    WebkitBackfaceVisibility: "hidden",
+                    transform: "rotateY(180deg)",
+                    position: "absolute",
+                    inset: 0,
+                    display: "grid",
+                    placeItems: "center",
+                  }}
+                >
+                  <div className="text-3xl sm:text-7xl font-extrabold leading-tight break-words">{currentCard.back}</div>
+                </div>
+              </motion.div>
+            </motion.button>
+          </div>
 
           <button
             type="button"
@@ -250,7 +296,7 @@ export default function ReviewPage() {
             type="button"
             className="absolute right-2 bottom-3 h-7 w-7 rounded-md border grid place-items-center"
             style={{ borderColor: "#d4d4d8", color: "#a1a1aa", background: "#fafafa" }}
-            onClick={() => void handleNext()}
+            onClick={() => void handleCardClick()}
             title="次へ"
           >
             ✓
@@ -258,6 +304,9 @@ export default function ReviewPage() {
 
           <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px]" style={{ color: "#9ca3af" }}>
             {currentIndex + 1}/{cards.length}枚目の{flipped ? "裏" : "表"}
+          </div>
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[11px]" style={{ color: "#818cf8" }}>
+            左クリックでめくる / もう一度クリックで次へ
           </div>
         </main>
 
