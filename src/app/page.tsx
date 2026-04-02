@@ -5,17 +5,15 @@ import { motion } from "framer-motion";
 import { Responsive, WidthProvider, type LayoutItem, type ResponsiveLayouts } from "react-grid-layout/legacy";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
-import { useStore } from "@/store/useStore";
 import StatsCards from "@/components/dashboard/StatsCards";
 import DailyPieChart from "@/components/dashboard/DailyPieChart";
 import WeeklyBarChart from "@/components/dashboard/WeeklyBarChart";
 import HeatMap from "@/components/dashboard/HeatMap";
-import RecentLogs from "@/components/dashboard/RecentLogs";
 import MotivationPanel from "@/components/dashboard/MotivationPanel";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
-type WidgetId = "stats" | "trend" | "dailyPie" | "heatMap" | "recentLogs" | "motivation";
+type WidgetId = "stats" | "trend" | "dailyPie" | "heatMap" | "motivation";
 
 interface WidgetMeta {
   defaultLayout: LayoutItem;
@@ -36,15 +34,11 @@ const WIDGETS: Record<WidgetId, WidgetMeta> = {
     render: () => <DailyPieChart />,
   },
   heatMap: {
-    defaultLayout: { i: "heatMap", x: 0, y: 18, w: 8, h: 12, minW: 4, minH: 8 },
+    defaultLayout: { i: "heatMap", x: 0, y: 18, w: 12, h: 10, minW: 6, minH: 8 },
     render: () => <HeatMap />,
   },
-  recentLogs: {
-    defaultLayout: { i: "recentLogs", x: 8, y: 18, w: 4, h: 12, minW: 3, minH: 8 },
-    render: () => <RecentLogs />,
-  },
   motivation: {
-    defaultLayout: { i: "motivation", x: 0, y: 30, w: 12, h: 8, minW: 6, minH: 6 },
+    defaultLayout: { i: "motivation", x: 0, y: 28, w: 12, h: 8, minW: 6, minH: 6 },
     render: () => <MotivationPanel />,
   },
 };
@@ -62,7 +56,6 @@ const buildDefaultLayouts = (): ResponsiveLayouts => {
 };
 
 export default function DashboardPage() {
-  const { userProfile } = useStore();
   const layouts = buildDefaultLayouts();
 
   return (
@@ -78,15 +71,6 @@ export default function DashboardPage() {
             </p>
           </div>
         </div>
-        {(userProfile.equippedBadges || []).length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {(userProfile.equippedBadges || []).map((badge) => (
-              <span key={badge} className="text-xs px-2 py-1 rounded-lg" style={{ background: "#22d3ee22", color: "#22d3ee" }}>
-                {badge}
-              </span>
-            ))}
-          </div>
-        )}
       </motion.div>
 
       <ResponsiveGridLayout

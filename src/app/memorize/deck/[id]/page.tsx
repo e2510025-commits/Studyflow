@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Calendar, Ellipsis, Home, Play, Printer, User } from "lucide-react";
+import { BookOpen, Calendar, Ellipsis, Home, Pencil, Play, Printer, User } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -144,14 +144,26 @@ export default function DeckMemorizeSettingPage() {
           <h1 className="text-2xl sm:text-4xl font-black" style={{ color: "var(--foreground)" }}>
             {deck.name}
           </h1>
-          <button
-            type="button"
-            className="h-9 w-9 rounded-full border flex items-center justify-center"
-            style={{ borderColor: "var(--card-border)", color: "var(--muted)" }}
-            title="オプション"
-          >
-            <Ellipsis size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="h-9 px-3 rounded-full border flex items-center justify-center gap-1.5 text-sm font-semibold"
+              style={{ borderColor: "var(--card-border)", color: "var(--foreground)" }}
+              title="カードを編集"
+              onClick={() => router.push(`/memorize/deck/${deck.id}/edit`)}
+            >
+              <Pencil size={14} />
+              編集
+            </button>
+            <button
+              type="button"
+              className="h-9 w-9 rounded-full border flex items-center justify-center"
+              style={{ borderColor: "var(--card-border)", color: "var(--muted)" }}
+              title="オプション"
+            >
+              <Ellipsis size={18} />
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
