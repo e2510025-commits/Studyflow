@@ -31,6 +31,25 @@ import { getAchievementMeta } from "@/lib/achievements";
 
 const BARE_ROUTES = ["/login", "/register"];
 
+function isChunkLoadFailure(reason: unknown): boolean {
+  const text =
+    typeof reason === "string"
+      ? reason
+      : reason instanceof Error
+        ? reason.message
+        : typeof reason === "object" && reason !== null && "message" in reason
+          ? String((reason as { message?: unknown }).message ?? "")
+          : "";
+
+  if (!text) return false;
+  const lowered = text.toLowerCase();
+  return (
+    lowered.includes("chunkloaderror") ||
+    lowered.includes("failed to load chunk") ||
+    lowered.includes("loading chunk")
+  );
+}
+
 function getPresenceSessionId(): string {
   if (typeof window === "undefined") return "server";
   const key = "studyflow-presence-session-id";
@@ -116,6 +135,43 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     initializeDefaults();
   }, [initializeDefaults]);
+
+  // Recover from stale client runtime after deploy by forcing a single hard reload.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const reloadKey = "studyflow-chunk-reload-once";
+    const canReload = !window.sessionStorage.getItem(reloadKey);
+
+    const triggerReload = () => {
+      if (!canReload) return;
+      window.sessionStorage.setItem(reloadKey, "1");
+      window.location.reload();
+    };
+
+    const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (isChunkLoadFailure(event.reason)) {
+        event.preventDefault();
+        triggerReload();
+      }
+    };
+
+    const onWindowError = (event: ErrorEvent) => {
+      const message = event.message || event.error?.message || "";
+      if (isChunkLoadFailure(message)) {
+        event.preventDefault();
+        triggerReload();
+      }
+    };
+
+    window.addEventListener("unhandledrejection", onUnhandledRejection);
+    window.addEventListener("error", onWindowError);
+
+    return () => {
+      window.removeEventListener("unhandledrejection", onUnhandledRejection);
+      window.removeEventListener("error", onWindowError);
+    };
+  }, []);
 
   // Keep timer synced with wall clock so hidden tabs can catch up after throttling.
   useEffect(() => {
