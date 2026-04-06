@@ -3,9 +3,24 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useStore } from "@/store/useStore";
 import { motion } from "framer-motion";
-import { User, Copy, Check, Save, Upload, X, ImageIcon, Trash2 } from "lucide-react";
+import { User, Copy, Check, Save, Upload, X, ImageIcon, Trash2, KeyRound, RefreshCw } from "lucide-react";
 import { fetchPublicProfile, saveDisplayProfile } from "@/lib/firestore/profile";
 import type { ProfileVisibility } from "@/types";
+
+type PairingCodeResponse = {
+  ok?: boolean;
+  code?: string | null;
+  expiresAtMs?: number | null;
+  error?: string;
+};
+
+function formatRemaining(ms: number): string {
+  if (ms <= 0) return "期限切れ";
+  const totalSec = Math.floor(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}:${String(sec).padStart(2, "0")}`;
+}
 
 export default function SettingsPage() {
   const {
@@ -26,6 +41,12 @@ export default function SettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [pairingCode, setPairingCode] = useState("");
+  const [pairingExpiresAtMs, setPairingExpiresAtMs] = useState<number | null>(null);
+  const [pairingBusy, setPairingBusy] = useState(false);
+  const [pairingError, setPairingError] = useState("");
+  const [pairingCopied, setPairingCopied] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -41,6 +62,26 @@ export default function SettingsPage() {
       })
       .catch(() => {});
   }, [userProfile.uid]);
+
+  useEffect(() => {
+    if (!userProfile.uid) return;
+    void (async () => {
+      try {
+        const response = await fetch("/api/account/pairing-code", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = (await response.json()) as PairingCodeResponse;
+        setPairingCode(typeof data.code === "string" ? data.code : "");
+        setPairingExpiresAtMs(typeof data.expiresAtMs === "number" ? data.expiresAtMs : null);
+      } catch {
+        // ignore initial load failure and keep page usable
+      }
+    })();
+  }, [userProfile.uid]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const handleSave = async () => {
     if (!userProfile.uid) return;
@@ -153,6 +194,47 @@ export default function SettingsPage() {
       setDeletingAccount(false);
     }
   };
+
+  const handleGeneratePairingCode = async () => {
+    if (pairingBusy) return;
+    setPairingBusy(true);
+    setPairingError("");
+    try {
+      const response = await fetch("/api/account/pairing-code", {
+        method: "POST",
+        cache: "no-store",
+      });
+      const data = (await response.json().catch(() => ({}))) as PairingCodeResponse;
+      if (!response.ok || !data?.ok || typeof data.code !== "string") {
+        throw new Error(data.error || "ペアリングコードの発行に失敗しました");
+      }
+      setPairingCode(data.code);
+      setPairingExpiresAtMs(typeof data.expiresAtMs === "number" ? data.expiresAtMs : null);
+    } catch (error) {
+      setPairingError(error instanceof Error ? error.message : "ペアリングコードの発行に失敗しました");
+    } finally {
+      setPairingBusy(false);
+    }
+  };
+
+  const handleCopyPairingCode = async () => {
+    if (!pairingCode) return;
+    try {
+      await navigator.clipboard.writeText(pairingCode);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = pairingCode;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    setPairingCopied(true);
+    setTimeout(() => setPairingCopied(false), 2000);
+  };
+
+  const pairingRemainingMs = pairingExpiresAtMs ? pairingExpiresAtMs - nowMs : 0;
+  const hasActivePairing = Boolean(pairingCode) && pairingRemainingMs > 0;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -411,6 +493,62 @@ export default function SettingsPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.195, duration: 0.4 }}
+      >
+        <div className="flex items-center gap-2">
+          <KeyRound size={16} style={{ color: "var(--accent)" }} />
+          <h2 className="text-base font-bold" style={{ color: "var(--foreground)" }}>
+            PCアプリ連携コード
+          </h2>
+        </div>
+        <p className="text-xs" style={{ color: "var(--muted)" }}>
+          StudyFlow Lockの連携画面でこのコードを入力すると、あなたのアカウントに接続できます。コードは10分で失効し、1回使うと無効になります。
+        </p>
+        <div className="flex items-center gap-2">
+          <div
+            className="flex-1 px-4 py-2.5 rounded-xl font-mono text-lg tracking-widest font-bold text-center"
+            style={{ background: "var(--muted-bg)", color: "var(--accent)" }}
+          >
+            {hasActivePairing ? pairingCode : "--------"}
+          </div>
+          <button
+            onClick={() => void handleCopyPairingCode()}
+            disabled={!hasActivePairing}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+            style={{
+              background: pairingCopied ? "#22c55e" : "var(--accent)",
+              color: "#fff",
+            }}
+          >
+            {pairingCopied ? <Check size={16} /> : <Copy size={16} />}
+            {pairingCopied ? "コピー済" : "コピー"}
+          </button>
+        </div>
+        <div className="flex items-center justify-between">
+          <p className="text-xs" style={{ color: hasActivePairing ? "var(--muted)" : "#ef4444" }}>
+            {hasActivePairing ? `有効期限: ${formatRemaining(pairingRemainingMs)}` : "コード未発行または期限切れ"}
+          </p>
+          <button
+            onClick={() => void handleGeneratePairingCode()}
+            disabled={pairingBusy}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-60"
+            style={{ background: "var(--accent)" }}
+          >
+            <RefreshCw size={13} className={pairingBusy ? "animate-spin" : ""} />
+            {pairingBusy ? "発行中..." : hasActivePairing ? "再発行" : "コードを発行"}
+          </button>
+        </div>
+        {pairingError && (
+          <p className="text-xs" style={{ color: "#ef4444" }}>
+            {pairingError}
+          </p>
+        )}
+      </motion.div>
+
+      <motion.div
+        className="glass-card p-5 space-y-3"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2, duration: 0.4 }}
         style={{ border: "1px solid rgba(239,68,68,0.35)" }}
       >
         <div className="flex items-center gap-2">
@@ -452,7 +590,7 @@ export default function SettingsPage() {
         className="pb-8"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2, duration: 0.4 }}
+        transition={{ delay: 0.22, duration: 0.4 }}
       >
         <button
           onClick={handleSave}

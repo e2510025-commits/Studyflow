@@ -92,6 +92,7 @@ export async function POST() {
     { collectionName: "missionClaims", field: "uid", value: uid },
     { collectionName: "missionRewards", field: "uid", value: uid },
     { collectionName: "groupChats", field: "ownerUid", value: uid },
+    { collectionName: "devicePairingCodes", field: "uid", value: uid },
   ];
 
   for (const plan of commonPlans) {
