@@ -7,6 +7,10 @@ import type { NextRequest } from "next/server";
  * so it works on the Edge runtime.
  */
 export async function middleware(req: NextRequest) {
+  if (req.nextUrl.pathname.startsWith("/api/device/pair")) {
+    return NextResponse.next();
+  }
+
   const sessionToken =
     req.cookies.get("__Secure-authjs.session-token")?.value ||
     req.cookies.get("authjs.session-token")?.value;
