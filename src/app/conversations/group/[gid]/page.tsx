@@ -51,7 +51,7 @@ function InlineAvatar({ avatar }: { avatar: string }) {
   const safeAvatar = sanitizeAvatar(avatar);
   const isImage = safeAvatar.startsWith("http") || safeAvatar.startsWith("data:");
   if (isImage) {
-    return <img src={safeAvatar} alt="avatar" className="w-5 h-5 rounded-full object-cover" />;
+    return <img src={safeAvatar} alt="avatar" className="w-5 h-5 rounded-full object-cover bg-transparent" />;
   }
   return (
     <span

@@ -15,7 +15,7 @@ import OfficialMark from "@/components/ui/OfficialMark";
 function AvatarPill({ avatar }: { avatar: string }) {
   const isImage = avatar.startsWith("http") || avatar.startsWith("data:");
   if (isImage) {
-    return <img src={avatar} alt="avatar" className="w-9 h-9 rounded-full object-cover" />;
+    return <img src={avatar} alt="avatar" className="w-9 h-9 rounded-full object-cover bg-transparent" />;
   }
   return (
     <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: "var(--accent-light)" }}>

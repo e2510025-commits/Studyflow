@@ -47,7 +47,7 @@ function Avatar({
 }: {
   avatar: string;
   size?: number;
-  background: string;
+  background?: string;
   glowColor?: string;
 }) {
   const isImage =
@@ -60,7 +60,7 @@ function Avatar({
         src={avatar}
         alt="avatar"
         className="rounded-full object-cover"
-        style={{ width: size, height: size, background, boxShadow: glowColor ? `0 0 0 2px ${glowColor}` : "none" }}
+        style={{ width: size, height: size, background: "transparent", boxShadow: glowColor ? `0 0 0 2px ${glowColor}` : "none" }}
       />
     );
   }
@@ -68,7 +68,7 @@ function Avatar({
   return (
     <div
       className="rounded-full flex items-center justify-center text-lg flex-shrink-0"
-      style={{ width: size, height: size, background, boxShadow: glowColor ? `0 0 0 2px ${glowColor}` : "none" }}
+      style={{ width: size, height: size, background: background || "var(--muted-bg)", boxShadow: glowColor ? `0 0 0 2px ${glowColor}` : "none" }}
     >
       {avatar || "👤"}
     </div>

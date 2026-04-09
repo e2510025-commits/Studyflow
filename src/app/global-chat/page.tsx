@@ -16,6 +16,7 @@ import {
   syncAchievementSystemEvents,
   toggleGlobalStreamRespect,
 } from "@/lib/firestore/community";
+import { getProfilesBatch } from "@/lib/firestore/ranking";
 import { submitViolationReport } from "@/lib/firestore/moderation";
 import OfficialMark from "@/components/ui/OfficialMark";
 import ImageLightbox from "@/components/ui/ImageLightbox";
@@ -68,6 +69,7 @@ export default function GlobalChatPage() {
   const [reportReason, setReportReason] = useState("迷惑行為");
   const [reportDetail, setReportDetail] = useState("");
   const [reporting, setReporting] = useState(false);
+  const [latestAvatarByUid, setLatestAvatarByUid] = useState<Map<string, string>>(new Map());
   const { compressAndUpload, isUploading: imageUploading } = useR2CompressedImageUpload({
     folder: "global-chat",
   });
@@ -80,6 +82,39 @@ export default function GlobalChatPage() {
     if (!userProfile.uid) return;
     return subscribeMyRespectedGlobalPostIds(userProfile.uid, setMyRespectIds);
   }, [userProfile.uid]);
+
+  useEffect(() => {
+    const targetUids = Array.from(
+      new Set(
+        rows
+          .filter((row): row is CommunityStreamMessage & { uid: string } => row.kind === "user" && Boolean(row.uid))
+          .map((row) => row.uid)
+      )
+    ).slice(0, 120);
+
+    if (targetUids.length === 0) {
+      setLatestAvatarByUid(new Map());
+      return;
+    }
+
+    let disposed = false;
+    void getProfilesBatch(targetUids)
+      .then((profiles) => {
+        if (disposed) return;
+        const next = new Map<string, string>();
+        profiles.forEach((profile, uid) => {
+          if (profile.avatar) next.set(uid, profile.avatar);
+        });
+        setLatestAvatarByUid(next);
+      })
+      .catch(() => {
+        if (!disposed) setLatestAvatarByUid(new Map());
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, [rows]);
 
   useEffect(() => {
     void syncAchievementSystemEvents().catch(() => {});
@@ -301,7 +336,9 @@ export default function GlobalChatPage() {
         ) : (
           grouped.map((row, idx) => {
             const isSystem = row.kind === "system";
-            const isImage = row.avatar.startsWith("http") || row.avatar.startsWith("data:");
+            const resolvedUid = row.uid || "";
+            const renderedAvatar = !isSystem ? latestAvatarByUid.get(resolvedUid) || row.avatar : row.avatar;
+            const isImage = renderedAvatar.startsWith("http") || renderedAvatar.startsWith("data:");
             const prev = idx > 0 ? grouped[idx - 1] : null;
             const isContinuation =
               !!prev &&
@@ -335,7 +372,7 @@ export default function GlobalChatPage() {
                   {!isContinuation ? (
                     isSystem || !row.uid ? (
                       <span className="w-7 h-7 rounded-full overflow-hidden inline-flex items-center justify-center mt-0.5 shrink-0" style={{ background: "var(--accent-light)" }}>
-                        {isImage ? <img src={row.avatar} alt={row.name} className="w-full h-full object-cover" /> : row.avatar}
+                        {isImage ? <img src={renderedAvatar} alt={row.name} className="w-full h-full object-cover" /> : renderedAvatar}
                       </span>
                     ) : (
                       <Link
@@ -343,7 +380,7 @@ export default function GlobalChatPage() {
                         className="w-7 h-7 rounded-full overflow-hidden inline-flex items-center justify-center mt-0.5 shrink-0"
                         style={{ background: "var(--accent-light)" }}
                       >
-                        {isImage ? <img src={row.avatar} alt={row.name} className="w-full h-full object-cover" /> : row.avatar}
+                        {isImage ? <img src={renderedAvatar} alt={row.name} className="w-full h-full object-cover" /> : renderedAvatar}
                       </Link>
                     )
                   ) : (

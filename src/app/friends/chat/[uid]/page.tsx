@@ -49,7 +49,7 @@ interface PendingMedia {
 function AvatarPill({ avatar }: { avatar: string }) {
   const isImage = avatar.startsWith("http") || avatar.startsWith("data:");
   if (isImage) {
-    return <img src={avatar} alt="avatar" className="w-10 h-10 rounded-full object-cover" />;
+    return <img src={avatar} alt="avatar" className="w-10 h-10 rounded-full object-cover bg-transparent" />;
   }
   return (
     <div

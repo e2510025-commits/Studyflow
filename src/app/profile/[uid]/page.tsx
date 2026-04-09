@@ -936,7 +936,7 @@ export default function PublicProfilePage() {
                     <Link
                       href={`/profile/${row.uid}`}
                       className="w-9 h-9 rounded-full overflow-hidden inline-flex items-center justify-center"
-                      style={{ background: "var(--accent-light)" }}
+                      style={{ background: isAvatarImage ? "transparent" : "var(--accent-light)" }}
                     >
                       {isAvatarImage ? <img src={row.avatar} alt={row.name} className="w-full h-full object-cover" /> : row.avatar}
                     </Link>

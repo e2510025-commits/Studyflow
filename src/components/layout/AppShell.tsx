@@ -6,6 +6,7 @@ import { useStore } from "@/store/useStore";
 import Sidebar from "./Sidebar";
 import ThemePicker from "./ThemePicker";
 import HeaderMenu from "./HeaderMenu";
+import DesktopAppActions from "./DesktopAppActions";
 import RankingBadge from "@/components/ranking/RankingBadge";
 import NotificationBell from "./NotificationBell";
 import DmBell from "./DmBell";
@@ -118,9 +119,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Sidebar hover-reveal on timer page
   const [sidebarPeek, setSidebarPeek] = useState(false);
   const [criticalNotice, setCriticalNotice] = useState<AppNotification | null>(null);
+  const [allNotifications, setAllNotifications] = useState<AppNotification[]>([]);
   const [awardQueue, setAwardQueue] = useState<string[]>([]);
   const [currentAward, setCurrentAward] = useState<string | null>(null);
   const announcedAwardsRef = useRef<Set<string>>(new Set());
+  const announcedBrowserNotificationIdsRef = useRef<Set<string>>(new Set());
   const timerLastTickMsRef = useRef<number>(0);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
@@ -326,6 +329,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!userProfile.uid) return;
     return subscribeUserNotifications(userProfile.uid, (rows) => {
+      setAllNotifications(rows);
       const critical = rows.find(
         (row) =>
           !row.read &&
@@ -334,6 +338,97 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       setCriticalNotice(critical || null);
     });
   }, [userProfile.uid]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!userProfile.uid) {
+      announcedBrowserNotificationIdsRef.current = new Set();
+      return;
+    }
+
+    const key = `studyflow_browser_notified_${userProfile.uid}`;
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(key) || "[]") as unknown;
+      const ids = Array.isArray(parsed)
+        ? parsed.filter((v): v is string => typeof v === "string")
+        : [];
+      announcedBrowserNotificationIdsRef.current = new Set(ids.slice(-300));
+    } catch {
+      announcedBrowserNotificationIdsRef.current = new Set();
+    }
+  }, [userProfile.uid]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!userProfile.uid || allNotifications.length === 0) return;
+    if (!("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+    if (document.visibilityState === "visible") return;
+
+    const unread = allNotifications.filter((row) => !row.read).slice(0, 10).reverse();
+    if (unread.length === 0) return;
+
+    const key = `studyflow_browser_notified_${userProfile.uid}`;
+
+    const deliver = async () => {
+      for (const row of unread) {
+        if (announcedBrowserNotificationIdsRef.current.has(row.id)) continue;
+
+        const notificationTitle = row.title || "StudyFlow 通知";
+        const notificationBody = row.body || "新しいお知らせがあります";
+        const targetUrl = row.link || "/announcements";
+
+        try {
+          const registration = "serviceWorker" in navigator
+            ? await navigator.serviceWorker.getRegistration()
+            : null;
+          if (registration) {
+            await registration.showNotification(notificationTitle, {
+              body: notificationBody,
+              icon: "/logo.png",
+              badge: "/favicon.png",
+              tag: `studyflow_${row.id}`,
+              data: { url: targetUrl },
+            });
+          } else {
+            new Notification(notificationTitle, {
+              body: notificationBody,
+              icon: "/logo.png",
+              tag: `studyflow_${row.id}`,
+            });
+          }
+        } catch {
+          // ignore notification display errors
+        }
+
+        announcedBrowserNotificationIdsRef.current.add(row.id);
+      }
+
+      try {
+        const compact = Array.from(announcedBrowserNotificationIdsRef.current).slice(-300);
+        window.localStorage.setItem(key, JSON.stringify(compact));
+      } catch {
+        // ignore persistence failures
+      }
+    };
+
+    void deliver();
+  }, [allNotifications, userProfile.uid]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!("serviceWorker" in navigator)) return;
+
+    const register = async () => {
+      try {
+        await navigator.serviceWorker.register("/sw.js");
+      } catch {
+        // ignore service worker registration errors
+      }
+    };
+
+    void register();
+  }, []);
 
   useEffect(() => {
     if (!userProfile.uid) return;
@@ -559,6 +654,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <FriendBell />
           <DmBell />
           <NotificationBell />
+          <DesktopAppActions />
           <RankingBadge />
         </>
       )}
