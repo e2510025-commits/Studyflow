@@ -258,37 +258,53 @@ export default function ReviewPage() {
                   disabled={isAdvancing}
                   aria-label="暗記カード"
                 >
-                  <motion.div
-                    animate={{ rotateY: flipped ? 180 : 0 }}
-                    transition={{ duration: 0.35, ease: "easeInOut" }}
-                    style={{ transformStyle: "preserve-3d", position: "relative", minHeight: "180px" }}
-                  >
-                    <div
+                  <div style={{ position: "relative", minHeight: "180px", perspective: "1800px" }}>
+                    <motion.div
+                      initial={false}
+                      animate={{
+                        rotateY: flipped ? -165 : 0,
+                        x: flipped ? -10 : 0,
+                        opacity: flipped ? 0.12 : 1,
+                      }}
+                      transition={{ duration: 0.48, ease: [0.25, 0.9, 0.2, 1] }}
                       style={{
-                        backfaceVisibility: "hidden",
-                        WebkitBackfaceVisibility: "hidden",
+                        transformOrigin: "left center",
+                        transformStyle: "preserve-3d",
                         position: "absolute",
                         inset: 0,
                         display: "grid",
                         placeItems: "center",
+                        background: "#f4f4f5",
+                        borderRadius: "0.75rem",
+                        boxShadow: "inset -10px 0 20px rgba(0,0,0,0.06)",
                       }}
                     >
                       <div className="text-3xl sm:text-7xl font-extrabold leading-tight break-words">{currentCard.front}</div>
-                    </div>
-                    <div
+                    </motion.div>
+
+                    <motion.div
+                      initial={false}
+                      animate={{
+                        opacity: flipped ? 1 : 0,
+                        rotateY: flipped ? 0 : 14,
+                        x: flipped ? 0 : 8,
+                      }}
+                      transition={{ duration: 0.42, ease: "easeOut" }}
                       style={{
-                        backfaceVisibility: "hidden",
-                        WebkitBackfaceVisibility: "hidden",
-                        transform: "rotateY(180deg)",
+                        transformOrigin: "left center",
+                        transformStyle: "preserve-3d",
                         position: "absolute",
                         inset: 0,
                         display: "grid",
                         placeItems: "center",
+                        background: "#f4f4f5",
+                        borderRadius: "0.75rem",
+                        boxShadow: "inset 10px 0 20px rgba(0,0,0,0.05)",
                       }}
                     >
                       <div className="text-3xl sm:text-7xl font-extrabold leading-tight break-words">{currentCard.back}</div>
-                    </div>
-                  </motion.div>
+                    </motion.div>
+                  </div>
                 </motion.button>
               </motion.div>
             </AnimatePresence>
@@ -318,7 +334,7 @@ export default function ReviewPage() {
             {currentIndex + 1}/{cards.length}枚目の{flipped ? "裏" : "表"}
           </div>
           <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[11px]" style={{ color: "#818cf8" }}>
-            左クリックでめくる / もう一度クリックで次へ
+            左クリックでめくる / もう一度クリックで次のカード
           </div>
         </main>
 

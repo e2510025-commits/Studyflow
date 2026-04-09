@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Check, X, Lightbulb } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 
 interface Question {
@@ -16,8 +16,9 @@ interface Question {
 
 export default function TestPage() {
   const params = useParams();
-  const router = useRouter();
   const [question, setQuestion] = useState<Question | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [errorText, setErrorText] = useState("");
   const [userAnswers, setUserAnswers] = useState<string[]>([]);
   const [currentBlankIndex, setCurrentBlankIndex] = useState(0);
   const [showResults, setShowResults] = useState(false);
@@ -27,7 +28,7 @@ export default function TestPage() {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
-    fetchQuestion();
+    void fetchQuestion();
   }, [params.questionId]);
 
   useEffect(() => {
@@ -37,14 +38,32 @@ export default function TestPage() {
   }, [question, showResults]);
 
   const fetchQuestion = async () => {
+    setLoading(true);
+    setErrorText("");
     try {
-      const res = await fetch(`/api/memorize/questions/${params.questionId}`);
+      const questionId = String(params.questionId || "").trim();
+      if (!questionId) {
+        setQuestion(null);
+        setErrorText("問題IDが不正です");
+        return;
+      }
+
+      const res = await fetch(`/api/memorize/questions/${questionId}`, { cache: "no-store" });
       const data = await res.json();
+      if (!res.ok || !data?.question) {
+        setQuestion(null);
+        setErrorText(data?.error || "問題を読み込めませんでした");
+        return;
+      }
       setQuestion(data.question);
       setUserAnswers(new Array(data.question.answers.length).fill(""));
       setHints(new Array(data.question.answers.length).fill(false));
     } catch (error) {
       console.error("Failed to fetch question:", error);
+      setQuestion(null);
+      setErrorText("問題の読み込みに失敗しました");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -129,8 +148,19 @@ export default function TestPage() {
     setHints(newHints);
   };
 
-  if (!question) {
+  if (loading) {
     return <div className="text-center py-12" style={{ color: "var(--muted)" }}>読み込み中...</div>;
+  }
+
+  if (!question) {
+    return (
+      <div className="max-w-3xl mx-auto py-12 text-center space-y-3">
+        <p className="text-sm" style={{ color: "var(--muted)" }}>{errorText || "問題が見つかりません"}</p>
+        <Link href="/memorize" className="px-4 py-2 rounded-xl font-semibold inline-block" style={{ background: "var(--primary)", color: "#fff" }}>
+          暗記に戻る
+        </Link>
+      </div>
+    );
   }
 
   // Support both full-width （） and half-width ()

@@ -190,11 +190,11 @@ export default function DeckMemorizeSettingPage() {
             className="py-3 text-sm font-bold border-r"
             style={{ borderColor: "var(--card-border)", color: "var(--primary)" }}
             onClick={() => {
-              if (!cards[0]?.id) {
+              if (cards.length === 0) {
                 alert("カードがありません");
                 return;
               }
-              router.push(`/memorize/test/${cards[0].id}`);
+              router.push(`/memorize/test/deck/${deck.id}`);
             }}
           >
             <span className="inline-flex items-center gap-1.5">
