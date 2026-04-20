@@ -68,6 +68,9 @@ export async function saveDisplayProfile(params: {
   showFollowerCount?: boolean;
   showFriendCount?: boolean;
   helpfulReceived?: number;
+  termsAccepted?: boolean;
+  privacyAccepted?: boolean;
+  agreementsAcceptedAt?: string;
 }) {
   const safeName = sanitizeDisplayName(params.name);
   const safeAvatar = sanitizeAvatar(params.avatar);
@@ -111,6 +114,15 @@ export async function saveDisplayProfile(params: {
   }
   if (typeof params.helpfulReceived === "number") {
     payload.helpfulReceived = Math.max(0, Math.floor(params.helpfulReceived));
+  }
+  if (typeof params.termsAccepted === "boolean") {
+    payload.termsAccepted = params.termsAccepted;
+  }
+  if (typeof params.privacyAccepted === "boolean") {
+    payload.privacyAccepted = params.privacyAccepted;
+  }
+  if (typeof params.agreementsAcceptedAt === "string") {
+    payload.agreementsAcceptedAt = params.agreementsAcceptedAt;
   }
 
   await setDoc(

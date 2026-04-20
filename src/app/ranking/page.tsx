@@ -213,7 +213,7 @@ export default function RankingPage() {
   const myRank = myIndex >= 0 ? myIndex + 1 : totalUsers + 1;
   const myStats =
     myIndex >= 0
-      ? rawData[myIndex]
+      ? filteredData[myIndex]
       : { totalDuration: 0, totalPoints: 0, sessions: 0 };
   const myAvatar = sanitizeAvatar(userProfile.avatar || "👤");
   const myOfficial = Boolean(profiles.get(userProfile.uid)?.isOfficial);
@@ -244,7 +244,7 @@ export default function RankingPage() {
           </h1>
         </div>
         <p className="text-sm" style={{ color: "var(--muted)" }}>
-          全ユーザーの学習ポイントでリアルタイム順位を表示
+          全ユーザーの学習時間でリアルタイム順位を表示
         </p>
       </motion.div>
 

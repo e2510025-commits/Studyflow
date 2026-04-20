@@ -90,6 +90,7 @@ export default function AdminPage() {
   const [q, setQ] = useState("");
   const [actionReason, setActionReason] = useState("");
   const [dmText, setDmText] = useState("運営からの連絡です。");
+  const [manualStudyHours, setManualStudyHours] = useState("1");
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementBody, setAnnouncementBody] = useState("");
   const [announcementScheduledAt, setAnnouncementScheduledAt] = useState("");
@@ -597,6 +598,22 @@ export default function AdminPage() {
           />
         </div>
 
+        <div className="grid sm:grid-cols-[240px_1fr] gap-2 items-center">
+          <input
+            type="number"
+            min={0.1}
+            step={0.5}
+            value={manualStudyHours}
+            onChange={(e) => setManualStudyHours(e.target.value)}
+            className="px-3 py-2 rounded-xl text-sm"
+            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+            placeholder="追加時間(時間)"
+          />
+          <p className="text-xs" style={{ color: "var(--muted)" }}>
+            下の「学習時間追加」ボタンで、対象ユーザーに時間単位で手動加算できます。
+          </p>
+        </div>
+
         {loadingUsers ? (
           <p className="text-sm" style={{ color: "var(--muted)" }}>ユーザー読み込み中...</p>
         ) : (
@@ -619,6 +636,13 @@ export default function AdminPage() {
                   <button onClick={() => void act(u.uid, "unsuspend")} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "#16a34a20", color: "#16a34a" }}>停止解除</button>
                   <button onClick={() => void act(u.uid, u.isOfficial ? "unofficial" : "official")} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "#38bdf820", color: "#38bdf8" }}>{u.isOfficial ? "公式解除" : "公式登録"}</button>
                   <button onClick={() => void act(u.uid, "dm", { message: dmText })} className="px-2.5 py-1.5 rounded text-xs" style={{ background: "var(--accent-light)", color: "var(--accent)" }}>DM送信</button>
+                  <button
+                    onClick={() => void act(u.uid, "addStudyHours", { hours: Number(manualStudyHours) })}
+                    className="px-2.5 py-1.5 rounded text-xs"
+                    style={{ background: "#8b5cf620", color: "#8b5cf6" }}
+                  >
+                    学習時間追加
+                  </button>
                 </div>
               </div>
             ))}

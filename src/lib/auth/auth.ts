@@ -42,8 +42,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const userDoc = snapshot.docs[0];
         const userData = userDoc.data();
         if (!userData.password) return null;
-        if (userData.emailVerified === false) return null;
-
         const isValid = await bcrypt.compare(password, userData.password);
         if (!isValid) return null;
 

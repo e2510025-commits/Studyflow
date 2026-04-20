@@ -33,6 +33,13 @@ export interface RankHistoryPoint {
   totalHours: number;
 }
 
+function compareByStudyDuration(a: AggregatedUser, b: AggregatedUser): number {
+  if (b.totalDuration !== a.totalDuration) return b.totalDuration - a.totalDuration;
+  if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+  if (b.sessions !== a.sessions) return b.sessions - a.sessions;
+  return a.userId.localeCompare(b.userId);
+}
+
 /* ─── User Profiles ──────────────────────────────── */
 
 const PROFILES = "userProfiles";
@@ -111,7 +118,7 @@ function getPeriodStart(period: string): Date {
 
 /**
  * Fetch ALL studyLogs for a period, aggregate by userUid,
- * and return sorted array (descending by totalPoints).
+ * and return sorted array (descending by totalDuration).
  */
 export async function fetchRankingData(
   period: "today" | "week" | "month" | "all"
@@ -176,7 +183,7 @@ export async function fetchRankingData(
 
   return Array.from(userMap.entries())
     .map(([uid, stats]) => ({ userId: uid, ...stats }))
-    .sort((a, b) => b.totalPoints - a.totalPoints);
+    .sort(compareByStudyDuration);
 }
 
 async function fetchRankingDataByDateRange(params: {
@@ -226,7 +233,7 @@ async function fetchRankingDataByDateRange(params: {
 
   return Array.from(userMap.entries())
     .map(([userId, stats]) => ({ userId, ...stats }))
-    .sort((a, b) => b.totalPoints - a.totalPoints);
+    .sort(compareByStudyDuration);
 }
 
 export async function fetchDailyRankMap(dayOffset: number): Promise<Map<string, number>> {

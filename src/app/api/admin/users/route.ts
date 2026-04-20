@@ -9,6 +9,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  where,
 } from "firebase/firestore/lite";
 import { db } from "@/lib/firebase-server";
 import { requireAdmin } from "@/lib/server/adminGuard";
@@ -63,11 +64,12 @@ export async function POST(request: Request) {
   if (!guard.ok) return guard.response;
 
   const body = (await request.json()) as {
-    action: "warn" | "ban" | "unban" | "suspend" | "unsuspend" | "official" | "unofficial" | "dm";
+    action: "warn" | "ban" | "unban" | "suspend" | "unsuspend" | "official" | "unofficial" | "dm" | "addStudyHours";
     targetUid: string;
     message?: string;
     reason?: string;
     days?: number;
+    hours?: number;
   };
 
   if (!body.targetUid || !body.action) {
@@ -185,6 +187,47 @@ export async function POST(request: Request) {
       content: text,
       readBy: [guard.appUid],
       createdAtMs: Date.now(),
+      createdAt: serverTimestamp(),
+    });
+  }
+
+  if (body.action === "addStudyHours") {
+    const hours = Number(body.hours || 0);
+    if (!Number.isFinite(hours) || hours <= 0) {
+      return NextResponse.json({ error: "追加時間(時間)を正しく入力してください" }, { status: 400 });
+    }
+    if (hours > 720) {
+      return NextResponse.json({ error: "1回の追加上限は720時間です" }, { status: 400 });
+    }
+
+    const duration = Math.max(1, Math.floor(hours * 3600));
+    const points = Math.floor(duration / 60);
+
+    const subjectsSnap = await getDocs(
+      query(collection(db, "userSubjects"), where("ownerUid", "==", body.targetUid), limit(1))
+    );
+    const fallbackSubjectId = subjectsSnap.empty ? "admin_manual" : subjectsSnap.docs[0].id;
+
+    await addDoc(collection(db, "studyLogs"), {
+      userUid: body.targetUid,
+      subjectId: fallbackSubjectId,
+      duration,
+      memo: `管理者手動加算: ${hours}時間`,
+      focusBonus: false,
+      points,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      addedByAdmin: true,
+      addedByAdminUid: guard.appUid,
+    });
+
+    await addDoc(collection(db, "notifications"), {
+      toUid: body.targetUid,
+      type: "announcement",
+      title: "運営による学習時間加算",
+      body: `運営により学習時間が ${hours} 時間追加されました。`,
+      read: false,
+      link: "/ranking",
       createdAt: serverTimestamp(),
     });
   }

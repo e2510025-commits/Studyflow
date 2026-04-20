@@ -8,8 +8,6 @@ import {
   serverTimestamp,
   doc,
   setDoc,
-  getDoc,
-  deleteDoc,
 } from "firebase/firestore/lite";
 import { db } from "@/lib/firebase-server";
 import bcrypt from "bcryptjs";
@@ -28,26 +26,6 @@ export async function POST(req: Request) {
     }
 
     const normalizedEmail = String(email).trim().toLowerCase();
-
-    // メール認証コードの検証済みチェック
-    const verifyRef = doc(db, "emailVerificationCodes", normalizedEmail);
-    const verifySnap = await getDoc(verifyRef);
-    if (!verifySnap.exists()) {
-      return NextResponse.json(
-        { error: "メール認証が完了していません" },
-        { status: 400 }
-      );
-    }
-    const verifyData = verifySnap.data();
-    const verifiedAtMs = Number(verifyData.verifiedAtMs || 0);
-    const verified = Boolean(verifyData.verified);
-    const maxAgeMs = 30 * 60 * 1000;
-    if (!verified || Date.now() - verifiedAtMs > maxAgeMs) {
-      return NextResponse.json(
-        { error: "認証コードの有効期限が切れています。再度認証してください" },
-        { status: 400 }
-      );
-    }
 
     // メールアドレス重複チェック
     const usersRef = collection(db, "users");
@@ -92,8 +70,6 @@ export async function POST(req: Request) {
       },
       { merge: true }
     );
-
-    await deleteDoc(verifyRef);
 
     return NextResponse.json({
       id: appUid,

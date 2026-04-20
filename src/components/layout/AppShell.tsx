@@ -30,7 +30,7 @@ import { db } from "@/lib/firebase";
 import type { AppNotification } from "@/types";
 import { getAchievementMeta } from "@/lib/achievements";
 
-const BARE_ROUTES = ["/login", "/register"];
+const BARE_ROUTES = ["/login", "/register", "/onboarding"];
 
 function isChunkLoadFailure(reason: unknown): boolean {
   const text =
@@ -307,8 +307,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           }).catch(() => {});
         }
 
-        if (needsProfileSetup && pathname !== "/settings") {
-          window.location.href = "/settings";
+        if (needsProfileSetup && !normalizedPathname.startsWith("/onboarding")) {
+          window.location.href = "/onboarding";
           return;
         }
       } catch {
@@ -324,7 +324,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       if (unsubscribeFriends) unsubscribeFriends();
       if (unsubscribeSubjects) unsubscribeSubjects();
     };
-  }, [pathname, setBonusPoints, setFriends, setStudyLogs, setSubjects]);
+  }, [normalizedPathname, pathname, setBonusPoints, setFriends, setStudyLogs, setSubjects]);
 
   useEffect(() => {
     if (!userProfile.uid) return;

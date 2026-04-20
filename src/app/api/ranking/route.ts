@@ -154,7 +154,12 @@ export async function GET(request: Request) {
 
     const sorted = Array.from(userMap.entries())
       .map(([uid, stats]) => ({ userId: uid, ...stats }))
-      .sort((a, b) => b.totalPoints - a.totalPoints);
+      .sort((a, b) => {
+        if (b.totalDuration !== a.totalDuration) return b.totalDuration - a.totalDuration;
+        if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+        if (b.sessions !== a.sessions) return b.sessions - a.sessions;
+        return a.userId.localeCompare(b.userId);
+      });
 
     const totalUsers = sorted.length;
     const page = sorted.slice(offset, offset + limit);
