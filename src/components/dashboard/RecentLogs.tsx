@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import React, { useMemo } from "react";
 import { useStore } from "@/store/useStore";
 import { useLiveStudyLogs } from "@/components/dashboard/useLiveStudyLogs";
@@ -32,13 +33,14 @@ export default function RecentLogs() {
           className="text-lg font-semibold mb-4"
           style={{ color: "var(--foreground)" }}
         >
-          最近の学習記録
+          最近の学習
         </h3>
         <EmptyState
           title="記録がありません"
           description="タイマーで学習を始めると、ここに履歴が表示されます"
           icon={<Clock size={32} style={{ color: "var(--accent)" }} />}
         />
+        <Link href="/timer" className="secondary-button w-full">最初の学習を記録する</Link>
       </GlassCard>
     );
   }
@@ -49,7 +51,7 @@ export default function RecentLogs() {
         className="text-lg font-semibold mb-4"
         style={{ color: "var(--foreground)" }}
       >
-        最近の学習記録
+        最近の学習
       </h3>
       <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
         {recentLogs.map((log, i) => {
@@ -73,7 +75,7 @@ export default function RecentLogs() {
                 <SubjectIcon iconName={subject?.icon || "book-open"} size={22} />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-1">
                   <span
                     className="text-base font-medium"
                     style={{ color: subject?.color || "var(--foreground)" }}

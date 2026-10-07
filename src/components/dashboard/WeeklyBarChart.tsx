@@ -165,7 +165,7 @@ export default function WeeklyBarChart() {
 
   return (
     <GlassCard hover={false}>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
           <h3 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
             学習時間の推移
@@ -179,7 +179,8 @@ export default function WeeklyBarChart() {
             <button
               key={p}
               onClick={() => setPeriod(p)}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+              aria-pressed={period === p}
+              className="min-h-11 px-3 py-2 rounded-lg text-sm font-medium transition-all"
               style={{
                 background: period === p ? "var(--accent-light)" : "transparent",
                 color: period === p ? "var(--accent)" : "var(--muted)",

@@ -12,11 +12,8 @@ import {
   subWeeks,
   isWithinInterval,
   startOfDay,
-  differenceInCalendarDays,
-  eachDayOfInterval,
   subDays,
 } from "date-fns";
-import { ja } from "date-fns/locale";
 import { formatHoursMinutes, getTodayLogs, getTotalDuration } from "@/lib/utils";
 
 export default function StatsCards() {
@@ -119,7 +116,7 @@ export default function StatsCards() {
     },
     {
       label: "獲得ポイント",
-      value: `${useStore.getState().userProfile.totalPoints}`,
+      value: userProfile.totalPoints.toLocaleString(),
       sub: "1分 = 1pt",
       icon: Target,
       color: "#ec4899",
@@ -128,13 +125,13 @@ export default function StatsCards() {
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="stats-grid">
       {cards.map((card, i) => {
         const Icon = card.icon;
         return (
           <motion.div
             key={card.label}
-            className="glass-card p-6"
+            className="glass-card stat-card"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
@@ -151,12 +148,12 @@ export default function StatsCards() {
               </div>
             </div>
             <div
-              className="text-3xl font-bold mb-1"
+              className="text-xl sm:text-2xl font-bold mb-1 break-words"
               style={{ color: "var(--foreground)" }}
             >
               {card.value}
             </div>
-            <span className="text-sm" style={{ color: card.color }}>
+            <span className="text-xs sm:text-sm" style={{ color: "var(--muted)" }}>
               {card.sub}
             </span>
             {card.progress !== null && (

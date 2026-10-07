@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useLiveStudyLogs } from "@/components/dashboard/useLiveStudyLogs";
 import {
   format,
@@ -8,7 +8,6 @@ import {
   startOfWeek,
   subWeeks,
   getDay,
-  subDays,
 } from "date-fns";
 import { ja } from "date-fns/locale";
 import GlassCard from "@/components/ui/GlassCard";
@@ -20,6 +19,7 @@ const GAP = 3;
 
 export default function HeatMap() {
   const studyLogs = useLiveStudyLogs();
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const { grid, maxDuration, months } = useMemo(() => {
     const now = new Date();
@@ -43,7 +43,7 @@ export default function HeatMap() {
     const grid: Array<Array<{ date: string; duration: number; dayOfWeek: number }>> = [];
     let currentWeek: Array<{ date: string; duration: number; dayOfWeek: number }> = [];
     
-    days.forEach((day, i) => {
+    days.forEach((day) => {
       const dow = getDay(day); // 0=Sun
       const mondayDow = dow === 0 ? 6 : dow - 1; // Convert to Mon=0
       const dateStr = format(day, "yyyy-MM-dd");
@@ -107,18 +107,15 @@ export default function HeatMap() {
       <div className="overflow-x-auto">
         <div className="inline-flex flex-col gap-1" style={{ minWidth: "fit-content" }}>
           {/* Month labels */}
-          <div className="flex" style={{ paddingLeft: 28 }}>
+          <div className="relative h-5" style={{ marginLeft: 28 }}>
             {months.map((m, i) => (
               <span
                 key={i}
                 className="text-[10px]"
                 style={{
                   color: "var(--muted)",
-                  position: "relative",
+                  position: "absolute",
                   left: m.weekIndex * (CELL_SIZE + GAP),
-                  marginRight: i < months.length - 1
-                    ? (months[i + 1].weekIndex - m.weekIndex) * (CELL_SIZE + GAP) - 20
-                    : 0,
                   width: 20,
                 }}
               >
@@ -158,7 +155,13 @@ export default function HeatMap() {
                   {Array.from({ length: 7 }, (_, dayIdx) => {
                     const cell = week.find((c) => c.dayOfWeek === dayIdx);
                     return (
-                      <motion.div
+                      <motion.button
+                        type="button"
+                        disabled={!cell}
+                        aria-label={cell ? `${cell.date}、${formatDuration(cell.duration)}` : "未到来の日"}
+                        aria-pressed={Boolean(cell && selectedDate === cell.date)}
+                        title={cell ? `${cell.date} ${formatDuration(cell.duration)}` : undefined}
+                        onClick={() => cell && setSelectedDate(cell.date)}
                         key={dayIdx}
                         className="heatmap-cell relative group"
                         style={{
@@ -171,12 +174,12 @@ export default function HeatMap() {
                         transition={{ delay: weekIdx * 0.02 + dayIdx * 0.01 }}
                       >
                         {cell && cell.duration > 0 && (
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded-lg text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10"
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded-lg text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity pointer-events-none z-10"
                             style={{ background: "var(--foreground)", color: "var(--background)" }}>
                             {format(new Date(cell.date), "M/d")} - {formatDuration(cell.duration)}
                           </div>
                         )}
-                      </motion.div>
+                      </motion.button>
                     );
                   })}
                 </div>
@@ -215,6 +218,9 @@ export default function HeatMap() {
           </div>
         </div>
       </div>
+      <p className="heatmap-detail" role="status">
+        {selectedDate ? `${selectedDate}：${formatDuration(grid.flat().find((cell) => cell.date === selectedDate)?.duration || 0)}` : "日付を選ぶと、その日の学習時間を確認できます。"}
+      </p>
     </GlassCard>
   );
 }

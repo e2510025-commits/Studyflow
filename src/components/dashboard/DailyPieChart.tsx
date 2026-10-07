@@ -10,6 +10,25 @@ import EmptyState from "@/components/ui/EmptyState";
 import { PieChart as PieChartIcon } from "lucide-react";
 import { formatHoursMinutes } from "@/lib/utils";
 
+const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { color: string } }> }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div
+          className="glass-card-flat px-3 py-2"
+          style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}
+        >
+          <p className="text-sm font-medium" style={{ color: payload[0].payload.color }}>
+            {payload[0].name}
+          </p>
+          <p className="text-xs" style={{ color: "var(--muted)" }}>
+            {formatHoursMinutes(payload[0].value)}
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
 export default function DailyPieChart() {
   const { subjects } = useStore();
   const studyLogs = useLiveStudyLogs();
@@ -57,24 +76,7 @@ export default function DailyPieChart() {
     );
   }
 
-  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { color: string } }> }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div
-          className="glass-card-flat px-3 py-2"
-          style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}
-        >
-          <p className="text-sm font-medium" style={{ color: payload[0].payload.color }}>
-            {payload[0].name}
-          </p>
-          <p className="text-xs" style={{ color: "var(--muted)" }}>
-            {formatHoursMinutes(payload[0].value)}
-          </p>
-        </div>
-      );
-    }
-    return null;
-  };
+
 
   return (
     <GlassCard hover={false}>
