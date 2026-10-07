@@ -1,11 +1,12 @@
-const CACHE_NAME = "studyflow-pwa-v1";
-const OFFLINE_URL = "/";
+const CACHE_NAME = "studyflow-pwa-v2";
+const PUBLIC_ASSETS = ["/manifest.webmanifest", "/logo.png", "/favicon.png"];
+const OFFLINE_PAGE = `<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>StudyFlow — オフライン</title><body style="font:16px/1.8 system-ui,sans-serif;padding:32px;max-width:560px;margin:auto;color:#202124;background:#fafafa"><h1>接続を確認してください</h1><p>現在、StudyFlowに接続できません。通信が戻ったらページを再読み込みしてください。</p><button onclick="location.reload()" style="min-height:44px;padding:10px 20px;font:inherit">再読み込み</button></body></html>`;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => cache.addAll([OFFLINE_URL, "/manifest.webmanifest", "/logo.png", "/favicon.png"]))
+      .then((cache) => cache.addAll(PUBLIC_ASSETS))
       .catch(() => undefined)
   );
   self.skipWaiting();
@@ -32,13 +33,19 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(() => caches.match(OFFLINE_URL))
+      fetch(request).catch(() => new Response(OFFLINE_PAGE, {
+        status: 503,
+        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+      }))
     );
     return;
   }
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  // Cache only public, versioned assets. Never cache auth/API responses,
+  // personalized pages, or Next.js navigation/prefetch payloads.
+  if (!url.pathname.startsWith("/_next/static/") && !PUBLIC_ASSETS.includes(url.pathname)) return;
 
   event.respondWith(
     caches.match(request).then((cached) => {

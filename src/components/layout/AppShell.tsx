@@ -396,7 +396,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
     const register = async () => {
       try {
-        await navigator.serviceWorker.register("/sw.js");
+        const registration = await navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" });
+        void registration.update().catch(() => {});
       } catch {
         // ignore service worker registration errors
       }
