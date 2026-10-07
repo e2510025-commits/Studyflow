@@ -163,10 +163,13 @@ export default function PublicProfilePage() {
     return Array.isArray(value) ? value[0] : value || "";
   }, [params.uid]);
 
-  const { userProfile, updateUserProfile } = useStore();
+  const userProfile = useStore((state) => state.userProfile);
+  const updateUserProfile = useStore((state) => state.updateUserProfile);
   const isSelf = !!uid && uid === userProfile.uid;
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [profileRetry, setProfileRetry] = useState(0);
   const [allowed, setAllowed] = useState(false);
   const [profile, setProfile] = useState<Awaited<ReturnType<typeof fetchPublicProfile>>>(null);
   const [stats, setStats] = useState({ totalSeconds: 0, totalSessions: 0 });
@@ -229,7 +232,7 @@ export default function PublicProfilePage() {
     let cancelled = false;
 
     void (async () => {
-      setLoading(true);
+      setLoading(true); setLoadError("");
       try {
         const visible = await canViewProfile(uid, userProfile.uid);
         if (cancelled) return;
@@ -265,6 +268,8 @@ export default function PublicProfilePage() {
           setEditAvatar(p.avatar || "👤");
           setEditHeader(p.headerImage || "");
         }
+      } catch {
+        if (!cancelled) setLoadError("プロフィールを読み込めませんでした。接続を確認して再試行してください。");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -273,7 +278,7 @@ export default function PublicProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [uid, userProfile.uid]);
+  }, [uid, userProfile.uid, profileRetry]);
 
   useEffect(() => {
     return subscribeActiveStudyUsers((rows) => {
@@ -635,6 +640,8 @@ export default function PublicProfilePage() {
     }
   };
 
+  if (loadError) return <div role="alert" className="glass-card max-w-3xl mx-auto p-5 space-y-3"><p>{loadError}</p><button className="secondary-button" onClick={() => setProfileRetry((value) => value + 1)}>プロフィールを再読み込み</button></div>;
+
   if (loading) {
     return <div className="max-w-5xl mx-auto py-12 text-sm" style={{ color: "var(--muted)" }}>読み込み中...</div>;
   }
@@ -662,7 +669,7 @@ export default function PublicProfilePage() {
   const canShowFriendCount = isSelf || profile.showFriendCount !== false;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-5">
+    <div className="max-w-6xl mx-auto space-y-5 profile-page">
       <section className="glass-card overflow-hidden">
         <div className="relative">
           <div className="h-[170px] sm:h-[250px]" style={{ background: headerBackground }} />
@@ -696,11 +703,11 @@ export default function PublicProfilePage() {
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="min-w-0 flex-1 space-y-2">
               <div className="flex flex-col md:flex-row md:items-end md:gap-4">
-                <h1 className="text-3xl sm:text-4xl font-black leading-none inline-flex items-center gap-2" style={{ color: "var(--foreground)" }}>
+                <h1 className="text-3xl sm:text-4xl font-black leading-tight break-words min-w-0 flex-wrap inline-flex items-center gap-2" style={{ color: "var(--foreground)" }}>
                   {profile.name}
                   <OfficialMark uid={profile.uid} isOfficial={profile.isOfficial} size={20} />
                 </h1>
-                <p className="text-sm mt-2 md:mt-0 md:max-w-[560px]" style={{ color: "var(--foreground)" }}>
+                <p className="text-sm break-words mt-2 md:mt-0 md:max-w-[560px]" style={{ color: "var(--foreground)" }}>
                   {profile.bio || "一言メッセージはまだ設定されていません"}
                 </p>
               </div>
@@ -820,6 +827,7 @@ export default function PublicProfilePage() {
             value={composerText}
             onChange={(e) => setComposerText(e.target.value.slice(0, 1200))}
             rows={3}
+            aria-label="プロフィールから投稿"
             placeholder="いまの学習や気づきを投稿しよう"
             className="mt-2 w-full px-3 py-2 rounded-xl text-sm resize-none"
             style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}

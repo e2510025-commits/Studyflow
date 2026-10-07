@@ -16,13 +16,6 @@ import type {
 } from "@/types";
 import { DEFAULT_SUBJECTS } from "@/lib/utils";
 
-/** Generate a 10-digit numeric UID */
-function generateNumericUid(): string {
-  const min = 1000000000;
-  const max = 9999999999;
-  return String(Math.floor(Math.random() * (max - min + 1)) + min);
-}
-
 interface AppState {
   // Subjects
   subjects: Subject[];
@@ -171,7 +164,8 @@ export const useStore = create<AppState>()(
 
       // User Profile
       userProfile: {
-        uid: generateNumericUid(),
+        // The authenticated UID is filled by AppShell; SSR must use a stable placeholder.
+        uid: "",
         name: "",
         avatar: "🎓",
         dailyGoal: 7200,

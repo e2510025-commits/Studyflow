@@ -301,7 +301,7 @@ export default function SubjectManager() {
 
                 {/* Preview & Save */}
                 <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0 max-w-full">
                     <div
                       className="w-10 h-10 rounded-full flex items-center justify-center"
                       style={{ background: `${color}20`, color }}
@@ -309,7 +309,7 @@ export default function SubjectManager() {
                       <SubjectIcon iconName={icon} size={20} />
                     </div>
                     <span
-                      className="font-medium break-words"
+                      className="font-medium break-words min-w-0"
                       style={{ color: "var(--foreground)" }}
                     >
                       {name || "プレビュー"}

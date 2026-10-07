@@ -103,8 +103,8 @@ export default function QuickProfileCard({ open, uid, viewerUid, onClose }: Quic
                         style={{ background: status.color, borderColor: "var(--card-bg)" }}
                       />
                     </span>
-                    <div className="min-w-0">
-                      <p className="text-base font-black truncate flex items-center gap-1" style={{ color: "var(--foreground)" }}>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-base font-black break-words flex items-center gap-1 min-w-0" style={{ color: "var(--foreground)" }}>
                         {profile.name}
                         {profile.isOfficial ? <BadgeCheck size={14} style={{ color: "#38bdf8" }} /> : null}
                       </p>

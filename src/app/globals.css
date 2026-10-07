@@ -465,3 +465,9 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 .ranking-page select { min-height: 44px; font-size: 16px; }
 .ranking-page label:has(input[type="checkbox"]) { min-height: 44px; display: inline-flex; align-items: center; }
 .ranking-page input[type="checkbox"] { width: 20px; height: 20px; }
+.chat-page button { min-width: 44px; min-height: 44px; }
+.chat-page input:not([type="checkbox"]):not([type="file"]), .chat-page textarea { min-width: 0; font-size: 16px; }
+.group-chat-composer { left: var(--sidebar-width); bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 8px); }
+.profile-page button { min-height: 44px; min-width: 44px; }
+.profile-page input:not([type="checkbox"]):not([type="file"]), .profile-page textarea, .profile-page select { font-size: 16px; }
+.dashboard-page .recharts-responsive-container { overflow: clip; }

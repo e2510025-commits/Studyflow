@@ -471,6 +471,8 @@ export default function GlobalChatPage() {
           }}
         />
         <button
+          aria-label="画像・進捗の追加メニュー"
+          aria-expanded={quickOpen}
           onClick={() => setQuickOpen((v) => !v)}
           className="px-2.5 py-2 rounded-xl text-sm font-semibold"
           style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
@@ -503,9 +505,10 @@ export default function GlobalChatPage() {
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value.slice(0, 800))}
+          aria-label="公開チャットのメッセージ"
           placeholder="メッセージ入力... (/stats /timer)"
           rows={2}
-          className="flex-1 px-3 py-2 rounded-xl text-sm resize-none"
+          className="flex-1 min-w-0 px-3 py-2 rounded-xl text-sm resize-none"
           style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
         />
         <button

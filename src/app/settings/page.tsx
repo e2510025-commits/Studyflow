@@ -52,6 +52,7 @@ export default function SettingsPage() {
   const [loadError, setLoadError] = useState("");
   const [profileRetry, setProfileRetry] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState("");
   const [saved, setSaved] = useState(false);
   const [nameError, setNameError] = useState("");
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -123,18 +124,13 @@ export default function SettingsPage() {
   };
 
   const handleCopyUid = async () => {
+    setCopied(false); setCopyError("");
     try {
       await navigator.clipboard.writeText(userProfile.uid);
+      setCopied(true);
     } catch {
-      const ta = document.createElement("textarea");
-      ta.value = userProfile.uid;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
+      setCopyError("コピーできませんでした。表示されているUIDを選択してコピーしてください。");
     }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -143,7 +139,7 @@ export default function SettingsPage() {
     if (!file.type.startsWith("image/")) return;
     // Limit to 2MB
     if (file.size > 2 * 1024 * 1024) {
-      alert("画像サイズは2MB以下にしてください");
+      setSaveError("画像サイズは2MB以下にしてください。");
       return;
     }
 
@@ -282,11 +278,12 @@ export default function SettingsPage() {
           </h2>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex-1 px-4 py-2.5 rounded-xl font-mono text-lg tracking-widest font-bold text-center"
+          <div className="flex-1 px-4 py-2.5 rounded-xl font-mono text-lg tracking-widest font-bold text-center min-w-0 break-all select-all"
             style={{ background: "var(--muted-bg)", color: "var(--accent)" }}>
-            {userProfile.uid}
+            {userProfile.uid || "確認中…"}
           </div>
           <button
+            disabled={!userProfile.uid}
             onClick={handleCopyUid}
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-105 active:scale-95"
             style={{
@@ -301,6 +298,7 @@ export default function SettingsPage() {
         <p className="text-xs mt-2" style={{ color: "var(--muted)" }}>
           このIDは他のユーザーからあなたを識別するために使われます
         </p>
+        {copyError && <p role="alert" className="text-sm text-danger mt-3">{copyError}</p>}
       </motion.div>
 
       {/* Avatar Card */}
@@ -510,7 +508,7 @@ export default function SettingsPage() {
         </p>
         <div className="flex items-center gap-2">
           <div
-            className="flex-1 px-4 py-2.5 rounded-xl font-mono text-lg tracking-widest font-bold text-center"
+            className="flex-1 px-4 py-2.5 rounded-xl font-mono text-lg tracking-widest font-bold text-center min-w-0 break-all select-all"
             style={{ background: "var(--muted-bg)", color: "var(--accent)" }}
           >
             {hasActivePairing ? pairingCode : "--------"}
@@ -600,7 +598,7 @@ export default function SettingsPage() {
       >
         <button
           onClick={() => void handleSave()}
-          disabled={saving}
+          disabled={saving || !userProfile.uid}
           className="primary-button w-full"
         >
           {saved ? <Check size={20} /> : <Save size={20} />}
