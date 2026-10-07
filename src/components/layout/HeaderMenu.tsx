@@ -1,170 +1,61 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
+import { LogOut, Paintbrush, UserRound } from "lucide-react";
 import { useStore } from "@/store/useStore";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  Settings,
-  LogOut,
-  Sliders,
-  User,
-  MessageCircleQuestion,
-} from "lucide-react";
-
-function AvatarDisplay({ avatar, size = 40 }: { avatar: string; size?: number }) {
-  const isImage = avatar.startsWith("data:") || avatar.startsWith("http");
-  if (isImage) {
-    return (
-      <img
-        src={avatar}
-        alt="Avatar"
-        className="rounded-full object-cover"
-        style={{ width: size, height: size }}
-      />
-    );
-  }
-  return (
-    <div
-      className="rounded-full flex items-center justify-center"
-      style={{ width: size, height: size, background: "var(--accent-light)", fontSize: size * 0.5 }}
-    >
-      {avatar || "🎓"}
-    </div>
-  );
-}
-
-const menuItems = [
-  { href: "/my-profile", label: "マイプロフィール", icon: User },
-  { href: "/support", label: "お問い合わせ", icon: MessageCircleQuestion },
-  { href: "/settings", label: "アカウント設定", icon: Settings },
-  { href: "/preferences", label: "アプリ設定", icon: Sliders },
-];
+import Dialog from "@/components/ui/Dialog";
+import ThemePicker from "./ThemePicker";
+import DesktopAppActions from "./DesktopAppActions";
+import RankingBadge from "@/components/ranking/RankingBadge";
+import { secondaryNavigation } from "./navigation";
 
 export default function HeaderMenu() {
   const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const { userProfile } = useStore();
+  const [loggingOut, setLoggingOut] = useState(false);
+  const profile = useStore((state) => state.userProfile);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const imageAvatar = profile.avatar.startsWith("data:") || profile.avatar.startsWith("http");
 
-  // Close on click outside
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    if (open) document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    if (open) window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [open]);
-
-  const handleLogout = async () => {
-    setOpen(false);
+  const logout = async () => {
+    setLoggingOut(true);
     try {
       const { signOut } = await import("next-auth/react");
       await signOut({ callbackUrl: "/login" });
     } catch {
-      // If next-auth not configured, just redirect
       window.location.href = "/login";
+    } finally {
+      setLoggingOut(false);
     }
   };
 
   return (
-    <div ref={menuRef} className="fixed top-4 right-4 z-50">
-      {/* Profile button */}
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-10 h-10 rounded-full flex items-center justify-center glass-card transition-all hover:scale-105 active:scale-95 overflow-hidden"
-        style={{ padding: 0 }}
-        aria-label="メニューを開く"
-      >
-        <AvatarDisplay avatar={userProfile.avatar} size={34} />
+    <>
+      <button ref={triggerRef} type="button" onClick={() => setOpen(true)} className="icon-button profile-trigger"
+        aria-label="アカウントメニューを開く" aria-expanded={open} aria-controls="account-menu" aria-haspopup="dialog">
+        {imageAvatar ? <img src={profile.avatar} alt="" className="h-8 w-8 rounded-full object-cover" /> : <span aria-hidden="true">{profile.avatar || "🎓"}</span>}
       </button>
-
-      {/* Dropdown */}
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            className="absolute top-12 right-0 w-64 rounded-2xl overflow-hidden"
-            style={{
-              background: "var(--card-bg)",
-              backdropFilter: "blur(24px)",
-              WebkitBackdropFilter: "blur(24px)",
-              border: "1px solid var(--card-border)",
-              boxShadow: "var(--shadow-lg)",
-            }}
-            initial={{ opacity: 0, scale: 0.9, y: -8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: -8 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-          >
-            {/* Profile header */}
-            <div className="px-4 py-4 border-b" style={{ borderColor: "var(--card-border)" }}>
-              <div className="flex items-center gap-3">
-                <AvatarDisplay avatar={userProfile.avatar} size={40} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold truncate" style={{ color: "var(--foreground)" }}>
-                    {userProfile.name || "ユーザー"}
-                  </p>
-                  <p className="text-[10px] font-mono tracking-wider" style={{ color: "var(--muted)" }}>
-                    UID: {userProfile.uid}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Menu items */}
-            <div className="py-2">
-              {menuItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setOpen(false)}
-                    className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all hover:pl-5"
-                    style={{ color: "var(--foreground)" }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.background = "var(--accent-light)";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLElement).style.background = "transparent";
-                    }}
-                  >
-                    <Icon size={16} style={{ color: "var(--muted)" }} />
-                    {item.label}
-                  </Link>
-                );
-              })}
-
-              {/* Logout */}
-              <div className="my-1 h-px mx-3" style={{ background: "var(--card-border)" }} />
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all hover:pl-5"
-                style={{ color: "#ef4444" }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.08)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = "transparent";
-                }}
-              >
-                <LogOut size={16} />
-                ログアウト
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+      <Dialog open={open} onClose={() => setOpen(false)} title="アカウント" id="account-menu">
+        <Link href="/my-profile" className="account-profile" onClick={() => setOpen(false)}>
+          <span className="more-nav-icon"><UserRound size={23} aria-hidden="true" /></span>
+          <span className="min-w-0"><span className="block font-bold truncate">{profile.name || "ユーザー"}</span><span className="block text-sm text-muted">プロフィールを見る</span></span>
+        </Link>
+        <div className="account-links">
+          {secondaryNavigation[2].items.map((item) => {
+            const Icon = item.icon;
+            return <Link key={item.href} href={item.href} className="secondary-nav-item" onClick={() => setOpen(false)}><Icon size={20} aria-hidden="true" />{item.label}</Link>;
+          })}
+        </div>
+        <details className="theme-settings">
+          <summary><Paintbrush size={20} aria-hidden="true" />表示テーマ</summary>
+          <ThemePicker />
+        </details>
+        {open && <div className="mt-4"><RankingBadge /></div>}
+        <div className="mt-4"><DesktopAppActions /></div>
+        <button type="button" className="secondary-nav-item mt-5 w-full text-danger" onClick={() => void logout()} disabled={loggingOut}>
+          <LogOut size={20} aria-hidden="true" />{loggingOut ? "ログアウト中…" : "ログアウト"}
+        </button>
+      </Dialog>
+    </>
   );
 }

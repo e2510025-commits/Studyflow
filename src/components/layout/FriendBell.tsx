@@ -22,14 +22,14 @@ export default function FriendBell() {
 
   return (
     <motion.div
-      className="fixed top-4 right-40 z-50"
+      className="relative hidden md:block"
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
     >
       <Link
         href="/friends"
-        className="w-10 h-10 rounded-xl flex items-center justify-center glass-card relative"
+        className="icon-button relative"
         title="フレンド"
         aria-label="フレンド"
       >

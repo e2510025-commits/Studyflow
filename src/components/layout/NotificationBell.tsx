@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useStore } from "@/store/useStore";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, BellDot } from "lucide-react";
+import { Bell, BellDot, X } from "lucide-react";
 import {
   subscribeIncomingFriendRequests,
   respondFriendRequest,
@@ -37,6 +37,16 @@ export default function NotificationBell() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [personalNotifications, setPersonalNotifications] = useState<AppNotification[]>([]);
   const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { setOpen(false); buttonRef.current?.focus(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   useEffect(() => {
     if (!userProfile.uid) return;
@@ -85,10 +95,14 @@ export default function NotificationBell() {
   const incomingCount = requests.length + unreadPersonalCount + announcements.length;
 
   return (
-    <div ref={rootRef} className="fixed top-4 right-16 z-50">
+    <div ref={rootRef} className="relative">
       <motion.button
         onClick={() => setOpen((v) => !v)}
-        className="w-10 h-10 rounded-xl flex items-center justify-center glass-card relative"
+        ref={buttonRef}
+        className="icon-button relative"
+        aria-label={incomingCount > 0 ? `通知、${incomingCount}件` : "通知"}
+        aria-expanded={open}
+        aria-controls="notification-panel"
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.96 }}
         title="通知"
@@ -113,7 +127,10 @@ export default function NotificationBell() {
       <AnimatePresence>
         {open && (
           <motion.div
-            className="absolute top-12 right-0 w-[340px] rounded-2xl overflow-hidden"
+            id="notification-panel"
+            className="notification-panel rounded-2xl"
+            role="region"
+            aria-label="通知一覧"
             style={{
               background: "var(--card-bg)",
               border: "1px solid var(--card-border)",
@@ -123,10 +140,11 @@ export default function NotificationBell() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: -6 }}
           >
-            <div className="px-4 py-3 border-b" style={{ borderColor: "var(--card-border)" }}>
+            <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: "var(--card-border)" }}>
               <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
                 通知
               </p>
+              <button type="button" className="icon-button" aria-label="通知を閉じる" onClick={() => { setOpen(false); buttonRef.current?.focus(); }}><X size={20} aria-hidden="true" /></button>
             </div>
 
             <div className="max-h-[360px] overflow-y-auto p-3 space-y-2">
