@@ -4,22 +4,17 @@ import Credentials from "next-auth/providers/credentials";
 import { collection, query, where, getDocs } from "firebase/firestore/lite";
 import { db } from "@/lib/firebase-server";
 import bcrypt from "bcryptjs";
+import { googleCredentials } from "./provider-config";
 
-const googleProvider =
-  process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
-    ? [
-        Google({
-          clientId: process.env.GOOGLE_CLIENT_ID,
-          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        }),
-      ]
-    : [];
+const googleConfig = googleCredentials(process.env);
+const googleProvider = googleConfig ? [Google(googleConfig)] : [];
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   // Prisma アダプターなし → JWT のみで動作（DB 不要）
   session: { strategy: "jwt" },
   pages: {
     signIn: "/login",
+    error: "/login",
   },
   providers: [
     ...googleProvider,

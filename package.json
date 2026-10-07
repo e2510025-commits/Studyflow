@@ -13,7 +13,9 @@
     "dev:ui": "node scripts/ui/dev.mjs",
     "test:ui": "node scripts/ui/verify.mjs",
     "test:profile": "tsx scripts/ui/check-profile.ts",
-    "test:ui:secondary": "node scripts/ui/verify-secondary.mjs"
+    "test:ui:secondary": "node scripts/ui/verify-secondary.mjs",
+    "test:auth": "tsx scripts/ui/check-auth.ts",
+    "test:ui:auth": "node scripts/ui/verify-auth.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
