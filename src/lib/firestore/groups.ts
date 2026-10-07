@@ -78,7 +78,7 @@ function toIso(value: unknown): string {
   return new Date().toISOString();
 }
 
-export function subscribeMyGroups(userUid: string, callback: (groups: GroupChat[]) => void) {
+export function subscribeMyGroups(userUid: string, callback: (groups: GroupChat[]) => void, onError?: (error: Error) => void) {
   const q = query(
     collection(db, GROUPS_COLLECTION),
     where("memberUids", "array-contains", userUid)
@@ -96,8 +96,8 @@ export function subscribeMyGroups(userUid: string, callback: (groups: GroupChat[
       } satisfies GroupChat;
     }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     callback(groups);
-  }, () => {
-    callback([]);
+  }, (error) => {
+    if (onError) onError(error); else callback([]);
   });
 }
 

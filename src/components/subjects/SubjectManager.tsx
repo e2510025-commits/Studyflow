@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/store/useStore";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Pencil, Trash2, X, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, Check } from "lucide-react";
 import { SubjectIcon } from "@/components/timer/SubjectSelector";
 import {
   SUBJECT_ICONS,
@@ -11,7 +11,7 @@ import {
   SUBJECT_SUGGESTION_MASTER,
   formatHoursMinutes,
 } from "@/lib/utils";
-import GlassCard from "@/components/ui/GlassCard";
+import Dialog from "@/components/ui/Dialog";
 import EmptyState from "@/components/ui/EmptyState";
 import { fetchSubjectCatalog, upsertSubjectCatalog } from "@/lib/firestore/subjects";
 import {
@@ -22,7 +22,9 @@ import {
 import type { Subject } from "@/types";
 
 export default function SubjectManager() {
-  const { subjects, userProfile, studyLogs } = useStore();
+  const subjects = useStore((state) => state.subjects);
+  const userProfile = useStore((state) => state.userProfile);
+  const studyLogs = useStore((state) => state.studyLogs);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -30,6 +32,10 @@ export default function SubjectManager() {
   const [icon, setIcon] = useState(SUBJECT_ICONS[0]);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [catalogNames, setCatalogNames] = useState<string[]>([]);
+
+  const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [deleteError, setDeleteError] = useState("");
 
   const normalizedInput = name.trim().toLowerCase();
   const suggestions = useMemo(() => {
@@ -98,6 +104,8 @@ export default function SubjectManager() {
   }, []);
 
   const resetForm = () => {
+    if (busy) return;
+    setFormError("");
     setName("");
     setColor(SUBJECT_COLORS[0]);
     setIcon(SUBJECT_ICONS[0]);
@@ -106,6 +114,7 @@ export default function SubjectManager() {
   };
 
   const handleEdit = (subject: Subject) => {
+    setFormError("");
     setName(subject.name);
     setColor(subject.color);
     setIcon(subject.icon);
@@ -113,60 +122,49 @@ export default function SubjectManager() {
     setShowForm(true);
   };
 
-  const handleSave = () => {
-    if (!name.trim() || !userProfile.uid) return;
+  const handleSave = async () => {
+    if (!name.trim() || !userProfile.uid || busy) return;
     const trimmedName = name.trim();
-    if (editingId) {
-      void updateUserSubject(editingId, {
-        name: trimmedName,
-        color,
-        icon,
-      }).catch(() => {});
-    } else {
-      void addUserSubject(userProfile.uid, {
-        name: trimmedName,
-        color,
-        icon,
-      }).catch(() => {});
-    }
-
-    void upsertSubjectCatalog(trimmedName).catch(() => {});
-    setCatalogNames((prev) =>
-      prev.includes(trimmedName) ? prev : [trimmedName, ...prev]
-    );
-    resetForm();
+    setBusy(true); setFormError("");
+    try {
+      if (editingId) await updateUserSubject(editingId, { name: trimmedName, color, icon });
+      else await addUserSubject(userProfile.uid, { name: trimmedName, color, icon });
+      void upsertSubjectCatalog(trimmedName).catch(() => {});
+      setCatalogNames((prev) => prev.includes(trimmedName) ? prev : [trimmedName, ...prev]);
+      setName(""); setEditingId(null); setShowForm(false);
+    } catch { setFormError("教科を保存できませんでした。入力は保持されています。再試行してください。"); }
+    finally { setBusy(false); }
   };
-
-  const handleDelete = (id: string) => {
-    if (deleteConfirm === id) {
-      void deleteUserSubject(id).catch(() => {});
-      setDeleteConfirm(null);
-    } else {
-      setDeleteConfirm(id);
-      setTimeout(() => setDeleteConfirm(null), 3000);
-    }
+  const handleDelete = (id: string) => { setDeleteError(""); setDeleteConfirm(id); };
+  const confirmDelete = async () => {
+    if (!deleteConfirm || busy) return;
+    setBusy(true); setDeleteError("");
+    try { await deleteUserSubject(deleteConfirm); setDeleteConfirm(null); }
+    catch { setDeleteError("教科を削除できませんでした。再試行してください。"); }
+    finally { setBusy(false); }
   };
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="page-heading">
         <div>
-          <h2
+          <h1
             className="text-2xl font-bold"
             style={{ color: "var(--foreground)" }}
           >
             教科管理
-          </h2>
+          </h1>
           <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
             学習する教科を追加・編集できます
           </p>
         </div>
         {!showForm && (
           <motion.button
-            onClick={() => setShowForm(true)}
+            onClick={() => { setFormError(""); setShowForm(true); }}
+            disabled={busy}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white"
-            style={{ background: "var(--accent)" }}
+            style={{ background: "var(--accent)", color: "var(--primary-foreground)" }}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
           >
@@ -177,27 +175,8 @@ export default function SubjectManager() {
       </div>
 
       {/* Add/Edit Form */}
-      <AnimatePresence>
-        {showForm && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-          >
-            <GlassCard hover={false}>
-              <div className="space-y-5">
-                <div className="flex items-center justify-between">
-                  <h3
-                    className="text-lg font-semibold"
-                    style={{ color: "var(--foreground)" }}
-                  >
-                    {editingId ? "教科を編集" : "新しい教科を追加"}
-                  </h3>
-                  <button onClick={resetForm} style={{ color: "var(--muted)" }}>
-                    <X size={20} />
-                  </button>
-                </div>
-
+      <Dialog open={showForm} onClose={resetForm} title={editingId ? "教科を編集" : "新しい教科を追加"}>
+        <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); void handleSave(); }}>
                 {/* Name input */}
                 <div>
                   <label
@@ -207,6 +186,10 @@ export default function SubjectManager() {
                     教科名
                   </label>
                   <input
+                    aria-label="教科名"
+                    required
+                    maxLength={80}
+                    disabled={busy}
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -231,10 +214,7 @@ export default function SubjectManager() {
                         <button
                           key={candidate}
                           type="button"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setName(candidate);
-                          }}
+                          onClick={() => setName(candidate)}
                           className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors"
                           style={{
                             background: "var(--muted-bg)",
@@ -266,8 +246,12 @@ export default function SubjectManager() {
                     {SUBJECT_COLORS.map((c) => (
                       <button
                         key={c}
+                        type="button"
+                        disabled={busy}
+                        aria-label={`教科カラー ${c}`}
+                        aria-pressed={color === c}
                         onClick={() => setColor(c)}
-                        className="w-8 h-8 rounded-full transition-all"
+                        className="w-11 h-11 rounded-full transition-all"
                         style={{
                           background: c,
                           border:
@@ -293,8 +277,12 @@ export default function SubjectManager() {
                     {SUBJECT_ICONS.map((ic) => (
                       <button
                         key={ic}
+                        type="button"
+                        disabled={busy}
+                        aria-label={`教科アイコン ${ic}`}
+                        aria-pressed={icon === ic}
                         onClick={() => setIcon(ic)}
-                        className="w-10 h-10 rounded-xl flex items-center justify-center transition-all"
+                        className="w-11 h-11 rounded-xl flex items-center justify-center transition-all"
                         style={{
                           background:
                             icon === ic ? `${color}20` : "var(--muted-bg)",
@@ -312,7 +300,7 @@ export default function SubjectManager() {
                 </div>
 
                 {/* Preview & Save */}
-                <div className="flex items-center justify-between pt-2">
+                <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
                   <div className="flex items-center gap-3">
                     <div
                       className="w-10 h-10 rounded-full flex items-center justify-center"
@@ -321,29 +309,33 @@ export default function SubjectManager() {
                       <SubjectIcon iconName={icon} size={20} />
                     </div>
                     <span
-                      className="font-medium"
+                      className="font-medium break-words"
                       style={{ color: "var(--foreground)" }}
                     >
                       {name || "プレビュー"}
                     </span>
                   </div>
                   <motion.button
-                    onClick={handleSave}
-                    disabled={!name.trim()}
+                    type="submit"
+                    disabled={busy || !name.trim()}
                     className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white disabled:opacity-40"
                     style={{ background: color }}
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
                   >
                     <Check size={16} />
-                    {editingId ? "更新" : "追加"}
+                    {busy ? "保存中…" : editingId ? "更新" : "追加"}
                   </motion.button>
                 </div>
-              </div>
-            </GlassCard>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          {formError && <p role="alert" className="text-sm text-danger">{formError}</p>}
+        </form>
+      </Dialog>
+      <Dialog open={Boolean(deleteConfirm)} onClose={() => { if (!busy) setDeleteConfirm(null); }} title="教科を削除">
+        <div className="space-y-4"><p>「{subjects.find((subject) => subject.id === deleteConfirm)?.name}」を教科一覧から削除します。過去の学習記録は保持されます。</p>
+          {deleteError && <p role="alert" className="text-sm text-danger">{deleteError}</p>}
+          <div className="flex flex-wrap gap-2"><button className="secondary-button" disabled={busy} onClick={() => setDeleteConfirm(null)}>キャンセル</button><button className="primary-button" disabled={busy} onClick={() => void confirmDelete()}>{busy ? "削除中…" : "削除する"}</button></div>
+        </div>
+      </Dialog>
 
       {/* Subject list */}
       {subjects.length === 0 ? (
@@ -365,7 +357,7 @@ export default function SubjectManager() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20, scale: 0.95 }}
                 transition={{ delay: index * 0.05 }}
-                className="glass-card-flat flex items-center gap-4 px-5 py-4"
+                className="glass-card-flat flex flex-wrap sm:flex-nowrap items-center gap-3 px-4 py-4"
               >
                 <div
                   className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
@@ -411,8 +403,10 @@ export default function SubjectManager() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
+                    disabled={busy}
+                    aria-label={`${subject.name}を編集`}
                     onClick={() => handleEdit(subject)}
-                    className="w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:opacity-80"
+                    className="icon-button"
                     style={{
                       background: "var(--muted-bg)",
                       color: "var(--muted)",
@@ -421,8 +415,10 @@ export default function SubjectManager() {
                     <Pencil size={15} />
                   </button>
                   <button
+                    disabled={busy}
+                    aria-label={`${subject.name}を削除`}
                     onClick={() => handleDelete(subject.id)}
-                    className="w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:opacity-80"
+                    className="icon-button"
                     style={{
                       background:
                         deleteConfirm === subject.id

@@ -102,7 +102,7 @@ export async function GET(request: Request) {
     >();
 
     // Get subject mapping if filtering by subject
-    let subjectIdMap = new Map<string, string>();
+    const subjectIdMap = new Map<string, string>();
     if (subjectFilter) {
       const subjectsSnap = await getDocs(collection(db, "userSubjects"));
       subjectsSnap.docs.forEach((d) => {

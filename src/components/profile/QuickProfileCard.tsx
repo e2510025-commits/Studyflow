@@ -2,8 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion } from "framer-motion";
-import { BadgeCheck, ExternalLink, MessageCircle, X } from "lucide-react";
+import Dialog from "@/components/ui/Dialog";
+import { BadgeCheck, ExternalLink, MessageCircle } from "lucide-react";
 import { fetchPublicProfile } from "@/lib/firestore/profile";
 import {
   subscribeUserPresenceAgents,
@@ -90,37 +90,7 @@ export default function QuickProfileCard({ open, uid, viewerUid, onClose }: Quic
   const canMessage = Boolean(uid && viewerUid && uid !== viewerUid);
 
   return (
-    <AnimatePresence>
-      {open && uid && (
-        <>
-          <motion.div
-            className="fixed inset-0 z-[130]"
-            style={{ background: "rgba(2,6,23,0.6)" }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
-          <motion.div
-            className="fixed inset-0 z-[131] flex items-center justify-center p-4"
-            initial={{ opacity: 0, y: 10, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.98 }}
-          >
-            <div
-              className="w-full max-w-sm rounded-2xl p-4 glass-card"
-              style={{ border: "1px solid var(--card-border)" }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>
-                  Quick Profile
-                </p>
-                <button onClick={onClose} className="w-7 h-7 rounded-full inline-flex items-center justify-center" style={{ background: "var(--muted-bg)", color: "var(--muted)" }}>
-                  <X size={14} />
-                </button>
-              </div>
-
+    <Dialog open={Boolean(open && uid)} onClose={onClose} title="プロフィール">
               {loading || !profile ? (
                 <p className="text-sm py-8 text-center" style={{ color: "var(--muted)" }}>{loading ? "読み込み中..." : result?.error ? "プロフィールを読み込めませんでした" : "プロフィールが見つかりません"}</p>
               ) : (
@@ -168,7 +138,7 @@ export default function QuickProfileCard({ open, uid, viewerUid, onClose }: Quic
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <Link
                       href={`/profile/${profile.uid}`}
-                      className="px-3 py-2 rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-1"
+                      className="secondary-button"
                       style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)", color: "var(--foreground)" }}
                       onClick={onClose}
                     >
@@ -177,7 +147,7 @@ export default function QuickProfileCard({ open, uid, viewerUid, onClose }: Quic
                     {canMessage ? (
                       <Link
                         href={`/friends/chat/${profile.uid}`}
-                        className="px-3 py-2 rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-1"
+                        className="secondary-button"
                         style={{ background: "var(--accent-light)", color: "var(--accent)" }}
                         onClick={onClose}
                       >
@@ -191,10 +161,6 @@ export default function QuickProfileCard({ open, uid, viewerUid, onClose }: Quic
                   </div>
                 </>
               )}
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+    </Dialog>
   );
 }

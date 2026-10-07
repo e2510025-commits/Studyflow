@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useMemo } from "react";
+import React, { useId, useMemo } from "react";
 import { motion } from "framer-motion";
 
 interface LiquidCircleProps {
@@ -20,10 +20,7 @@ export default function LiquidCircle({
   size = 340,
   children,
 }: LiquidCircleProps) {
-  const idRef = useRef(
-    `lq-${Math.random().toString(36).substring(2, 9)}`
-  );
-  const id = idRef.current;
+  const id = useId().replace(/:/g, "");
 
   const center = size / 2;
   const radius = center - 6;
