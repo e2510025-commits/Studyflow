@@ -3,11 +3,18 @@ import assert from "node:assert/strict";
 import { Auth, customFetch, skipCSRFCheck, type AuthConfig } from "@auth/core";
 import Google from "@auth/core/providers/google";
 import { AuthError } from "@auth/core/errors";
-import { unstable_getResponseFromNextConfig } from "next/experimental/testing/server";
+import { unstable_doesMiddlewareMatch, unstable_getResponseFromNextConfig } from "next/experimental/testing/server";
 import nextConfig from "../../next.config";
+import { config as middlewareConfig } from "../../src/middleware";
 import { googleCredentials, loginErrorMessage } from "../../src/lib/auth/provider-config";
 
 async function main() {
+  for (const path of ["/sw.js", "/logo.png", "/favicon.png", "/manifest.webmanifest", "/login", "/api/auth/session"]) {
+    assert.equal(unstable_doesMiddlewareMatch({ config: middlewareConfig, nextConfig, url: `https://studyflow.studio${path}` }), false, path);
+  }
+  for (const path of ["/", "/timer", "/settings", "/api/support", "/api/memorize/decks", "/sw.js/private"]) {
+    assert.equal(unstable_doesMiddlewareMatch({ config: middlewareConfig, nextConfig, url: `https://studyflow.studio${path}` }), true, path);
+  }
   // Real Next.js redirect matcher: preserve path/query, isolate the old alias.
   for (const path of ["/", "/login?error=Configuration", "/api/auth/signin/google", "/timer?subject=english"]) {
     const response = await unstable_getResponseFromNextConfig({ url: `https://studyflow-lake.vercel.app${path}`, nextConfig });
