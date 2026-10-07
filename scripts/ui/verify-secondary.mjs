@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 const BASE=`http://localhost:${process.env.UI_TEST_PORT || '3000'}`;
 const widths=[360,390,430,568,640,768,820,1024,1180,1280,1440];
-const routes=['/conversations','/friends','/subjects','/preferences','/settings','/ranking','/global-chat','/friends/chat/1000000002','/conversations/group/test-group','/profile/1000000002'];
+const routes=['/conversations','/friends','/subjects','/preferences','/settings','/ranking','/global-chat','/friends/chat/1000000002','/conversations/group/test-group','/profile/1000000002','/timeline/test-post'];
 const output=path.resolve('artifacts/ui');fs.mkdirSync(output,{recursive:true});
 const browser=await chromium.launch({headless:true});
 const context=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce',serviceWorkers:'block'});
@@ -32,7 +32,7 @@ const visit=async(route)=>{await page.goto(BASE+route,{waitUntil:'domcontentload
 const noOverflow=async(label)=>{const result=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));if(result.scroll>result.width+1)fs.writeFileSync(path.join(output,'secondary-overflow.json'),JSON.stringify(await page.evaluate(()=>Array.from(document.querySelectorAll('body *')).filter(el=>el.getBoundingClientRect().right>innerWidth+1).map(el=>({tag:el.tagName,class:el.className,text:el.textContent.slice(0,60),rect:el.getBoundingClientRect().toJSON()}))),null,2));assert(result.scroll<=result.width+1,`${label}: ${result.scroll} > ${result.width}`);};
 try {
  for(const route of routes){await visit(route);for(const width of widths){await page.setViewportSize({width,height:width<768?844:1024});await settle();await noOverflow(`${route} ${width}`);if([390,820,1440].includes(width)&&routes.indexOf(route)<6){await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:path.join(output,route.slice(1).replaceAll('/','-')+'-'+width+'.png'),fullPage:true});}}}
- console.log('PASS: 10 secondary routes × 11 widths without document overflow (external-data detail pages checked in loading/error state)');
+ console.log('PASS: 11 secondary routes × 11 widths without document overflow (external-data detail pages checked in loading/error state)');
  await page.setViewportSize({width:390,height:844});await visit('/conversations');const main=page.locator('main');
  await main.getByRole('link',{name:/学習仲間のとても長い表示名/}).waitFor();
  await page.getByLabel('会話を検索').fill('花子');assert.equal(await main.getByRole('link',{name:/学習仲間のとても長い表示名/}).count(),0);await main.getByRole('link',{name:/花子/}).waitFor();

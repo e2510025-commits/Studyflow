@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 const BASE = `http://localhost:${process.env.UI_TEST_PORT || '3000'}`;
 const widths = [360, 390, 568, 820, 1180, 1440];
-const routes = ['/memorize/create-deck', '/memorize/create-question', '/memorize/questions', '/memorize/deck/test-deck', '/memorize/deck/test-deck/edit', '/memorize/review/test-deck', '/memorize/review/test-deck/done', '/memorize/test/deck/test-deck', '/memorize/test/deck/test-deck/run', '/memorize/test/test-question', '/support', '/announcements', '/missions'];
+const routes = ['/memorize/create-deck', '/memorize/create-question', '/memorize/questions', '/memorize/deck/test-deck', '/memorize/deck/test-deck/edit', '/memorize/review/test-deck', '/memorize/review/test-deck/done', '/memorize/test/deck/test-deck', '/memorize/test/deck/test-deck/run', '/memorize/test/test-question', '/support', '/announcements', '/missions', '/onboarding'];
 const output = path.resolve('artifacts/ui'); fs.mkdirSync(output, { recursive: true });
 const deck = { id: 'test-deck', name: '英語の語彙と表現を毎日少しずつ覚える単語帳', description: '学習を続けるための例です。', color: '#3b82f6', cardCount: 2, createdAt: '2026-10-01T00:00:00Z' };
 const cards = [{ id: 'card-1', front: 'continue', back: '続ける', hint: null }, { id: 'card-2', front: 'learn', back: '学ぶ', hint: null }];
@@ -36,7 +36,7 @@ const page = await context.newPage(); page.on('pageerror', error => errors.push(
 const settle = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 async function visit(route) {
   await page.goto(BASE + route, { waitUntil: 'domcontentloaded', timeout: 120000 });
-  await page.locator('.app-header').waitFor();
+  await page.locator(route === '/onboarding' ? '.onboarding-form' : '.app-header').waitFor();
   await page.waitForFunction(() => document.documentElement.className.includes('theme-'));
   await page.waitForFunction(() => ![...document.querySelectorAll('main')].some(el => el.textContent.trim() === '読み込み中...'));
   await page.addStyleTag({ content: 'nextjs-portal{display:none}' }); await settle();
@@ -54,7 +54,18 @@ try {
       if ([390, 820, 1440].includes(width)) await page.screenshot({ path: path.join(output, route.slice(1).replaceAll('/', '-') + '-' + width + '.png'), fullPage: true });
     }
   }
-  console.log('PASS: 13 populated detail/editor/support routes × 6 widths');
+  console.log('PASS: 14 populated detail/editor/support/setup routes × 6 widths');
+  await page.setViewportSize({ width: 390, height: 844 }); await visit('/onboarding');
+  await page.getByLabel('表示名', { exact: true }).fill('新しい表示名');
+  await page.getByLabel('自己紹介（任意）', { exact: true }).fill('毎日少しずつ');
+  await page.getByLabel('公開範囲', { exact: true }).selectOption('friends');
+  assert.equal(await page.getByRole('button', { name: '同意して登録する' }).isEnabled(), false);
+  await page.getByLabel('利用規約に同意します', { exact: true }).check();
+  await page.getByLabel('プライバシーポリシーに同意します', { exact: true }).check();
+  assert.equal(await page.getByRole('button', { name: '同意して登録する' }).isEnabled(), true);
+  await visit('/memorize/create-question'); await page.getByRole('button', { name: '一括解答', exact: true }).click();
+  assert.equal(await page.getByRole('button', { name: '一括解答', exact: true }).getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.getByRole('button', { name: '順次解答', exact: true }).getAttribute('aria-pressed'), 'false');
   await page.setViewportSize({ width: 1440, height: 1024 }); await visit('/memorize/deck/test-deck');
   assert.equal(await page.locator('.study-detail-layout').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), 2, 'Desktop detail rail must use two columns');
   assert.equal(await page.locator('.brand-symbol').count(), 0, 'Decorative brand removed');

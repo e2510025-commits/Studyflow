@@ -250,6 +250,7 @@ export default function CreateQuestionPage() {
                   key={card.id}
                   type="button"
                   onClick={() => setActiveIndex(index)}
+                  aria-pressed={isActive}
                   className={`rounded-lg h-10 font-bold border transition-colors ${
                     isActive
                       ? "bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 border-zinc-900 dark:border-zinc-100"
@@ -323,6 +324,7 @@ export default function CreateQuestionPage() {
                 <button
                   type="button"
                   onClick={() => updateCurrentCard({ mode: "sequential" })}
+                  aria-pressed={currentCard?.mode === "sequential"}
                   className={`flex-1 py-2 rounded-xl font-semibold transition-all border ${
                     currentCard?.mode === "sequential"
                       ? "bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 border-zinc-900 dark:border-zinc-100"
@@ -334,6 +336,7 @@ export default function CreateQuestionPage() {
                 <button
                   type="button"
                   onClick={() => updateCurrentCard({ mode: "all-at-once" })}
+                  aria-pressed={currentCard?.mode === "all-at-once"}
                   className={`flex-1 py-2 rounded-xl font-semibold transition-all border ${
                     currentCard?.mode === "all-at-once"
                       ? "bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 border-zinc-900 dark:border-zinc-100"

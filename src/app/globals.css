@@ -711,6 +711,7 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 .question-library-row + .question-library-row { border-top: 1px solid var(--card-border); }
 .question-editor-workspace { display: grid; gap: 24px; min-width: 0; }
 .question-editor-workspace > * { min-width: 0; }
+.app-content[data-screen="memorize"] .question-editor-page button[aria-pressed="true"] { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
 .review-workspace { height: calc(100dvh - var(--header-height) - var(--bottom-nav-height) - 48px); min-height: 520px; }
 .review-workspace > div > header { min-height: 56px; flex-shrink: 0; }
 .app-content[data-screen="memorize"] .review-workspace button { min-width: 44px; }
@@ -718,3 +719,21 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 .study-detail-main .editor-panel > .rounded-xl.border { border-inline: 0; border-radius: 0; }
 @media (min-width: 640px) { .test-option-row { grid-template-columns: minmax(0, 1fr) minmax(0, 240px); align-items: center; } }
 @media (min-width: 1600px) { .question-editor-workspace { grid-template-columns: 180px minmax(0, 1fr); } }
+.thread-column { min-width: 0; display: grid; gap: 0; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; overflow: hidden; }
+.thread-column > button:first-child { min-height: 56px; text-align: left; border-radius: 0; padding: 20px; }
+.thread-column > .glass-card { border: 0; border-radius: 0; padding: 24px; }
+.thread-column > .glass-card + .glass-card { border-top: 1px solid var(--card-border); }
+.thread-column :is(button, textarea) { min-height: 44px; font-size: 16px; }
+.thread-column a { flex-shrink: 0; }
+.thread-column p { overflow-wrap: anywhere; }
+.onboarding-page { min-height: 100dvh; padding: 24px 16px; }
+.onboarding-workspace { max-width: 1100px; margin: auto; display: grid; gap: 32px; align-items: start; }
+.onboarding-intro { padding: 12px 8px; }
+.onboarding-brand { font-size: 26px; font-weight: 750; letter-spacing: -0.05em; }
+.onboarding-intro h2 { font-size: clamp(28px, 4vw, 44px); font-weight: 750; line-height: 1.35; margin-top: 32px; }
+.onboarding-intro > p:last-child { color: var(--muted); font-size: 14px; line-height: 1.9; margin-top: 20px; max-width: 320px; }
+.onboarding-form { padding: 24px; border: 1px solid var(--card-border); border-radius: 14px; background: var(--card-bg); min-width: 0; }
+.onboarding-form :is(input:not([type="checkbox"]), textarea, select) { min-height: 44px; font-size: 16px; }
+.onboarding-form label:has(input[type="checkbox"]) { display: flex; min-height: 44px; align-items: center; }
+.onboarding-form input[type="checkbox"] { width: 20px; height: 20px; flex-shrink: 0; }
+@media (min-width: 900px) { .onboarding-page { padding: 64px 40px; } .onboarding-workspace { grid-template-columns: minmax(0, 1fr) minmax(0, 600px); gap: 64px; } .onboarding-intro { position: sticky; top: 64px; } .onboarding-form { padding: 36px; } }
