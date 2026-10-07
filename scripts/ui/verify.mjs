@@ -4,7 +4,7 @@ import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-const BASE = 'http://localhost:3000';
+const BASE = `http://localhost:${process.env.UI_TEST_PORT || '3000'}`;
 const widths = [360,390,430,768,820,1024,1180,1280,1440];
 const output = path.resolve('artifacts/ui');
 fs.mkdirSync(output, { recursive: true });
