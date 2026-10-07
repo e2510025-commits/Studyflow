@@ -9,6 +9,21 @@ const widths = [360,390,430,768,820,1024,1180,1280,1440];
 const output = path.resolve('artifacts/ui');
 fs.mkdirSync(output, { recursive: true });
 const deck = { id:'test-deck', name:'英検2級の単語', description:'長い説明も読みやすく表示します。', color:'#7c83ff', cardCount:12, dueCount:4, masteredCount:8, subjectId:'english', createdAt:new Date().toISOString() };
+const luminance = (hex) => {
+ const raw = hex.trim().replace('#', '');
+ const rgb = raw.length===3 ? [...raw].map(c=>c+c).join('') : raw;
+ const parts = [0,2,4].map(i=>parseInt(rgb.slice(i,i+2),16)/255)
+  .map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4);
+ return .2126*parts[0]+.7152*parts[1]+.0722*parts[2];
+};
+const readableTheme = async (page) => {
+ const colors = await page.evaluate(()=>{
+  const style = getComputedStyle(document.documentElement);
+  return { foreground:style.getPropertyValue('--foreground'), background:style.getPropertyValue('--card-bg') };
+ });
+ const values = [luminance(colors.foreground),luminance(colors.background)].sort((a,b)=>a-b);
+ assert((values[1]+.05)/(values[0]+.05)>=4.5,`Theme text contrast must remain readable: ${JSON.stringify(colors)}`);
+};
 
 (async () => {
  const browser = await chromium.launch({ headless:true });
@@ -61,8 +76,9 @@ const deck = { id:'test-deck', name:'英検2級の単語', description:'長い�
   assert.equal(await page.evaluate(()=>document.body.style.overflow),'');
   const account=page.getByRole('button',{name:'アカウントメニューを開く'});await account.click();
   const accountDialog=page.getByRole('dialog',{name:'アカウント',exact:true});await accountDialog.locator('summary').click();
-  for(const name of ['グレー','ダーク','ホワイト']){await accountDialog.getByRole('button',{name,exact:true}).click();assert.equal(await accountDialog.getByRole('button',{name,exact:true}).getAttribute('aria-pressed'),'true');}
+  for(const name of ['グレー','ダーク','ホワイト']){await accountDialog.getByRole('button',{name,exact:true}).click();assert.equal(await accountDialog.getByRole('button',{name,exact:true}).getAttribute('aria-pressed'),'true');await readableTheme(page);}
   await accountDialog.getByLabel('カラーコード').fill('#14b8a6');await accountDialog.getByRole('button',{name:'適用する'}).click();assert(await accountDialog.getByRole('status').isVisible());
+  await readableTheme(page);
   await accountDialog.getByRole('button',{name:'ホワイト',exact:true}).click();await page.keyboard.press('Escape');assert(await account.evaluate((el)=>el===document.activeElement));
   console.log('PASS: menu focus trap/return, Escape, scroll restoration and 4 themes');
   const downloadPromise=page.waitForEvent('download');await page.getByRole('button',{name:'画像を保存'}).click();const download=await downloadPromise;await download.saveAs(path.join(output,'weekly-share.png'));assert((await download.failure())===null);
