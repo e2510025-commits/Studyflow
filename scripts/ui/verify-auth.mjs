@@ -14,6 +14,9 @@ try {
   await context.route('**/*', async (route) => {
     const request = route.request(); const url = new URL(request.url());
     if (url.origin !== BASE) return route.abort();
+    // These endpoints are supplied by Vercel, not a local Next.js server.
+    // Keep telemetry isolated instead of executing a login redirect as JS.
+    if (url.pathname.startsWith('/_vercel/')) return route.abort();
     if (!url.pathname.startsWith('/api/')) return route.continue();
     calls.push({ path: url.pathname, method: request.method() });
     const json = (data, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
