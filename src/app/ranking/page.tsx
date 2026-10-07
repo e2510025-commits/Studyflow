@@ -19,6 +19,7 @@ import {
   UserPlus,
   UserMinus,
 } from "lucide-react";
+import { withTimeout } from "@/lib/async";
 import { formatHoursMinutes } from "@/lib/utils";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 import { subscribeActiveStudyUsers } from "@/lib/firestore/focusRoom";
@@ -95,6 +96,7 @@ export default function RankingPage() {
   const [actionError, setActionError] = useState("");
   const [rivalBusy, setRivalBusy] = useState<string | null>(null);
   const requestGeneration = useRef(0);
+  const pendingGeneration = useRef(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [quickProfileUid, setQuickProfileUid] = useState<string | null>(null);
   const [activeStudySet, setActiveStudySet] = useState<Set<string>>(new Set());
@@ -113,17 +115,20 @@ export default function RankingPage() {
   }, [userProfile.uid, userProfile.name, userProfile.avatar]);
 
   /* ── Fetch ranking when period changes ─────────── */
-  const loadRanking = useCallback(async () => {
+  const loadRanking = useCallback(async (background = false) => {
+    if (background && pendingGeneration.current) return;
     const generation = ++requestGeneration.current;
-    setLoading(true); setError(""); setVisibleCount(PAGE_SIZE);
+    pendingGeneration.current = generation;
+    if (!background) { setLoading(true); setVisibleCount(PAGE_SIZE); }
+    setError("");
     try {
-      const data = await fetchRankingData(period, selectedSubject);
+      const data = await withTimeout(fetchRankingData(period, selectedSubject));
       if (generation !== requestGeneration.current) return;
       setRawData(data);
       // Daily movement is for all subjects; do not show an unrelated trend in a subject filter.
       const [todayRankMap, yesterdayRankMap] = selectedSubject ? [new Map<string, number>(), new Map<string, number>()] : await Promise.all([
-        fetchDailyRankMap(0).catch(() => new Map<string, number>()),
-        fetchDailyRankMap(1).catch(() => new Map<string, number>()),
+        withTimeout(fetchDailyRankMap(0), 5_000).catch(() => new Map<string, number>()),
+        withTimeout(fetchDailyRankMap(1), 5_000).catch(() => new Map<string, number>()),
       ]);
       if (generation !== requestGeneration.current) return;
       const trendMap = new Map<string, number>();
@@ -134,12 +139,13 @@ export default function RankingPage() {
       setDailyTrend(trendMap);
       const uids = data.slice(0, PAGE_SIZE).map((row) => row.userId);
       if (userProfile.uid && !uids.includes(userProfile.uid)) uids.push(userProfile.uid);
-      const profs = await getProfilesBatch(uids);
+      const profs = await withTimeout(getProfilesBatch(uids), 5_000).catch(() => new Map());
       if (generation === requestGeneration.current) setProfiles(profs);
     } catch {
       if (generation === requestGeneration.current) setError("ランキングを読み込めませんでした。再読み込みしてください。");
     } finally {
       if (generation === requestGeneration.current) setLoading(false);
+      if (pendingGeneration.current === generation) pendingGeneration.current = 0;
     }
   }, [period, userProfile.uid, selectedSubject]);
 
@@ -150,7 +156,7 @@ export default function RankingPage() {
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
-      void loadRanking();
+      void loadRanking(true);
     }, 30_000);
     return () => window.clearInterval(intervalId);
   }, [loadRanking]);
@@ -183,7 +189,7 @@ export default function RankingPage() {
         .filter((uid) => !profiles.has(uid));
 
       if (newUids.length > 0) {
-        const newProfs = await getProfilesBatch(newUids);
+        const newProfs = await withTimeout(getProfilesBatch(newUids));
         if (generation !== requestGeneration.current) return;
         setProfiles((prev) => {
           const merged = new Map(prev);
@@ -213,7 +219,7 @@ export default function RankingPage() {
   const totalUsers = filteredData.length;
 
   const myIndex = filteredData.findIndex((u) => u.userId === userProfile.uid);
-  const myRank = myIndex >= 0 ? myIndex + 1 : totalUsers + 1;
+  const myRank = myIndex >= 0 ? myIndex + 1 : 0;
   const myStats =
     myIndex >= 0
       ? filteredData[myIndex]
@@ -372,7 +378,7 @@ export default function RankingPage() {
       </motion.div>
 
       {/* ── My Stats Cards ──────────────────────────── */}
-      <motion.div
+      {!loading && !error && <motion.div
         className="grid grid-cols-1 min-[430px]:grid-cols-3 gap-3"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -387,7 +393,7 @@ export default function RankingPage() {
             className="text-2xl font-black mt-1"
             style={{ color: "var(--accent)" }}
           >
-            #{myRank}
+            {myRank > 0 ? `#${myRank}` : "—"}
           </div>
           <div
             className="text-[10px] font-medium"
@@ -434,7 +440,7 @@ export default function RankingPage() {
             学習時間
           </div>
         </div>
-      </motion.div>
+      </motion.div>}
 
       {/* ── Loading / Empty / Ranking list ──────────── */}
       {actionError && <p role="alert" className="text-sm text-danger">{actionError}</p>}
@@ -646,9 +652,9 @@ export default function RankingPage() {
       )}
 
       {/* ── Sticky my-rank card ────────────────────── */}
-      {!loading && (
+      {!loading && !error && myRank > 0 && (
         <motion.div
-          className="glass-card p-5 sticky bottom-4"
+          className="glass-card p-5 sticky my-rank-card"
           style={{
             background: "var(--accent-light)",
             border: "2px solid var(--accent)",
@@ -659,6 +665,7 @@ export default function RankingPage() {
         >
           <div className="flex items-center gap-4">
             <button
+              aria-label="自分のプロフィールを開く"
               onClick={() => setQuickProfileUid(userProfile.uid)}
               className="min-h-11 min-w-11 rounded-full transition-all"
               onMouseEnter={(e) => {
@@ -678,7 +685,7 @@ export default function RankingPage() {
                   className="text-lg font-black"
                   style={{ color: "var(--accent)" }}
                 >
-                  #{myRank}
+                  {myRank > 0 ? `#${myRank}` : "—"}
                 </span>
                 <span
                   className="text-sm font-bold"

@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Cropper, { type Area } from "react-easy-crop";
+import { withTimeout } from "@/lib/async";
 import { useStore } from "@/store/useStore";
 import {
   canViewProfile,
@@ -234,19 +235,19 @@ export default function PublicProfilePage() {
     void (async () => {
       setLoading(true); setLoadError("");
       try {
-        const visible = await canViewProfile(uid, userProfile.uid);
+        const visible = await withTimeout(canViewProfile(uid, userProfile.uid));
         if (cancelled) return;
         setAllowed(visible);
         if (!visible) return;
 
-        const [p, s, hm, follow, cheer, recent] = await Promise.all([
+        const [p, s, hm, follow, cheer, recent] = await withTimeout(Promise.all([
           fetchPublicProfile(uid),
           fetchUserStudyStats(uid),
           fetchUserHeatmap(uid, 84),
           fetchFollowLists(uid, 300),
           fetchProfileCheerSummary(uid, userProfile.uid),
           fetchRecentProfileActivity(uid, 9),
-        ]);
+        ]));
 
         if (cancelled) return;
         setProfile(p);

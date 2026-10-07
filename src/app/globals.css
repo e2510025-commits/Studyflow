@@ -471,3 +471,4 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 .profile-page button { min-height: 44px; min-width: 44px; }
 .profile-page input:not([type="checkbox"]):not([type="file"]), .profile-page textarea, .profile-page select { font-size: 16px; }
 .dashboard-page .recharts-responsive-container { overflow: clip; }
+.my-rank-card { bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 16px); }

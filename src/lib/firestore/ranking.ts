@@ -2,7 +2,7 @@ import {
   collection,
   query,
   where,
-  getDocs,
+  getDocsFromServer as getDocs,
   doc,
   setDoc,
   getDoc,
