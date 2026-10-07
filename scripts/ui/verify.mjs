@@ -47,7 +47,11 @@ const deck = { id:'test-deck', name:'英検2級の単語', description:'長い�
    await visit(route);
    for(const width of widths){await page.setViewportSize({width,height:width<768?844:1024});await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));await noOverflow(`${route} ${width}`); if([390,820,1440].includes(width)) {await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:path.join(output,`${route==='/'?'home':route.slice(1)}-${width}.png`),fullPage:true});}}
   }
-  console.log('PASS: 4 primary pages × 9 widths without document overflow');
+  await page.setViewportSize({width:1440,height:1024});await visit('/timer');
+  const subjectLabel=page.locator('.timer-subject-panel .subject-choice-grid button span').first();
+  assert(await subjectLabel.evaluate(el=>el.clientWidth>=el.scrollWidth && el.parentElement.getBoundingClientRect().width>=160),'Desktop subject name must remain readable in narrow panel');
+  assert.equal(await page.locator('.timer-workspace').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length),2);
+  console.log('PASS: 4 primary pages × 9 widths without document overflow; desktop subject label and timer columns');
   await page.setViewportSize({width:390,height:844}); await visit('/');
   const more=page.getByRole('button',{name:'その他',exact:true}).filter({visible:true});
   await more.click(); const menu=page.getByRole('dialog',{name:'その他',exact:true});await menu.waitFor();

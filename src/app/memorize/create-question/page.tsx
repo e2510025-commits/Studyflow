@@ -237,7 +237,7 @@ export default function CreateQuestionPage() {
         </p>
       </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-5">
+      <div className="question-editor-workspace">
         <aside className="p-4 rounded-2xl border bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 h-fit">
           <div className="text-sm font-bold mb-3">カードナビゲーター</div>
           <div className="grid grid-cols-4 lg:grid-cols-3 gap-2">

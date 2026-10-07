@@ -217,7 +217,7 @@ export default function ReviewPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-70px)] bg-[#f4f4f5] rounded-xl border overflow-hidden" style={{ borderColor: "var(--card-border)" }}>
+    <div className="review-workspace rounded-xl border overflow-hidden" style={{ borderColor: "var(--card-border)", background: "var(--card-bg)" }}>
       <div className="h-full flex flex-col">
         <header className="h-10 px-3 flex items-center justify-between border-b text-xs" style={{ borderColor: "#e4e4e7" }}>
           <button type="button" onClick={() => router.push(`/memorize/deck/${params.deckId}`)} style={{ color: "#111827" }}>

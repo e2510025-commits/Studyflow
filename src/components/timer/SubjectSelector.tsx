@@ -73,7 +73,7 @@ export default function SubjectSelector({
       >
         教科を選択
       </h3>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      <div className="subject-choice-grid grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {subjects.map((subject: Subject) => {
           const isSelected = selectedId === subject.id;
           return (

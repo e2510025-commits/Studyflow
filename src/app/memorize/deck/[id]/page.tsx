@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Calendar, Ellipsis, Home, Pencil, Play, Printer, User } from "lucide-react";
+import { BookOpen, Calendar, Home, Pencil, Play, Printer, User } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -124,7 +124,7 @@ export default function DeckMemorizeSettingPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4 pb-20">
+    <div className="screen-page deck-overview">
       <div className="text-xs font-semibold" style={{ color: "var(--muted)" }}>
         <Link href="/" className="hover:underline inline-flex items-center gap-1">
           <Home size={12} />
@@ -137,10 +137,10 @@ export default function DeckMemorizeSettingPage() {
       </div>
 
       <section
-        className="rounded-2xl border p-4 sm:p-6"
+        className="editor-panel deck-settings"
         style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
       >
-        <div className="flex items-center justify-between gap-3">
+        <div className="deck-heading">
           <h1 className="text-2xl sm:text-4xl font-black" style={{ color: "var(--foreground)" }}>
             {deck.name}
           </h1>
@@ -155,14 +155,6 @@ export default function DeckMemorizeSettingPage() {
               <Pencil size={14} />
               編集
             </button>
-            <button
-              type="button"
-              className="h-9 w-9 rounded-full border flex items-center justify-center"
-              style={{ borderColor: "var(--card-border)", color: "var(--muted)" }}
-              title="オプション"
-            >
-              <Ellipsis size={18} />
-            </button>
           </div>
         </div>
 
@@ -170,7 +162,6 @@ export default function DeckMemorizeSettingPage() {
           <MetaChip icon={<User size={14} />} label={deck.userName || "あなた"} />
           <MetaChip icon={<Calendar size={14} />} label={createdLabel} />
           <MetaChip icon={<Calendar size={14} />} label={`カード ${cards.length}`} />
-          <MetaChip icon={<Calendar size={14} />} label="いいね 0" />
         </div>
 
         <div className="mt-5 grid grid-cols-3 rounded-xl border overflow-hidden" style={{ borderColor: "var(--card-border)" }}>
@@ -227,8 +218,8 @@ export default function DeckMemorizeSettingPage() {
               onChange={(checked) => updateSetting("tapToFlip", checked)}
             />
             <SettingToggleRow
-              title="音声で操作する"
-              description="キーボード操作によって操作します。"
+              title="キーボードで操作する"
+              description="キーボード操作によってカードをめくります。"
               checked={settings.keyboardEnabled}
               onChange={(checked) => updateSetting("keyboardEnabled", checked)}
             />
@@ -316,6 +307,7 @@ function SettingToggleRow({
       <button
         type="button"
         role="switch"
+        aria-label={title}
         aria-checked={checked}
         onClick={() => onChange(!checked)}
         className="relative w-12 h-7 rounded-full transition-colors"
@@ -345,6 +337,7 @@ function SettingSelectRow({
     <div className="grid grid-cols-[1fr_auto] items-center gap-3 p-3">
       <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>{title}</p>
       <select
+        aria-label={title}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="w-44 rounded-lg border px-3 py-1.5 text-sm"

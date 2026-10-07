@@ -8,16 +8,16 @@ export default function ReviewDonePage() {
   const router = useRouter();
 
   return (
-    <div className="h-[calc(100vh-70px)] bg-[#f4f4f5] rounded-xl border overflow-hidden" style={{ borderColor: "var(--card-border)" }}>
+    <div className="review-workspace rounded-xl border overflow-hidden" style={{ borderColor: "var(--card-border)", background: "var(--card-bg)" }}>
       <div className="h-full flex flex-col">
-        <header className="h-10 px-3 flex items-center justify-between border-b text-xs" style={{ borderColor: "#e4e4e7" }}>
-          <button type="button" onClick={() => router.push(`/memorize/deck/${params.deckId}`)} style={{ color: "#111827" }}>
+        <header className="h-10 px-3 flex items-center justify-between border-b text-xs" style={{ borderColor: "var(--card-border)" }}>
+          <button type="button" onClick={() => router.push(`/memorize/deck/${params.deckId}`)} style={{ color: "var(--foreground)" }}>
             設定
           </button>
-          <div className="font-semibold" style={{ color: "#374151" }}>
+          <div className="font-semibold" style={{ color: "var(--foreground)" }}>
             暗記完了
           </div>
-          <button type="button" onClick={() => router.push(`/memorize/deck/${params.deckId}`)} style={{ color: "#111827" }}>
+          <button type="button" onClick={() => router.push(`/memorize/deck/${params.deckId}`)} style={{ color: "var(--foreground)" }}>
             終了
           </button>
         </header>
@@ -35,7 +35,7 @@ export default function ReviewDonePage() {
             </button>
             <button
               type="button"
-              onClick={() => router.push(`/memorize/deck/${params.deckId}`)}
+              onClick={() => router.push(`/memorize/test/deck/${params.deckId}`)}
               className="w-full py-3 rounded-full border inline-flex items-center justify-center gap-2 text-sm"
               style={{ borderColor: "#a5b4fc", color: "#6366f1" }}
             >

@@ -168,7 +168,7 @@ export default function TestPage() {
   let blankIndex = -1;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5">
+    <div className="screen-page question-test-page">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <Link href="/memorize" className="inline-flex items-center gap-2 mb-3 font-medium" style={{ color: "var(--primary)" }}>
           <ArrowLeft size={20} />
