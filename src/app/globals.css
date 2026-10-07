@@ -474,7 +474,7 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 .my-rank-card { bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 16px); }
 
 /* Page interiors: a clear reading column, purposeful rails, and fewer nested cards. */
-:root, .theme-white { --background: #fafafa; --page-bg: #fafafa; --foreground: #202124; --card-border: #e4e5e9; --shadow: none; }
+.theme-white { --background: #fafafa; --page-bg: #fafafa; --foreground: #202124; --card-border: #e4e5e9; --shadow: none; }
 .theme-dark { --background: #111216; --page-bg: #111216; --card-bg: #191a20; --sidebar-bg: #15161b; --card-border: #2d2e36; --shadow: none; }
 .glass-card, .glass-card-flat { border-radius: 14px; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
 .app-content { max-width: 1440px; }
