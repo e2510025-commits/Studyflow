@@ -223,7 +223,7 @@ export default function CreateQuestionPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-5 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
+    <div className="screen-page question-editor-page">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <Link href="/memorize" className="inline-flex items-center gap-2 mb-3 font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
           <ArrowLeft size={20} />

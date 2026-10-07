@@ -10,7 +10,7 @@ export default function TimerPage() {
   const isIdle = status === "idle";
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-6">
+    <div className="screen-page timer-page">
       {/* Page heading — only shown when idle */}
       {isIdle && (
         <motion.div
@@ -32,7 +32,7 @@ export default function TimerPage() {
         </motion.div>
       )}
 
-      <div className="w-full md:max-w-4xl md:mx-auto">
+      <div className="w-full">
         <StudyTimer />
       </div>
     </div>

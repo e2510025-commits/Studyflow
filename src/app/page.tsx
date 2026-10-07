@@ -28,25 +28,27 @@ function ActiveTimer() {
 export default function DashboardPage() {
   const status = useStore((state) => state.timer.status);
   return (
-    <div className="dashboard-page space-y-6">
-      <section className="home-intro">
+    <div className="dashboard-page screen-page">
+      <header className="page-heading screen-heading">
         <div>
-          <p className="home-eyebrow">YOUR STUDY, YOUR PACE</p>
-          <h1>今日も、自分のペースで。</h1>
-          <p className="home-description">学びの積み重ねを確認して、次の一歩を始めよう。</p>
-          <Link href="/timer" className="primary-button mt-5"><Play size={17} aria-hidden="true" />{status === "idle" ? "学習を始める" : "タイマーに戻る"}<ArrowRight size={17} aria-hidden="true" /></Link>
+          <p className="section-kicker">あなたの学習スペース</p>
+          <h1>ホーム</h1>
+          <p>今日の積み重ねと、次に取り組むこと。</p>
         </div>
-        <div className="home-intro-art" aria-hidden="true"><span className="intro-orbit" /><span className="intro-orbit inner" /><span className="intro-icon"><Timer size={40} strokeWidth={1.5} /></span></div>
-      </section>
+        <Link href="/timer" className="primary-button"><Play size={17} aria-hidden="true" />{status === "idle" ? "学習を始める" : "タイマーに戻る"}</Link>
+      </header>
       <ActiveTimer />
       <section aria-label="学習の概要"><StatsCards /></section>
-      <div className="home-chart-grid"><WeeklyBarChart /><DailyPieChart /></div>
-      <div className="home-detail-grid"><HeatMap /><RecentLogs /></div>
-      <section className="quick-start-grid" aria-label="次の学習へ">
-        <Link href="/memorize" className="quick-start-link"><span className="more-nav-icon"><Brain size={23} aria-hidden="true" /></span><span className="flex-1"><span className="block font-semibold">暗記を進める</span><span className="block text-sm text-muted">単語帳を開いて、ひとつずつ復習</span></span><ArrowRight size={20} aria-hidden="true" /></Link>
-        <Link href="/timeline" className="quick-start-link"><span className="more-nav-icon"><Waves size={23} aria-hidden="true" /></span><span className="flex-1"><span className="block font-semibold">仲間の学びを見る</span><span className="block text-sm text-muted">タイムラインで学習の刺激をもらおう</span></span><ArrowRight size={20} aria-hidden="true" /></Link>
-      </section>
-      <MotivationPanel />
+      <div className="workspace-grid home-workspace">
+        <div className="workspace-main"><WeeklyBarChart /><RecentLogs /><MotivationPanel /></div>
+        <aside className="workspace-rail" aria-label="今日の学習と継続">
+          <section className="rail-section" aria-label="次の学習へ"><h2>次に取り組む</h2>
+            <Link href="/memorize" className="rail-link"><Brain size={21} aria-hidden="true" /><span><strong>暗記を進める</strong><small>単語帳と今日の復習</small></span><ArrowRight size={17} /></Link>
+            <Link href="/timeline" className="rail-link"><Waves size={21} aria-hidden="true" /><span><strong>仲間の学びを見る</strong><small>学習記録と気づき</small></span><ArrowRight size={17} /></Link>
+          </section>
+          <DailyPieChart /><HeatMap />
+        </aside>
+      </div>
     </div>
   );
 }

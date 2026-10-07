@@ -99,7 +99,7 @@ export default function MissionsPage() {
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-6">
+    <div className="screen-page missions-page">
       <div>
         <h1 className="text-3xl font-black" style={{ color: "var(--foreground)" }}>ミッション</h1>
         <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
@@ -107,7 +107,7 @@ export default function MissionsPage() {
         </p>
       </div>
 
-      <div className="space-y-4">
+      <div className="mission-list">
         {loadError && (
           <section className="glass-card p-5">
             <p className="text-sm font-bold" style={{ color: "#ef4444" }}>ミッションを表示できません</p>

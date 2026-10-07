@@ -125,13 +125,13 @@ export default function StatsCards() {
   ];
 
   return (
-    <div className="stats-grid">
+    <div className="study-summary">
       {cards.map((card, i) => {
         const Icon = card.icon;
         return (
           <motion.div
             key={card.label}
-            className="glass-card stat-card"
+            className={`summary-metric ${i === 0 ? "summary-primary" : ""}`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}

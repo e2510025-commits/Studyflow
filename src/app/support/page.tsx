@@ -75,15 +75,15 @@ export default function SupportPage() {
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-4">
-      <div>
+    <div className="screen-page support-page">
+      <header className="page-heading">
         <h1 className="text-3xl font-black" style={{ color: "var(--foreground)" }}>お問い合わせ</h1>
         <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
           専用フォームで運営と1対1で会話できます。返信は通知に届きます。
         </p>
-      </div>
+      </header>
 
-      <section className="glass-card p-4">
+      <div className="workspace-grid"><section className="support-conversation">
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>ステータス</p>
           <span
@@ -97,7 +97,7 @@ export default function SupportPage() {
           </span>
         </div>
 
-        <div className="rounded-xl p-3 max-h-[420px] overflow-y-auto space-y-2" style={{ background: "var(--muted-bg)" }}>
+        <div className="support-messages" aria-label="お問い合わせの会話" style={{ background: "var(--page-bg)" }}>
           {messages.length === 0 ? (
             <div className="text-sm flex items-center gap-2" style={{ color: "var(--muted)" }}>
               <MessageCircleQuestion size={16} /> まだ会話はありません。下から送信してください。
@@ -109,21 +109,22 @@ export default function SupportPage() {
                 className="rounded-xl px-3 py-2 max-w-[85%]"
                 style={{
                   marginLeft: m.fromRole === "user" ? "auto" : 0,
-                  background: m.fromRole === "user" ? "var(--accent-light)" : "#ffffff22",
+                  background: m.fromRole === "user" ? "var(--accent-light)" : "var(--card-bg)",
                   color: "var(--foreground)",
                 }}
               >
                 <p className="text-[11px] mb-1" style={{ color: "var(--muted)" }}>
                   {m.fromRole === "user" ? "あなた" : "運営"} / {new Date(m.createdAt).toLocaleString("ja-JP")}
                 </p>
-                <p className="text-sm whitespace-pre-wrap">{m.message}</p>
+                <p className="text-sm whitespace-pre-wrap break-words">{m.message}</p>
               </div>
             ))
           )}
         </div>
 
-        <div className="mt-3 flex items-end gap-2">
+        <div className="support-composer">
           <textarea
+            aria-label="お問い合わせ内容"
             value={text}
             onChange={(e) => setText(e.target.value.slice(0, 1000))}
             rows={3}
@@ -132,15 +133,16 @@ export default function SupportPage() {
             style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
           />
           <button
+            aria-label="お問い合わせを送信"
             onClick={() => void send()}
             disabled={sending || !text.trim()}
             className="px-4 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-50"
-            style={{ background: "var(--accent)" }}
+            style={{ background: "var(--accent)", color: "var(--primary-foreground)" }}
           >
             {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
           </button>
         </div>
-      </section>
+      </section><aside className="workspace-rail"><section className="rail-section"><h2>運営へのお問い合わせ</h2><p className="text-sm text-muted leading-relaxed">不具合や使い方の質問をこちらから送信できます。運営からの返信は、この会話と通知から確認できます。</p><p className="text-xs text-muted mt-4">一度に送信できる文字数は1,000文字です。</p></section></aside></div>
     </div>
   );
 }

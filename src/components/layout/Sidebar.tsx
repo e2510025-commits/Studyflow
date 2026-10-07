@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MoreHorizontal, Sparkles } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import { isAdminUid } from "@/lib/admin";
 import Dialog from "@/components/ui/Dialog";
@@ -37,8 +37,8 @@ export default function Sidebar() {
     <>
       <aside className="app-sidebar" aria-label="サイドバー">
         <Link href="/" className="app-brand" aria-label="StudyFlow ホーム">
-          <span className="brand-symbol"><Sparkles size={22} aria-hidden="true" /></span>
-          <span className="brand-name">StudyFlow<span className="brand-caption">毎日の学びを、つなげよう。</span></span>
+          <span className="brand-short" aria-hidden="true">SF</span>
+          <span className="brand-name">StudyFlow</span>
         </Link>
         <nav aria-label="メインナビゲーション" className="primary-navigation">{primaryLinks}{moreButton}</nav>
         <div className="desktop-secondary">

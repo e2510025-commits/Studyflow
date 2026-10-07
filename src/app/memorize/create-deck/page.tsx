@@ -45,7 +45,7 @@ export default function CreateDeckPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-5">
+    <div className="screen-page deck-editor-page">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <Link href="/memorize" className="inline-flex items-center gap-2 mb-3 font-medium" style={{ color: "var(--primary)" }}>
           <ArrowLeft size={20} />
@@ -56,7 +56,7 @@ export default function CreateDeckPage() {
         </h1>
       </motion.div>
 
-      <div className="p-6 rounded-2xl space-y-5" style={{ background: "var(--card)" }}>
+      <div className="editor-panel space-y-6" style={{ background: "var(--card)" }}>
         <div>
           <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>デッキ名</label>
           <input
@@ -83,12 +83,12 @@ export default function CreateDeckPage() {
 
         <div>
           <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>カラー</label>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             {colors.map((c) => (
               <button
                 key={c}
                 onClick={() => setColor(c)}
-                className="w-10 h-10 rounded-full transition-transform"
+                className="w-11 h-11 rounded-full transition-transform"
                 style={{ background: c, transform: color === c ? "scale(1.2)" : "scale(1)", border: color === c ? "3px solid #fff" : "none" }}
               />
             ))}

@@ -30,13 +30,13 @@ export default function AnnouncementsPage() {
   }, [userProfile.uid]);
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-5">
-      <div>
+    <div className="screen-page announcements-page">
+      <div className="page-heading"><div>
         <h1 className="text-3xl font-black" style={{ color: "var(--foreground)" }}>お知らせ</h1>
         <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
           運営からのお知らせ・重要通知
         </p>
-      </div>
+      </div></div>
 
       {criticalRows.length > 0 && (
         <section className="space-y-3">
@@ -72,7 +72,7 @@ export default function AnnouncementsPage() {
         </section>
       )}
 
-      <div className="space-y-3">
+      <div className="notice-list">
         {rows.length === 0 ? (
           <div className="glass-card p-6 text-sm" style={{ color: "var(--muted)" }}>お知らせはまだありません。</div>
         ) : (

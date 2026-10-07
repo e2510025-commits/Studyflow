@@ -670,37 +670,37 @@ export default function PublicProfilePage() {
   const canShowFriendCount = isSelf || profile.showFriendCount !== false;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-5 profile-page">
+    <div className="screen-page profile-page">
       <section className="glass-card overflow-hidden">
         <div className="relative">
-          <div className="h-[170px] sm:h-[250px]" style={{ background: headerBackground }} />
-          <div className="absolute left-5 sm:left-7 -bottom-[50px]">
+          <div className="profile-cover" style={{ background: headerBackground }} />
+          <div className="profile-avatar">
             <div className="relative">
               {isImageAvatar ? (
                 <img
                   src={profile.avatar}
                   alt={profile.name}
                   className="w-[100px] h-[100px] sm:w-[110px] sm:h-[110px] rounded-full object-cover border-[5px] shadow-xl"
-                  style={{ borderColor: "#ffffff" }}
+                  style={{ borderColor: "var(--card-bg)" }}
                 />
               ) : (
                 <div
                   className="w-[100px] h-[100px] sm:w-[110px] sm:h-[110px] rounded-full flex items-center justify-center text-4xl border-[5px] shadow-xl"
-                  style={{ borderColor: "#ffffff", background: "var(--accent-light)" }}
+                  style={{ borderColor: "var(--card-bg)", background: "var(--accent-light)" }}
                 >
                   {profile.avatar}
                 </div>
               )}
               <span
                 className="absolute right-1.5 bottom-1.5 w-4 h-4 rounded-full border-2"
-                style={{ background: statusStyle.bg, borderColor: "#ffffff" }}
+                style={{ background: statusStyle.bg, borderColor: "var(--card-bg)" }}
                 title={statusStyle.label}
               />
             </div>
           </div>
         </div>
 
-        <div className="px-5 sm:px-6 pt-[62px] pb-5">
+        <div className="profile-details">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="min-w-0 flex-1 space-y-2">
               <div className="flex flex-col md:flex-row md:items-end md:gap-4">
@@ -870,7 +870,7 @@ export default function PublicProfilePage() {
         </section>
       )}
 
-      <section className="grid md:grid-cols-4 gap-3">
+      <section className="profile-metrics">
         <div className="glass-card p-4">
           <p className="text-xs" style={{ color: "var(--muted)" }}>学習時間</p>
           <p className="text-xl font-black" style={{ color: "var(--accent)" }}>{formatHoursMinutes(stats.totalSeconds)}</p>
@@ -1029,7 +1029,7 @@ export default function PublicProfilePage() {
         </div>
       </section>
 
-      <section className="grid xl:grid-cols-[1.3fr_0.7fr] gap-4">
+      <section className="profile-activity">
         <div className="glass-card p-4">
           <h3 className="text-sm font-black" style={{ color: "var(--foreground)" }}>学習ヒートマップ</h3>
           <div className="mt-3 grid grid-cols-12 gap-1.5">

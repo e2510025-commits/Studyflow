@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BookOpen, Heart, MoreHorizontal, Plus, Search, Trash2 } from "lucide-react";
@@ -105,29 +105,34 @@ export default function MemorizePage() {
     finally { setBusy(false); }
   };
 
-  return <div className="space-y-6">
-    <div className="flex flex-wrap items-start justify-between gap-4">
+  return <div className="screen-page library-page">
+    <div className="page-heading">
       <div><h1 className="text-2xl sm:text-3xl font-bold">暗記</h1><p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>単語帳を開いて、今日の復習を始めましょう。</p></div>
       <button className="primary-button" onClick={() => { setFormError(""); setCreateOpen(true); }}><Plus size={20} />新しい単語帳</button>
     </div>
-    <div className="grid grid-cols-3 gap-3">
-      {[["単語帳", decks.length], ["カード", decks.reduce((sum, deck) => sum + deck.cardCount, 0)], ["復習待ち", totalDue]].map(([label, value]) => <div className="glass-card p-4" key={label}><p className="text-xs sm:text-sm" style={{ color: "var(--muted)" }}>{label}</p><p className="mt-2 text-2xl font-bold">{value}</p></div>)}
+    <div className="library-workspace"><aside className="library-navigation" aria-label="ライブラリの範囲"><h2 className="section-kicker">ライブラリ</h2><div className="library-totals">
+      {[["単語帳", decks.length], ["カード", decks.reduce((sum, deck) => sum + deck.cardCount, 0)], ["復習待ち", totalDue]].map(([label, value]) => <div key={label}><p className="text-xs sm:text-sm" style={{ color: "var(--muted)" }}>{label}</p><p className="mt-2 text-2xl font-bold">{value}</p></div>)}
     </div>
-    <div className="flex flex-col sm:flex-row gap-3">
+    <div className="collection-navigation" aria-label="単語帳の表示範囲">
+      {([["mine", "すべて"], ["due", "復習待ち"], ["favorites", "お気に入り"], ["recent", "最近作成"]] as const).map(([id, label]) => <button key={id} onClick={() => setScope(id)} aria-pressed={scope === id} className="min-h-11 px-4 rounded-full text-sm font-semibold" style={{ background: scope === id ? "var(--accent-light)" : "var(--card-bg)", color: scope === id ? "var(--accent)" : "var(--muted)" }}>{label}</button>)}
+    </div>
+    <Link className="rail-link" href="/memorize/questions">問題カード一覧</Link></aside><div className="library-content">
+    <div className="library-toolbar">
       <label className="flex flex-1 items-center gap-3 rounded-xl px-4 min-h-12" style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}><Search size={20} aria-hidden="true" /><input className="w-full min-w-0 bg-transparent outline-none" aria-label="単語帳を検索" placeholder="単語帳を検索" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
       <select aria-label="教科で絞り込む" className="rounded-xl px-4 min-h-12" style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }} value={subject} onChange={(e) => setSubject(e.target.value)}><option value="all">すべての教科</option>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
     </div>
-    <div className="flex flex-wrap gap-2" aria-label="単語帳の表示範囲">
-      {([["mine", "すべて"], ["due", "復習待ち"], ["favorites", "お気に入り"], ["recent", "最近作成"]] as const).map(([id, label]) => <button key={id} onClick={() => setScope(id)} aria-pressed={scope === id} className="min-h-11 px-4 rounded-full text-sm font-semibold" style={{ background: scope === id ? "var(--accent-light)" : "var(--card-bg)", color: scope === id ? "var(--accent)" : "var(--muted)" }}>{label}</button>)}
-    </div>
-    {loading ? <p role="status" className="py-12 text-center" style={{ color: "var(--muted)" }}>単語帳を読み込み中…</p> : error ? <div className="glass-card p-6 space-y-4"><p role="alert">{error}</p><button className="secondary-button" onClick={() => void loadDecks()}>再読み込み</button></div> : visible.length === 0 ? <div className="glass-card p-8 text-center space-y-3"><BookOpen className="mx-auto" size={36} style={{ color: "var(--accent)" }} /><h2 className="font-bold">{decks.length === 0 ? "最初の単語帳を作りましょう" : "条件に合う単語帳がありません"}</h2><p className="text-sm" style={{ color: "var(--muted)" }}>{decks.length === 0 ? "覚えたい言葉や問題を、自分のペースで復習できます。" : "検索や絞り込みの条件を変えてみてください。"}</p></div> : <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-      {visible.map((deck) => <article key={deck.id} className="glass-card p-5 min-w-0 flex flex-col" style={{ borderTop: `3px solid ${deck.color}` }}>
-        <div className="flex justify-between gap-2 items-start"><Link href={`/memorize/deck/${deck.id}`} className="flex-1 min-w-0 text-lg font-bold break-words hover:underline">{deck.name}</Link><button className="icon-button shrink-0" aria-label={`${deck.name}のメニュー`} onClick={() => { setSelected(deck); setEditingName(deck.name); setFormError(""); setConfirmDelete(false); }}><MoreHorizontal size={20} /></button></div>
+
+    {loading ? <p role="status" className="py-12 text-center" style={{ color: "var(--muted)" }}>単語帳を読み込み中…</p> : error ? <div className="glass-card p-6 space-y-4"><p role="alert">{error}</p><button className="secondary-button" onClick={() => void loadDecks()}>再読み込み</button></div> : visible.length === 0 ? <div className="glass-card p-8 text-center space-y-3"><BookOpen className="mx-auto" size={36} style={{ color: "var(--accent)" }} /><h2 className="font-bold">{decks.length === 0 ? "最初の単語帳を作りましょう" : "条件に合う単語帳がありません"}</h2><p className="text-sm" style={{ color: "var(--muted)" }}>{decks.length === 0 ? "覚えたい言葉や問題を、自分のペースで復習できます。" : "検索や絞り込みの条件を変えてみてください。"}</p></div> : <div className="deck-library-grid">
+      {visible.map((deck) => <article key={deck.id} className="deck-card" style={{ "--deck-color": deck.color } as CSSProperties}>
+        <Link href={`/memorize/deck/${deck.id}`} className="deck-cover" aria-label={`${deck.name}の単語帳を開く`}><BookOpen size={34} strokeWidth={1.2} aria-hidden="true" /><span>{deck.cardCount} cards</span></Link>
+        <div className="deck-card-body"><div className="flex justify-between gap-2 items-start"><Link href={`/memorize/deck/${deck.id}`} className="flex-1 min-w-0 text-lg font-bold break-words hover:underline">{deck.name}</Link><button className="icon-button shrink-0" aria-label={`${deck.name}のメニュー`} onClick={() => { setSelected(deck); setEditingName(deck.name); setFormError(""); setConfirmDelete(false); }}><MoreHorizontal size={20} /></button></div>
         <p className="text-sm mt-2 break-words line-clamp-2" style={{ color: "var(--muted)" }}>{deck.description || "カードを追加して学習を始めましょう"}</p>
-        <p className="text-sm mt-4">{deck.cardCount} カード <span className="ml-2" style={{ color: "var(--muted)" }}>習得 {deck.masteredCount}</span></p>
+        <div className="deck-progress" role="progressbar" aria-label={`${deck.name}の習得率`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={deck.cardCount ? Math.min(100, Math.round(deck.masteredCount / deck.cardCount * 100)) : 0}><span style={{ width: `${deck.cardCount ? Math.min(100, deck.masteredCount / deck.cardCount * 100) : 0}%` }} /></div><p className="text-sm mt-4">{deck.cardCount} カード <span className="ml-2" style={{ color: "var(--muted)" }}>習得 {deck.masteredCount}</span></p>
         <div className="flex justify-between items-center gap-2 mt-4"><Link href={`/memorize/deck/${deck.id}`} className="secondary-button">{deck.dueCount > 0 ? `${deck.dueCount} 枚を復習` : "単語帳を開く"}</Link><button className="icon-button" aria-label={`${deck.name}をお気に入り`} aria-pressed={favorites.includes(deck.id)} onClick={() => persistFavorites(favorites.includes(deck.id) ? favorites.filter((id) => id !== deck.id) : [...favorites, deck.id])}><Heart size={20} fill={favorites.includes(deck.id) ? "currentColor" : "none"} style={{ color: favorites.includes(deck.id) ? "var(--accent)" : "var(--muted)" }} /></button></div>
+        </div>
       </article>)}
     </div>}
+    </div></div>
     <Dialog open={createOpen} onClose={() => { if (!busy) setCreateOpen(false); }} title="新しい単語帳">
       <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); void create(); }}>
         <label className="block space-y-2"><span className="font-semibold text-sm">単語帳の名前</span><input autoFocus required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl px-4 min-h-12" style={{ background: "var(--muted-bg)" }} placeholder="例：英検2級の単語" /></label>

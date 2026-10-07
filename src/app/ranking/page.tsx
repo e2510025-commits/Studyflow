@@ -236,15 +236,14 @@ export default function RankingPage() {
   ];
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-6 ranking-page">
+    <div className="screen-page ranking-page">
       {/* ── Header ─────────────────────────────────── */}
       <motion.div
-        className="text-left"
+        className="page-heading ranking-heading"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
       >
         <div className="flex items-center gap-3 mb-2">
-          <Trophy size={32} style={{ color: "#FFD700" }} />
           <h1
             className="text-3xl sm:text-4xl font-black"
             style={{ color: "var(--foreground)" }}
@@ -257,9 +256,10 @@ export default function RankingPage() {
         </p>
       </motion.div>
 
+      <div className="ranking-workspace"><div className="ranking-main">
       {/* ── Period Tabs ─────────────────────────────── */}
       <motion.div
-        className="segmented-control"
+        className="feed-tabs"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
@@ -285,101 +285,9 @@ export default function RankingPage() {
         ))}
       </motion.div>
 
-      {/* ── Subject Filter ─────────────────────────── */}
-      {subjects.length > 0 && (
-        <motion.div
-          className="glass-card p-4"
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <h3 className="text-sm font-bold mb-2" style={{ color: "var(--foreground)" }}>教科別ランキング</h3>
-          <select
-            aria-label="ランキングの教科"
-            value={selectedSubject}
-            onChange={(e) => setSelectedSubject(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg text-sm"
-            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-          >
-            <option value="">全教科</option>
-            {subjects.map((subject) => (
-              <option key={subject.id} value={subject.name}>
-                {subject.icon} {subject.name}
-              </option>
-            ))}
-          </select>
-        </motion.div>
-      )}
-
-      <motion.div
-        className="glass-card p-4 space-y-3"
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>ライバル比較</h3>
-          <label className="text-xs inline-flex items-center gap-2" style={{ color: "var(--muted)" }}>
-            <input type="checkbox" checked={rivalOnly} onChange={(e) => setRivalOnly(e.target.checked)} />
-            ライバルのみ表示
-          </label>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {friends.length === 0 && (
-            <p className="text-xs" style={{ color: "var(--muted)" }}>フレンドを追加するとライバル設定できます</p>
-          )}
-          {friends.map((friend) => {
-            const isRival = rivalUids.has(friend.uid);
-            return (
-              <div
-                key={friend.uid}
-                className="max-w-full px-2 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-2"
-                style={{
-                  background: "var(--muted-bg)",
-                }}
-              >
-                <button
-                  onClick={() => setQuickProfileUid(friend.uid)}
-                  className="min-h-11 min-w-0 break-words px-1.5 py-1 rounded-md transition-all"
-                  style={{ color: "var(--foreground)" }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "scale(1.03)";
-                    e.currentTarget.style.background = "rgba(148,163,184,0.14)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "scale(1)";
-                    e.currentTarget.style.background = "transparent";
-                  }}
-                >
-                  {friend.name}
-                </button>
-                <button
-                  aria-label={`${friend.name}のライバル登録を${isRival ? "解除" : "追加"}`}
-                  aria-pressed={isRival}
-                  disabled={Boolean(rivalBusy)}
-                  onClick={() => {
-                    if (rivalBusy) return;
-                    setRivalBusy(friend.uid); setActionError("");
-                    void (isRival ? removeRival(userProfile.uid, friend.uid) : addRival(userProfile.uid, friend.uid))
-                      .catch(() => setActionError("ライバル設定を保存できませんでした。再試行してください。"))
-                      .finally(() => setRivalBusy(null));
-                  }}
-                  className="min-h-11 min-w-11 shrink-0 px-1.5 py-1 rounded-md inline-flex items-center gap-1 transition-colors"
-                  style={{
-                    color: isRival ? "#ef4444" : "var(--accent)",
-                    background: isRival ? "rgba(239,68,68,0.1)" : "var(--accent-light)",
-                  }}
-                >
-                  {isRival ? <UserMinus size={12} /> : <UserPlus size={12} />}
-                  {isRival ? "解除" : "ライバル"}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </motion.div>
-
       {/* ── My Stats Cards ──────────────────────────── */}
       {!loading && !error && <motion.div
-        className="grid grid-cols-1 min-[430px]:grid-cols-3 gap-3"
+        className="ranking-summary"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
@@ -651,6 +559,99 @@ export default function RankingPage() {
         </motion.div>
       )}
 
+      </div><aside className="ranking-filters" aria-label="ランキングの条件">      {/* ── Subject Filter ─────────────────────────── */}
+      {subjects.length > 0 && (
+        <motion.div
+          className="glass-card p-4"
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <h3 className="text-sm font-bold mb-2" style={{ color: "var(--foreground)" }}>教科別ランキング</h3>
+          <select
+            aria-label="ランキングの教科"
+            value={selectedSubject}
+            onChange={(e) => setSelectedSubject(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg text-sm"
+            style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
+          >
+            <option value="">全教科</option>
+            {subjects.map((subject) => (
+              <option key={subject.id} value={subject.name}>
+                {subject.icon} {subject.name}
+              </option>
+            ))}
+          </select>
+        </motion.div>
+      )}
+
+      <motion.div
+        className="glass-card p-4 space-y-3"
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>ライバル比較</h3>
+          <label className="text-xs inline-flex items-center gap-2" style={{ color: "var(--muted)" }}>
+            <input type="checkbox" checked={rivalOnly} onChange={(e) => setRivalOnly(e.target.checked)} />
+            ライバルのみ表示
+          </label>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {friends.length === 0 && (
+            <p className="text-xs" style={{ color: "var(--muted)" }}>フレンドを追加するとライバル設定できます</p>
+          )}
+          {friends.map((friend) => {
+            const isRival = rivalUids.has(friend.uid);
+            return (
+              <div
+                key={friend.uid}
+                className="max-w-full px-2 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-2"
+                style={{
+                  background: "var(--muted-bg)",
+                }}
+              >
+                <button
+                  onClick={() => setQuickProfileUid(friend.uid)}
+                  className="min-h-11 min-w-0 break-words px-1.5 py-1 rounded-md transition-all"
+                  style={{ color: "var(--foreground)" }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "scale(1.03)";
+                    e.currentTarget.style.background = "rgba(148,163,184,0.14)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "scale(1)";
+                    e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  {friend.name}
+                </button>
+                <button
+                  aria-label={`${friend.name}のライバル登録を${isRival ? "解除" : "追加"}`}
+                  aria-pressed={isRival}
+                  disabled={Boolean(rivalBusy)}
+                  onClick={() => {
+                    if (rivalBusy) return;
+                    setRivalBusy(friend.uid); setActionError("");
+                    void (isRival ? removeRival(userProfile.uid, friend.uid) : addRival(userProfile.uid, friend.uid))
+                      .catch(() => setActionError("ライバル設定を保存できませんでした。再試行してください。"))
+                      .finally(() => setRivalBusy(null));
+                  }}
+                  className="min-h-11 min-w-11 shrink-0 px-1.5 py-1 rounded-md inline-flex items-center gap-1 transition-colors"
+                  style={{
+                    color: isRival ? "#ef4444" : "var(--accent)",
+                    background: isRival ? "rgba(239,68,68,0.1)" : "var(--accent-light)",
+                  }}
+                >
+                  {isRival ? <UserMinus size={12} /> : <UserPlus size={12} />}
+                  {isRival ? "解除" : "ライバル"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </motion.div>
+
+      </aside></div>
       {/* ── Sticky my-rank card ────────────────────── */}
       {!loading && !error && myRank > 0 && (
         <motion.div

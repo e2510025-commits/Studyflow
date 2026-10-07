@@ -514,7 +514,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </>
       )}
       <main id="main-content" tabIndex={-1} className={immersiveMode ? "immersive-main" : "app-main"}>
-        <div className={immersiveMode ? "w-full" : "app-content"}>{children}</div>
+        <div className={immersiveMode ? "w-full" : "app-content"} data-screen={pathname.split("/")[1] || "home"} data-detail={pathname.split("/").filter(Boolean).length > 1 ? "true" : undefined}>{children}</div>
       </main>
 
       {criticalNotice && (

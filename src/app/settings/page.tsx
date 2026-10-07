@@ -1,5 +1,7 @@
 "use client";
 
+import SettingsNavigation from "@/components/layout/SettingsNavigation";
+
 import React, { useState, useRef, useEffect } from "react";
 import { useStore } from "@/store/useStore";
 import { motion } from "framer-motion";
@@ -244,7 +246,7 @@ export default function SettingsPage() {
   const hasActivePairing = Boolean(pairingCode) && pairingRemainingMs > 0;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 settings-page">
+    <div className="screen-page settings-page account-page">
       {/* Page header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -259,11 +261,12 @@ export default function SettingsPage() {
         </p>
       </motion.div>
 
+      <div className="settings-workspace"><SettingsNavigation sections={[{id:"identity",label:"ユーザーID"},{id:"avatar",label:"プロフィール画像"},{id:"display-name",label:"表示名"},{id:"bio",label:"自己紹介"},{id:"privacy",label:"公開範囲"},{id:"pairing",label:"PCアプリ連携"},{id:"delete-account",label:"アカウント削除"}]} other={{href:"/preferences",label:"アプリ設定を開く"}} /><div className="settings-editor">
       {loadError && <div role="alert" className="glass-card p-4 text-sm"><p>{loadError}</p><button className="secondary-button mt-3" onClick={() => setProfileRetry((value) => value + 1)}>プロフィールを再読み込み</button></div>}
 
       {/* UID Card */}
-      <motion.div
-        className="glass-card p-5"
+      <motion.div id="identity"
+        className="settings-section"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05, duration: 0.4 }}
@@ -302,8 +305,8 @@ export default function SettingsPage() {
       </motion.div>
 
       {/* Avatar Card */}
-      <motion.div
-        className="glass-card p-5"
+      <motion.div id="avatar"
+        className="settings-section"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1, duration: 0.4 }}
@@ -378,8 +381,8 @@ export default function SettingsPage() {
       </motion.div>
 
       {/* Name Card */}
-      <motion.div
-        className="glass-card p-5"
+      <motion.div id="display-name"
+        className="settings-section"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15, duration: 0.4 }}
@@ -424,8 +427,8 @@ export default function SettingsPage() {
         </p>
       </motion.div>
 
-      <motion.div
-        className="glass-card p-5 space-y-3"
+      <motion.div id="bio"
+        className="settings-section space-y-3"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.18, duration: 0.4 }}
@@ -448,8 +451,8 @@ export default function SettingsPage() {
         </p>
       </motion.div>
 
-      <motion.div
-        className="glass-card p-5 space-y-3"
+      <motion.div id="privacy"
+        className="settings-section space-y-3"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.19, duration: 0.4 }}
@@ -491,8 +494,8 @@ export default function SettingsPage() {
         </div>
       </motion.div>
 
-      <motion.div
-        className="glass-card p-5 space-y-3"
+      <motion.div id="pairing"
+        className="settings-section space-y-3"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.195, duration: 0.4 }}
@@ -547,8 +550,8 @@ export default function SettingsPage() {
         )}
       </motion.div>
 
-      <motion.div
-        className="glass-card p-5 space-y-3"
+      <motion.div id="delete-account"
+        className="settings-section space-y-3"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, duration: 0.4 }}
@@ -591,7 +594,7 @@ export default function SettingsPage() {
 
       {/* Save button */}
       <motion.div
-        className="pb-8"
+        className="account-save-bar"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.22, duration: 0.4 }}
@@ -606,7 +609,7 @@ export default function SettingsPage() {
         </button>
         {saved && <p role="status" className="mt-3 text-sm">アカウント情報を保存しました。</p>}
         {saveError && <p role="alert" className="mt-3 text-sm text-danger">{saveError}</p>}
-      </motion.div>
+      </motion.div></div></div>
     </div>
   );
 }

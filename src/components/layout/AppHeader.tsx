@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sparkles } from "lucide-react";
 import HeaderMenu from "./HeaderMenu";
 import NotificationBell from "./NotificationBell";
 import DmBell from "./DmBell";
@@ -13,7 +12,7 @@ export default function AppHeader() {
   const pathname = usePathname();
   return (
     <header className="app-header">
-      <Link href="/" className="mobile-brand" aria-label="StudyFlow ホーム"><Sparkles size={21} aria-hidden="true" /><span>StudyFlow</span></Link>
+      <Link href="/" className="mobile-brand" aria-label="StudyFlow ホーム">StudyFlow</Link>
       <p className="header-location">{pageTitle(pathname)}</p>
       <div className="header-actions"><FriendBell /><DmBell /><NotificationBell /><HeaderMenu /></div>
     </header>

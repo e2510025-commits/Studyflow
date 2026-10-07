@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Clock3, Flag, Flame, ImagePlus, MessageCircle, MoreHorizontal, Pencil, Plus, Repeat2, Send, Share2, Trash2, Waves } from "lucide-react";
+import { Clock3, Flag, Flame, ImagePlus, MessageCircle, MoreHorizontal, Pencil, Repeat2, Send, Share2, Trash2, Waves } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import {
   deleteTimelinePost,
@@ -33,6 +33,7 @@ import OfficialMark from "@/components/ui/OfficialMark";
 import ImageLightbox from "@/components/ui/ImageLightbox";
 import { useR2CompressedImageUpload } from "@/hooks/useR2CompressedImageUpload";
 import type { CommunityStreamMessage } from "@/types";
+import CommunityRail from "@/components/layout/CommunityRail";
 
 function formatTime(iso: string) {
   const d = new Date(iso);
@@ -183,6 +184,8 @@ function renderQuoteNestedCard(
 export default function TimelinePage() {
   const router = useRouter();
   const userProfile = useStore((state) => state.userProfile);
+  const friends = useStore((state) => state.friends);
+  const [feedScope, setFeedScope] = useState<"all" | "friends" | "mine">("all");
   const [rows, setRows] = useState<CommunityStreamMessage[]>([]);
   const [respectIds, setRespectIds] = useState<Set<string>>(new Set());
   const [likeIds, setLikeIds] = useState<Set<string>>(new Set());
@@ -290,7 +293,7 @@ export default function TimelinePage() {
     };
   }, [composeOpen, userProfile.uid]);
 
-  const feed = useMemo(() => [...rows].slice(0, 120), [rows]);
+  const feed = useMemo(() => rows.filter((row) => feedScope === "all" || (feedScope === "mine" ? row.uid === userProfile.uid : friends.some((friend) => friend.uid === row.uid))).slice(0, 120), [rows, feedScope, userProfile.uid, friends]);
 
   const resolveMentionUid = useCallback(
     async (token: string): Promise<string | null> => {
@@ -574,16 +577,18 @@ export default function TimelinePage() {
   };
 
   return (
-    <div className="timeline-page max-w-[680px] mx-auto space-y-5">
+    <div className="timeline-page screen-page">
       <div className="page-heading">
         <div><h1>タイムライン</h1><p>仲間の学びや、今日の気づきを共有しよう。</p></div>
         <button type="button" className="primary-button" onClick={openComposer}><Pencil size={17} aria-hidden="true" />投稿する</button>
       </div>
-      <button type="button" onClick={openComposer} className="timeline-compose-prompt"><span className="more-nav-icon"><Pencil size={21} aria-hidden="true" /></span><span>今日の学びをシェアしよう</span><Plus size={20} aria-hidden="true" /></button>
+      <div className="workspace-grid community-workspace"><div className="workspace-main feed-column">
+      <button type="button" onClick={openComposer} className="timeline-compose-prompt"><span className="person-initial" aria-hidden="true">{Array.from(userProfile.name || "自分")[0]}</span><span>今日の学びをシェアしよう</span><Pencil size={20} aria-hidden="true" /></button>
+      <div className="feed-tabs" aria-label="投稿の表示範囲">{([["all", "すべて"], ["friends", "フレンド"], ["mine", "自分の投稿"]] as const).map(([scope, label]) => <button key={scope} type="button" aria-pressed={feedScope === scope} onClick={() => setFeedScope(scope)}>{label}</button>)}</div>
 
-      <section className="glass-card overflow-hidden">
+      <section className="feed-surface overflow-hidden" aria-label="投稿一覧">
         {loading ? <div className="p-6 space-y-4" role="status"><p className="text-sm text-muted">投稿を読み込み中…</p><div className="feed-skeleton" /><div className="feed-skeleton" /></div> : feedError ? <div className="p-6"><p role="alert" className="text-sm text-danger">{feedError}</p><button type="button" className="secondary-button mt-4" onClick={() => { setFeedError(""); setLoading(true); setRetry((value) => value + 1); }}>再試行する</button></div> : feed.length === 0 ? (
-          <EmptyState title="最初の学びをシェアしよう" description="投稿や学習記録が、ここに表示されます。" icon={<Waves size={30} />} />
+          <EmptyState title={feedScope === "all" ? "最初の学びをシェアしよう" : "この範囲の投稿はまだありません"} description="投稿や学習記録が、ここに表示されます。" icon={<Waves size={30} />} />
         ) : (
           feed.map((row) => {
             const isAvatarImage = row.avatar.startsWith("http") || row.avatar.startsWith("data:");
@@ -808,6 +813,7 @@ export default function TimelinePage() {
           })
         )}
       </section>
+      </div><CommunityRail /></div>
 
       <ImageLightbox src={lightboxUrl} open={Boolean(lightboxUrl)} onClose={() => setLightboxUrl(null)} zIndexClass="z-30" />
 
@@ -823,7 +829,6 @@ export default function TimelinePage() {
         }}
       />
 
-      <button type="button" onClick={openComposer} className="floating-page-action primary-button" aria-label="新しい投稿を作成"><Plus size={23} aria-hidden="true" /></button>
       <Dialog open={composeOpen} onClose={closeComposer} title={quoteTarget ? "引用して投稿" : "新しい投稿"}>
         <div className="space-y-4">
             {mentionOpen && mentionResults.length > 0 && (

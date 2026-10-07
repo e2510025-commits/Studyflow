@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import React, { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/store/useStore";
 import { motion, AnimatePresence } from "framer-motion";
@@ -145,7 +147,7 @@ export default function SubjectManager() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="screen-page subjects-page">
       {/* Header */}
       <div className="page-heading">
         <div>
@@ -337,6 +339,7 @@ export default function SubjectManager() {
         </div>
       </Dialog>
 
+      <div className="workspace-grid"><div className="subject-list-content">
       {/* Subject list */}
       {subjects.length === 0 ? (
         <EmptyState
@@ -344,7 +347,7 @@ export default function SubjectManager() {
           description="「追加」ボタンから学習する教科を登録しましょう"
         />
       ) : (
-        <div className="grid gap-3">
+        <div className="subject-table">
           <AnimatePresence mode="popLayout">
             {subjects.map((subject, index) => {
               const totalSeconds = subjectStatsMap.totals.get(subject.id) || 0;
@@ -357,7 +360,7 @@ export default function SubjectManager() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20, scale: 0.95 }}
                 transition={{ delay: index * 0.05 }}
-                className="glass-card-flat flex flex-wrap sm:flex-nowrap items-center gap-3 px-4 py-4"
+                className="subject-row"
               >
                 <div
                   className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
@@ -381,7 +384,7 @@ export default function SubjectManager() {
                       style={{ background: subject.color }}
                     />
                     <span className="text-xs" style={{ color: "var(--muted)" }}>
-                      {subject.color}
+                      表示カラー
                     </span>
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -439,6 +442,7 @@ export default function SubjectManager() {
           </AnimatePresence>
         </div>
       )}
+      </div><aside className="workspace-rail" aria-label="教科の学習概要"><section className="rail-section"><h2>学習の概要</h2><dl className="rail-numbers"><div><dt>登録教科</dt><dd>{subjects.length}教科</dd></div><div><dt>総学習時間</dt><dd>{formatHoursMinutes(Array.from(subjectStatsMap.totals.values()).reduce((sum, value) => sum + value, 0))}</dd></div></dl><Link className="rail-link" href="/timer">学習を始める →</Link><Link className="rail-link" href="/memorize">単語帳を開く →</Link></section></aside></div>
     </div>
   );
 }

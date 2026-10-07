@@ -875,13 +875,15 @@ export default function StudyTimer() {
    * ─── NORMAL MODE (idle / running / paused) ──────────
    * ══════════════════════════════════════════════════════ */
   return (
-    <div className="w-full max-w-4xl mx-auto flex flex-col items-center">
+    <div className="timer-workspace"><aside className="timer-subject-panel"><p className="section-kicker">セッション</p>
       {isIdle && <section className="w-full max-w-2xl mb-6" aria-label="学習する教科">
           <SubjectSelector
             selectedId={timer.selectedSubjectId}
             onSelect={(id) => setTimerSubject(id)}
           />
       </section>}
+      {!isIdle && <div className="timer-session-info"><h2>{selectedSubject?.name || "学習中"}</h2><p>{isRunning ? "計測中" : "一時停止中"}</p><p>教科の変更はセッション終了後に行えます。</p></div>}
+      <p className="text-sm text-muted">取り組む教科を決めて、ひとつのことに集中しましょう。</p></aside><div className="timer-desk">
       {/* ─── Mode selector (idle only) ───────────────── */}
       {isIdle && (
         <motion.div
@@ -1126,7 +1128,7 @@ export default function StudyTimer() {
 
       {/* ─── GIANT TIMER DISPLAY ─────────────────────── */}
       <motion.div
-        className="flex flex-col items-center justify-center py-6 sm:py-10"
+        className="timer-face flex flex-col items-center justify-center py-6 sm:py-10"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
@@ -1545,6 +1547,7 @@ export default function StudyTimer() {
         </div>
       </motion.div>
 
+      </div>
       {/* ─── Memo dialog ─────────────────────────────── */}
       <MemoDialog
         open={showMemo}
