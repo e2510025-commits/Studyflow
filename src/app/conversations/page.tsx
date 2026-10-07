@@ -1,325 +1,79 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { MessageSquare, Users, Plus, Search, Check } from "lucide-react";
 import { useStore } from "@/store/useStore";
-import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquare, Users, Plus, X, Check } from "lucide-react";
 import { createGroupChat, subscribeMyGroups, type GroupChat } from "@/lib/firestore/groups";
 import { markChatMessagesAsRead, subscribeUnreadDirectMessageCounts } from "@/lib/firestore/chat";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 import QuickProfileCard from "@/components/profile/QuickProfileCard";
 import OfficialMark from "@/components/ui/OfficialMark";
+import Dialog from "@/components/ui/Dialog";
+import CommunityRail from "@/components/layout/CommunityRail";
 
-function AvatarPill({ avatar }: { avatar: string }) {
-  const isImage = avatar.startsWith("http") || avatar.startsWith("data:");
-  if (isImage) {
-    return <img src={avatar} alt="avatar" className="w-9 h-9 rounded-full object-cover bg-transparent" />;
-  }
-  return (
-    <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: "var(--accent-light)" }}>
-      {avatar}
-    </div>
-  );
+function Avatar({ avatar }: { avatar: string }) {
+  const safe = sanitizeAvatar(avatar);
+  return safe.startsWith("http") || safe.startsWith("data:") ? <img src={safe} alt="" className="w-11 h-11 rounded-full object-cover" /> : <span className="w-11 h-11 rounded-full inline-flex items-center justify-center text-xl" style={{ background: "var(--accent-light)" }}>{safe}</span>;
 }
-
 export default function ConversationsPage() {
-  const router = useRouter();
-  const { userProfile, friends } = useStore();
+  const userProfile = useStore((s) => s.userProfile);
+  const friends = useStore((s) => s.friends);
   const [groups, setGroups] = useState<GroupChat[]>([]);
+  const [tab, setTab] = useState<"direct" | "groups">("direct");
+  const [query, setQuery] = useState("");
+  const [groupState, setGroupState] = useState<"loading" | "ready" | "error">("loading");
+  const [retry, setRetry] = useState(0);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [groupName, setGroupName] = useState("");
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
   const [unreadByUser, setUnreadByUser] = useState<Record<string, number>>({});
   const [quickProfileUid, setQuickProfileUid] = useState<string | null>(null);
-
   useEffect(() => {
     if (!userProfile.uid) return;
-    return subscribeMyGroups(userProfile.uid, setGroups);
-  }, [userProfile.uid]);
-
+    return subscribeMyGroups(userProfile.uid, (rows) => { setGroups(rows); setGroupState("ready"); }, () => setGroupState("error"));
+  }, [userProfile.uid, retry]);
   useEffect(() => {
     if (!userProfile.uid) return;
-    return subscribeUnreadDirectMessageCounts(userProfile.uid, (counts) => {
-      setUnreadByUser(counts.byUser);
-    });
+    return subscribeUnreadDirectMessageCounts(userProfile.uid, (counts) => setUnreadByUser(counts.byUser));
   }, [userProfile.uid]);
-
-  const visibleUnreadByUser = userProfile.uid ? unreadByUser : {};
-
-  const selectedFriendObjects = useMemo(
-    () => friends.filter((f) => selectedMembers.includes(f.uid)),
-    [friends, selectedMembers]
-  );
-
   const dedupedFriends = useMemo(() => {
-    const byUid = new Map<string, (typeof friends)[number]>();
-    friends.forEach((friend) => {
-      const prev = byUid.get(friend.uid);
-      if (!prev) {
-        byUid.set(friend.uid, friend);
-        return;
-      }
-      const prevAt = new Date(prev.addedAt).getTime();
-      const nextAt = new Date(friend.addedAt).getTime();
-      if (Number.isNaN(prevAt) || nextAt >= prevAt) {
-        byUid.set(friend.uid, friend);
-      }
-    });
-    return Array.from(byUid.values());
+    const map = new Map<string, (typeof friends)[number]>();
+    for (const friend of friends) { const previous = map.get(friend.uid); if (!previous || new Date(friend.addedAt) >= new Date(previous.addedAt)) map.set(friend.uid, friend); }
+    return Array.from(map.values());
   }, [friends]);
-
-  const toggleMember = (uid: string) => {
-    setSelectedMembers((prev) =>
-      prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
-    );
+  const keyword = query.trim().toLowerCase();
+  const visibleFriends = dedupedFriends.filter((friend) => `${sanitizeDisplayName(friend.name)} ${friend.uid}`.toLowerCase().includes(keyword));
+  const visibleGroups = groups.filter((group) => group.name.toLowerCase().includes(keyword));
+  const unreadTotal = dedupedFriends.reduce((sum, friend) => sum + (unreadByUser[friend.uid] || 0), 0);
+  const closeCreate = () => { if (!creating) setShowCreateGroup(false); };
+  const create = async () => {
+    if (!groupName.trim() || !userProfile.uid || creating) return;
+    setCreating(true); setCreateError("");
+    try {
+      await createGroupChat({ ownerUid: userProfile.uid, name: groupName.trim(), memberUids: selectedMembers });
+      setGroupName(""); setSelectedMembers([]); setShowCreateGroup(false); setTab("groups"); setQuery("");
+    } catch { setCreateError("グループを作成できませんでした。入力を確認して再試行してください。"); }
+    finally { setCreating(false); }
   };
-
-  const handleCreateGroup = async () => {
-    const name = groupName.trim();
-    if (!name || !userProfile.uid) return;
-
-    await createGroupChat({
-      ownerUid: userProfile.uid,
-      name,
-      memberUids: selectedMembers,
-    });
-
-    setGroupName("");
-    setSelectedMembers([]);
-    setShowCreateGroup(false);
-  };
-
-  return (
-    <div className="w-full max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-black" style={{ color: "var(--foreground)" }}>
-            会話
-          </h1>
-          <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
-            DMとグループDMをまとめて管理
-          </p>
-        </div>
-        <button
-          onClick={() => setShowCreateGroup(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white"
-          style={{ background: "var(--accent)" }}
-        >
-          <Plus size={16} />
-          グループ作成
-        </button>
-      </div>
-
-      <div className="grid lg:grid-cols-2 gap-5">
-        <section className="glass-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <MessageSquare size={18} style={{ color: "var(--accent)" }} />
-            <h2 className="font-bold" style={{ color: "var(--foreground)" }}>
-              DM
-            </h2>
-          </div>
-
-          {dedupedFriends.length === 0 ? (
-            <p className="text-sm" style={{ color: "var(--muted)" }}>
-              フレンドを追加するとここに表示されます
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {dedupedFriends.map((friend) => {
-                const safeName = sanitizeDisplayName(friend.name);
-                const safeAvatar = sanitizeAvatar(friend.avatar);
-                const unreadCount = visibleUnreadByUser[friend.uid] || 0;
-                return (
-                <div
-                  key={friend.uid}
-                  onClick={() => {
-                    if (!userProfile.uid) return;
-                    setUnreadByUser((prev) => ({ ...prev, [friend.uid]: 0 }));
-                    void markChatMessagesAsRead(userProfile.uid, friend.uid).catch(() => {});
-                    router.push(`/friends/chat/${friend.uid}`);
-                  }}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors"
-                  style={{ background: "var(--muted-bg)", cursor: "pointer" }}
-                >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setQuickProfileUid(friend.uid);
-                    }}
-                    className="rounded-full transition-all"
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "scale(1.06)";
-                      e.currentTarget.style.filter = "brightness(0.92)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "scale(1)";
-                      e.currentTarget.style.filter = "none";
-                    }}
-                  >
-                    <AvatarPill avatar={safeAvatar} />
-                  </button>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <p className="text-sm font-bold truncate" style={{ color: "var(--foreground)" }}>
-                        {safeName}
-                      </p>
-                      <OfficialMark uid={friend.uid} isOfficial={friend.isOfficial} size={13} />
-                      {unreadCount > 0 && (
-                        <span
-                          className="text-[10px] font-bold px-1.5 h-[18px] rounded-full flex items-center justify-center"
-                          style={{ background: "#ef4444", color: "#fff" }}
-                        >
-                          {unreadCount > 99 ? "99+" : unreadCount}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] font-mono" style={{ color: "var(--muted)" }}>
-                      UID: {friend.uid}
-                    </p>
-                  </div>
-                </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        <section className="glass-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Users size={18} style={{ color: "var(--accent)" }} />
-            <h2 className="font-bold" style={{ color: "var(--foreground)" }}>
-              グループDM
-            </h2>
-          </div>
-
-          {groups.length === 0 ? (
-            <p className="text-sm" style={{ color: "var(--muted)" }}>
-              まだグループがありません
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {groups.map((group) => (
-                <Link
-                  key={group.id}
-                  href={`/conversations/group/${group.id}`}
-                  className="block px-3 py-3 rounded-xl transition-colors"
-                  style={{ background: "var(--muted-bg)" }}
-                >
-                  <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
-                    {group.name}
-                  </p>
-                  <p className="text-[11px]" style={{ color: "var(--muted)" }}>
-                    メンバー {group.memberUids.length} 人
-                  </p>
-                  <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>
-                    課題カテゴリ・固定表示・進捗共有に対応
-                  </p>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
-
-      <AnimatePresence>
-        {showCreateGroup && (
-          <motion.div
-            className="fixed inset-0 z-[70] flex items-center justify-center p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{ background: "rgba(0,0,0,0.55)" }}
-            onClick={() => setShowCreateGroup(false)}
-          >
-            <motion.div
-              className="w-full max-w-lg rounded-2xl p-5 glass-card"
-              initial={{ scale: 0.95, y: 8 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 8 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
-                  グループDM作成
-                </h3>
-                <button onClick={() => setShowCreateGroup(false)}>
-                  <X size={18} style={{ color: "var(--muted)" }} />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs font-semibold" style={{ color: "var(--muted)" }}>
-                    グループ名
-                  </label>
-                  <input
-                    value={groupName}
-                    onChange={(e) => setGroupName(e.target.value)}
-                    placeholder="例: 春休み課題チーム"
-                    className="w-full mt-1 px-3 py-2.5 rounded-xl text-sm outline-none"
-                    style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold" style={{ color: "var(--muted)" }}>
-                    メンバー選択
-                  </label>
-                  <div className="mt-2 max-h-52 overflow-y-auto space-y-2">
-                    {friends.map((friend) => {
-                      const active = selectedMembers.includes(friend.uid);
-                      return (
-                        <button
-                          key={friend.uid}
-                          type="button"
-                          onClick={() => toggleMember(friend.uid)}
-                          className="w-full flex items-center justify-between px-3 py-2 rounded-lg"
-                          style={{
-                            background: active ? "var(--accent-light)" : "var(--muted-bg)",
-                            color: active ? "var(--accent)" : "var(--foreground)",
-                          }}
-                        >
-                          <span className="text-sm">{friend.avatar} {friend.name}</span>
-                          {active && <Check size={14} />}
-                        </button>
-                      );
-                    })}
-                    {friends.length === 0 && (
-                      <p className="text-sm" style={{ color: "var(--muted)" }}>
-                        先にフレンドを追加してください
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {selectedFriendObjects.length > 0 && (
-                  <p className="text-xs" style={{ color: "var(--muted)" }}>
-                    選択中: {selectedFriendObjects.map((f) => f.name).join(" / ")}
-                  </p>
-                )}
-
-                <button
-                  onClick={handleCreateGroup}
-                  disabled={!groupName.trim()}
-                  className="w-full px-4 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40"
-                  style={{ background: "var(--accent)" }}
-                >
-                  作成する
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <QuickProfileCard
-        open={Boolean(quickProfileUid)}
-        uid={quickProfileUid}
-        viewerUid={userProfile.uid}
-        onClose={() => setQuickProfileUid(null)}
-      />
+  return <div className="screen-page inbox-page">
+    <div className="page-heading"><div><h1>メッセージ</h1><p>仲間と話して、学びをつなげましょう。</p></div><button className="primary-button" onClick={() => { setCreateError(""); setShowCreateGroup(true); }}><Plus size={20} />グループ作成</button></div>
+    <div className="workspace-grid"><div className="inbox-index">
+    <label className="inbox-search"><Search size={20} aria-hidden="true" /><input aria-label="会話を検索" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="名前・UID・グループ名で検索" /></label>
+    <div className="feed-tabs" aria-label="メッセージの種類">
+      <button aria-pressed={tab === "direct"} onClick={() => setTab("direct")}><MessageSquare size={18} />DM{unreadTotal > 0 && <span className="unread-count">{unreadTotal > 99 ? "99+" : unreadTotal}</span>}</button>
+      <button aria-pressed={tab === "groups"} onClick={() => setTab("groups")}><Users size={18} />グループ</button>
     </div>
-  );
+    <section className="inbox-surface" aria-label={tab === "direct" ? "DM一覧" : "グループ一覧"}>
+      {tab === "direct" ? visibleFriends.length === 0 ? <div className="list-empty"><MessageSquare size={32} /><h2>{keyword ? "条件に合う会話がありません" : "仲間との会話を始めましょう"}</h2><p>{keyword ? "検索条件を変えてみてください。" : "フレンドを追加すると、ここからメッセージを送れます。"}</p>{!keyword && <Link href="/friends" className="secondary-button">フレンドを探す</Link>}</div> : visibleFriends.map((friend) => {
+        const name = sanitizeDisplayName(friend.name); const count = unreadByUser[friend.uid] || 0;
+        return <div key={friend.uid} className="inbox-row"><button className="icon-button" aria-label={`${name}のプロフィール`} onClick={() => setQuickProfileUid(friend.uid)}><Avatar avatar={friend.avatar} /></button><Link className="inbox-row-link" href={`/friends/chat/${friend.uid}`} onClick={() => { if (!userProfile.uid) return; setUnreadByUser((prev) => ({...prev, [friend.uid]:0})); void markChatMessagesAsRead(userProfile.uid, friend.uid).catch(() => {}); }}><span className="flex gap-2 items-center min-w-0"><span className="font-semibold truncate">{name}</span><OfficialMark uid={friend.uid} isOfficial={friend.isOfficial} size={14} /></span><span className="text-sm text-muted">{count > 0 ? "未読のメッセージがあります" : "メッセージを開く"}</span></Link>{count > 0 && <span className="unread-count" aria-label={`未読 ${count}件`}>{count > 99 ? "99+" : count}</span>}</div>;
+      }) : groupState === "loading" ? <p className="list-empty" role="status">グループを読み込み中…</p> : groupState === "error" ? <div className="list-empty"><p role="alert">グループを読み込めませんでした。</p><button className="secondary-button" onClick={() => { setGroupState("loading"); setRetry((n) => n + 1); }}>再読み込み</button></div> : visibleGroups.length === 0 ? <div className="list-empty"><Users size={32} /><h2>{keyword ? "条件に合うグループがありません" : "学びを共有するグループを作ろう"}</h2><p>{keyword ? "検索条件を変えてみてください。" : "会話・課題・進捗を仲間と共有できます。"}</p></div> : visibleGroups.map((group) => <Link key={group.id} href={`/conversations/group/${group.id}`} className="inbox-row"><span className="more-nav-icon"><Users size={22} /></span><span className="flex-1 min-w-0"><span className="block font-semibold break-words">{group.name}</span><span className="block text-sm text-muted">{group.memberUids.length}人のメンバー</span></span></Link>)}
+    </section>
+    </div><CommunityRail /></div>
+    <Dialog open={showCreateGroup} onClose={closeCreate} title="グループ作成"><form className="space-y-5" onSubmit={(event) => { event.preventDefault(); void create(); }}><label className="block space-y-2"><span className="text-sm font-semibold">グループ名</span><input autoFocus className="app-input w-full" required maxLength={100} value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="例：春休みの学習チーム" disabled={creating} /></label><fieldset><legend className="text-sm font-semibold mb-2">メンバーを選択</legend><p className="text-sm text-muted mb-3">あなたは自動的にメンバーになります。</p><div className="max-h-56 overflow-y-auto space-y-1">{dedupedFriends.map((friend) => {const active = selectedMembers.includes(friend.uid);return <button type="button" key={friend.uid} aria-label={`${sanitizeDisplayName(friend.name)}をメンバーに選択`} aria-pressed={active} disabled={creating} className="member-choice" onClick={() => setSelectedMembers((prev) => active ? prev.filter((id) => id !== friend.uid) : [...prev, friend.uid])}><Avatar avatar={friend.avatar} /><span className="flex-1 min-w-0 truncate">{sanitizeDisplayName(friend.name)}</span>{active && <Check size={20} />}</button>;})}{friends.length === 0 && <p className="text-sm text-muted">フレンドを追加するとメンバーを選べます。</p>}</div></fieldset>{createError && <p role="alert" className="text-sm text-danger">{createError}</p>}<button className="primary-button w-full" disabled={creating || !groupName.trim()}>{creating ? "作成中…" : "作成する"}</button></form></Dialog>
+    <QuickProfileCard open={Boolean(quickProfileUid)} uid={quickProfileUid} viewerUid={userProfile.uid} onClose={() => setQuickProfileUid(null)} />
+  </div>;
 }

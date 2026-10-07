@@ -1,432 +1,52 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { Users, UserPlus, MessageCircle, Trash2, Search, Copy, Check } from "lucide-react";
 import { useStore } from "@/store/useStore";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  Users,
-  Search,
-  UserPlus,
-  MessageCircle,
-  Trash2,
-  X,
-  Copy,
-  Check,
-} from "lucide-react";
 import type { Friend, FriendRequest } from "@/types";
-import {
-  removeFriendFromFirestore,
-  searchUsersForFriend,
-  sendFriendRequest,
-  subscribeOutgoingFriendRequests,
-} from "@/lib/firestore/friends";
+import { removeFriendFromFirestore, searchUsersForFriend, sendFriendRequest, subscribeOutgoingFriendRequests } from "@/lib/firestore/friends";
 import { subscribeUsersOnlineStatus } from "@/lib/firestore/presence";
 import { setProfileCheer } from "@/lib/firestore/profile";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
+import Dialog from "@/components/ui/Dialog";
 
-function AvatarPill({ avatar, size = 40 }: { avatar: string; size?: number }) {
-  const isImage = avatar.startsWith("http") || avatar.startsWith("data:");
-  if (isImage) {
-    return <img src={avatar} alt="avatar" className="rounded-full object-cover" style={{ width: size, height: size }} />;
-  }
-  return (
-    <div
-      className="rounded-full flex items-center justify-center text-lg"
-      style={{ width: size, height: size, background: "var(--accent-light)" }}
-    >
-      {avatar}
-    </div>
-  );
-}
-
+function Avatar({avatar}: {avatar:string}) {const safe=sanitizeAvatar(avatar);return safe.startsWith("http") || safe.startsWith("data:") ? <img src={safe} alt="" className="w-11 h-11 rounded-full object-cover" /> : <span className="more-nav-icon text-xl">{safe}</span>;}
 export default function FriendsPage() {
-  const { friends, userProfile } = useStore();
-  const [query, setQuery] = useState("");
-  const [copiedUid, setCopiedUid] = useState(false);
-  const [searchResults, setSearchResults] = useState<Array<Omit<Friend, "addedAt">>>([]);
-  const [outgoingRequests, setOutgoingRequests] = useState<FriendRequest[]>([]);
-  const [onlineUids, setOnlineUids] = useState<Set<string>>(new Set());
-  const [cheeringAll, setCheeringAll] = useState(false);
-
-  useEffect(() => {
-    if (!userProfile.uid) return;
-    const unsubOutgoing = subscribeOutgoingFriendRequests(userProfile.uid, setOutgoingRequests);
-    return () => {
-      unsubOutgoing();
-    };
-  }, [userProfile.uid]);
-
-  useEffect(() => {
-    if (friends.length === 0) {
-      setOnlineUids(new Set());
-      return;
-    }
-    return subscribeUsersOnlineStatus(
-      friends.map((f) => f.uid),
-      setOnlineUids
-    );
-  }, [friends]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const keyword = query.trim();
-
-    if (!keyword || !userProfile.uid) {
-      return;
-    }
-
-    void searchUsersForFriend(
-      keyword,
-      userProfile.uid,
-      friends.map((f) => f.uid)
-    )
-      .then((results) => {
-        if (!cancelled) {
-          setSearchResults(results);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSearchResults([]);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [query, userProfile.uid, friends]);
-
-  const canSearch = useMemo(() => Boolean(query.trim() && userProfile.uid), [query, userProfile.uid]);
-  const visibleSearchResults = canSearch ? searchResults : [];
-  const outgoingTargets = useMemo(
-    () => new Set(outgoingRequests.map((r) => r.toUid)),
-    [outgoingRequests]
-  );
-  const onlineFriends = useMemo(() => friends.filter((f) => onlineUids.has(f.uid)), [friends, onlineUids]);
-
-  const handleCopyUid = () => {
-    navigator.clipboard.writeText(userProfile.uid);
-    setCopiedUid(true);
-    setTimeout(() => setCopiedUid(false), 2000);
-  };
-
-  return (
-    <div className="w-full max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <motion.div
-        className="text-center"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <div className="flex items-center justify-center gap-3 mb-2 relative">
-          <Users size={32} style={{ color: "var(--accent)" }} />
-          <h1
-            className="text-3xl sm:text-4xl font-black"
-            style={{ color: "var(--foreground)" }}
-          >
-            フレンド
-          </h1>
-        </div>
-        <p className="text-sm" style={{ color: "var(--muted)" }}>
-          UIDで検索してフレンド申請を送ろう
-        </p>
-      </motion.div>
-
-      {/* My UID Card */}
-      <motion.div
-        className="glass-card p-4 flex items-center justify-between"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.05 }}
-      >
-        <div>
-          <span className="text-xs font-medium" style={{ color: "var(--muted)" }}>
-            あなたのUID
-          </span>
-          <p
-            className="text-xl font-black font-mono tracking-widest"
-            style={{ color: "var(--accent)" }}
-          >
-            {userProfile.uid}
-          </p>
-        </div>
-        <motion.button
-          onClick={handleCopyUid}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold"
-          style={{
-            background: copiedUid ? "#10b98120" : "var(--muted-bg)",
-            color: copiedUid ? "#10b981" : "var(--foreground)",
-          }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          {copiedUid ? <Check size={14} /> : <Copy size={14} />}
-          {copiedUid ? "コピー済" : "コピー"}
-        </motion.button>
-      </motion.div>
-
-      {/* Search */}
-      <motion.div
-        className="glass-card p-4"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-      >
-        <div className="relative">
-          <Search
-            size={18}
-            className="absolute left-3 top-1/2 -translate-y-1/2"
-            style={{ color: "var(--muted)" }}
-          />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="名前またはUIDで検索..."
-            className="w-full pl-10 pr-10 py-3 rounded-xl text-sm font-medium outline-none transition-all"
-            style={{
-              background: "var(--muted-bg)",
-              color: "var(--foreground)",
-              border: "2px solid transparent",
-            }}
-            onFocus={(e) =>
-              (e.target.style.borderColor = "var(--accent)")
-            }
-            onBlur={(e) =>
-              (e.target.style.borderColor = "transparent")
-            }
-          />
-          {query && (
-            <button
-              onClick={() => setQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2"
-              style={{ color: "var(--muted)" }}
-            >
-              <X size={16} />
-            </button>
-          )}
-        </div>
-
-        {/* Search results */}
-        <AnimatePresence>
-          {visibleSearchResults.length > 0 && (
-            <motion.div
-              className="mt-3 space-y-2"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-            >
-              {visibleSearchResults.map((user) => (
-                (() => {
-                  const safeName = sanitizeDisplayName(user.name);
-                  const safeAvatar = sanitizeAvatar(user.avatar);
-                  return (
-                <motion.div
-                  key={user.uid}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl"
-                  style={{ background: "var(--muted-bg)" }}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                >
-                  <Link
-                    href={`/profile/${user.uid}`}
-                    className="flex-shrink-0"
-                  >
-                    <AvatarPill avatar={safeAvatar} size={40} />
-                  </Link>
-                  <Link href={`/profile/${user.uid}`} className="flex-1 min-w-0">
-                    <span className="text-sm font-bold block truncate" style={{ color: "var(--foreground)" }}>
-                      {safeName}
-                    </span>
-                    <span className="text-xs font-mono" style={{ color: "var(--muted)" }}>
-                      UID: {user.uid}
-                    </span>
-                  </Link>
-                  <motion.button
-                    onClick={async () => {
-                      await sendFriendRequest({
-                        fromUid: userProfile.uid,
-                        fromName: userProfile.name,
-                        fromAvatar: userProfile.avatar,
-                        toUid: user.uid,
-                      });
-                      setQuery("");
-                    }}
-                    disabled={outgoingTargets.has(user.uid)}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
-                    style={{ background: outgoingTargets.has(user.uid) ? "var(--muted)" : "var(--accent)" }}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <UserPlus size={14} />
-                    {outgoingTargets.has(user.uid) ? "申請中" : "申請"}
-                  </motion.button>
-                </motion.div>
-                  );
-                })()
-              ))}
-            </motion.div>
-          )}
-          {canSearch && visibleSearchResults.length === 0 && (
-            <motion.p
-              className="mt-3 text-center text-sm py-4"
-              style={{ color: "var(--muted)" }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-            >
-              「{query}」に一致するユーザーが見つかりません
-            </motion.p>
-          )}
-        </AnimatePresence>
-      </motion.div>
-
-      {/* Friends list */}
-      <motion.div
-        className="glass-card overflow-hidden"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <div
-          className="px-5 py-4 border-b flex items-center gap-2"
-          style={{ borderColor: "var(--card-border)" }}
-        >
-          <Users size={18} style={{ color: "var(--accent)" }} />
-          <h2
-            className="text-base font-bold"
-            style={{ color: "var(--foreground)" }}
-          >
-            フレンド一覧
-          </h2>
-          <span
-            className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full"
-            style={{ background: "var(--accent-light)", color: "var(--accent)" }}
-          >
-            {friends.length}
-          </span>
-          <button
-            onClick={async () => {
-              if (!userProfile.uid || onlineFriends.length === 0 || cheeringAll) return;
-              setCheeringAll(true);
-              try {
-                await Promise.all(
-                  onlineFriends.map((friend) =>
-                    setProfileCheer(friend.uid, userProfile.uid, true).catch(() => {})
-                  )
-                );
-              } finally {
-                setCheeringAll(false);
-              }
-            }}
-            disabled={onlineFriends.length === 0 || cheeringAll}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
-            style={{
-              border: "1px solid rgba(249,115,22,0.6)",
-              color: "#f97316",
-              background: "transparent",
-            }}
-          >
-            {cheeringAll ? "送信中..." : `🔥 オンライン全員に応援 (${onlineFriends.length})`}
-          </button>
-        </div>
-
-        {friends.length === 0 ? (
-          <div className="px-5 py-12 text-center">
-            <Users
-              size={48}
-              className="mx-auto mb-3"
-              style={{ color: "var(--muted)", opacity: 0.3 }}
-            />
-            <p className="text-sm font-medium" style={{ color: "var(--muted)" }}>
-              フレンドがまだいません
-            </p>
-            <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
-              上の検索ボックスから追加してみましょう
-            </p>
-          </div>
-        ) : (
-          <div
-            className="divide-y"
-            style={{ borderColor: "var(--card-border)" }}
-          >
-            {friends.map((friend, i) => (
-              (() => {
-                const safeName = sanitizeDisplayName(friend.name);
-                const safeAvatar = sanitizeAvatar(friend.avatar);
-                return (
-              <motion.div
-                key={friend.uid}
-                className="flex items-center gap-4 px-5 py-4"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.03 }}
-              >
-                <Link
-                  href={`/profile/${friend.uid}`}
-                  className="flex-shrink-0"
-                >
-                  <AvatarPill avatar={safeAvatar} size={44} />
-                </Link>
-                <Link href={`/profile/${friend.uid}`} className="flex-1 min-w-0">
-                  <span className="text-sm font-bold block truncate" style={{ color: "var(--foreground)" }}>
-                    {safeName}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono" style={{ color: "var(--muted)" }}>
-                      UID: {friend.uid}
-                    </span>
-                    <span
-                      className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold inline-flex items-center gap-1"
-                      style={{
-                        background: onlineUids.has(friend.uid) ? "#22c55e22" : "var(--muted-bg)",
-                        color: onlineUids.has(friend.uid) ? "#16a34a" : "var(--muted)",
-                      }}
-                    >
-                      <span
-                        className="w-1.5 h-1.5 rounded-full"
-                        style={{ background: onlineUids.has(friend.uid) ? "#22c55e" : "#9ca3af" }}
-                      />
-                      {onlineUids.has(friend.uid) ? "オンライン" : "オフライン"}
-                    </span>
-                  </div>
-                </Link>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <Link href={`/friends/chat/${friend.uid}`}>
-                    <motion.div
-                      className="w-9 h-9 rounded-full flex items-center justify-center"
-                      style={{
-                        background: "var(--accent-light)",
-                        color: "var(--accent)",
-                      }}
-                      whileHover={{ scale: 1.15 }}
-                      whileTap={{ scale: 0.9 }}
-                    >
-                      <MessageCircle size={16} />
-                    </motion.div>
-                  </Link>
-                  <motion.button
-                    onClick={() =>
-                      removeFriendFromFirestore(userProfile.uid, friend.uid).catch(() => {})
-                    }
-                    className="w-9 h-9 rounded-full flex items-center justify-center"
-                    style={{
-                      background: "var(--muted-bg)",
-                      color: "var(--muted)",
-                    }}
-                    whileHover={{ scale: 1.15, color: "#ef4444" }}
-                    whileTap={{ scale: 0.9 }}
-                  >
-                    <Trash2 size={15} />
-                  </motion.button>
-                </div>
-              </motion.div>
-                );
-              })()
-            ))}
-          </div>
-        )}
-      </motion.div>
-    </div>
-  );
+  const friends=useStore((state)=>state.friends);const profile=useStore((state)=>state.userProfile);
+  const [query,setQuery]=useState("");const [copied,setCopied]=useState(false);
+  const [results,setResults]=useState<{key:string;rows:Array<Omit<Friend,"addedAt">>;failed:boolean}|null>(null);
+  const [retry,setRetry]=useState(0);const [outgoing,setOutgoing]=useState<FriendRequest[]>([]);
+  const [online,setOnline]=useState<Set<string>>(new Set());const [pending,setPending]=useState<string|null>(null);
+  const [remove,setRemove]=useState<Friend|null>(null);const [removing,setRemoving]=useState(false);
+  const [feedback,setFeedback]=useState("");const [error,setError]=useState("");
+  const [cheering,setCheering]=useState(false);
+  const keyword=query.trim();const friendIds=friends.map((friend)=>friend.uid).join(",");const searchKey=`${profile.uid}:${friendIds}:${keyword}:${retry}`;
+  useEffect(()=>{if(!profile.uid)return;return subscribeOutgoingFriendRequests(profile.uid,setOutgoing);},[profile.uid]);
+  useEffect(()=>{if(!friendIds)return;return subscribeUsersOnlineStatus(friendIds.split(","),setOnline);},[friendIds]);
+  useEffect(()=>{
+    if(!keyword || !profile.uid)return;
+    let disposed=false;const timer=window.setTimeout(()=>{
+      void searchUsersForFriend(keyword,profile.uid,friendIds?friendIds.split(","):[]).then((rows)=>{if(!disposed)setResults({key:searchKey,rows,failed:false});}).catch(()=>{if(!disposed)setResults({key:searchKey,rows:[],failed:true});});
+    },300);
+    return()=>{disposed=true;window.clearTimeout(timer);};
+  },[keyword,profile.uid,friendIds,searchKey]);
+  const outgoingIds=useMemo(()=>new Set(outgoing.map((item)=>item.toUid)),[outgoing]);
+  const onlineFriends=friends.filter((friend)=>online.has(friend.uid));
+  const copy=async()=>{try{await navigator.clipboard.writeText(profile.uid);setCopied(true);setError("");}catch{setError("UIDをコピーできませんでした。表示されているIDを選択してコピーしてください。");}};
+  const request=async(friend:Omit<Friend,"addedAt">)=>{if(pending || !profile.uid)return;setPending(friend.uid);setError("");setFeedback("");try{await sendFriendRequest({fromUid:profile.uid,fromName:profile.name,fromAvatar:profile.avatar,toUid:friend.uid});setFeedback(`${sanitizeDisplayName(friend.name)}さんに申請を送りました。`);setQuery("");}catch{setError("申請を送れませんでした。再試行してください。");}finally{setPending(null);}};
+  const removeFriend=async()=>{if(!remove || removing)return;setRemoving(true);setError("");try{await removeFriendFromFirestore(profile.uid,remove.uid);setFeedback("フレンドを解除しました。");setRemove(null);}catch{setError("解除できませんでした。再試行してください。");}finally{setRemoving(false);}};
+  const cheer=async()=>{if(!profile.uid || cheering || !onlineFriends.length)return;setCheering(true);setError("");setFeedback("");try{const outcomes=await Promise.allSettled(onlineFriends.map((friend)=>setProfileCheer(friend.uid,profile.uid,true)));const sent=outcomes.filter((item)=>item.status==="fulfilled").length;if(sent)setFeedback(`${sent}人に応援を送りました。`);if(sent!==outcomes.length)setError("一部の応援を送れませんでした。時間をおいて再試行してください。");}finally{setCheering(false);}};
+  return <div className="screen-page friends-page">
+    <div className="page-heading"><div><h1>フレンド</h1><p>名前やUIDから、学習仲間を見つけましょう。</p></div><Link href="/conversations" className="secondary-button"><MessageCircle size={18} />メッセージ</Link></div>
+    <div className="workspace-grid"><div className="workspace-main friends-main">
+    {feedback && <p role="status" className="text-sm">{feedback}</p>}{error && !remove && <p role="alert" className="text-sm text-danger">{error}</p>}
+    <section className="friend-search-panel" aria-label="フレンド検索"><label className="inbox-search"><Search size={20} aria-hidden="true" /><input aria-label="名前またはUIDでフレンドを検索" placeholder="名前またはUIDで検索" value={query} onChange={(event)=>setQuery(event.target.value)} /></label>
+      {keyword && (results?.key!==searchKey?<p role="status" className="text-sm text-muted py-3">ユーザーを検索中…</p>:results.failed?<div className="space-y-3"><p role="alert" className="text-sm text-danger">検索できませんでした。</p><button className="secondary-button" onClick={()=>setRetry((value)=>value+1)}>再検索</button></div>:results.rows.length===0?<p className="text-sm text-muted py-3">「{keyword}」に一致するユーザーが見つかりません。</p>:results.rows.map((friend)=><div key={friend.uid} className="inbox-row px-0"><Link href={`/profile/${friend.uid}`} aria-label={`${sanitizeDisplayName(friend.name)}のプロフィール`}><Avatar avatar={friend.avatar} /></Link><Link className="flex-1 min-w-0" href={`/profile/${friend.uid}`}><span className="block font-semibold truncate">{sanitizeDisplayName(friend.name)}</span><span className="block text-xs text-muted font-mono">{friend.uid}</span></Link><button className="primary-button" disabled={Boolean(pending)||outgoingIds.has(friend.uid)} onClick={()=>void request(friend)}><UserPlus size={18} />{pending===friend.uid?"送信中…":outgoingIds.has(friend.uid)?"申請中":"申請"}</button></div>))}
+    </section>
+    <section className="people-list"><div className="p-4 flex flex-wrap justify-between items-center gap-3 border-b" style={{borderColor:"var(--card-border)"}}><h2 className="text-lg font-bold">フレンド <span className="text-sm text-muted">{friends.length}人</span></h2><button className="secondary-button" disabled={cheering || !onlineFriends.length} onClick={()=>void cheer()}>{cheering?"送信中…":`オンラインの仲間を応援 (${onlineFriends.length})`}</button></div>{friends.length===0?<div className="list-empty"><Users size={32} /><h2>フレンドがまだいません</h2><p>上の検索欄から、仲間に申請を送ってみましょう。</p></div>:friends.map((friend)=><div key={friend.uid} className="inbox-row flex-wrap sm:flex-nowrap"><Link href={`/profile/${friend.uid}`} aria-label={`${sanitizeDisplayName(friend.name)}のプロフィール`}><Avatar avatar={friend.avatar} /></Link><Link href={`/profile/${friend.uid}`} className="flex-1 min-w-0"><span className="block font-semibold truncate">{sanitizeDisplayName(friend.name)}</span><span className="block text-sm text-muted">{online.has(friend.uid)?"オンライン":"オフライン"}</span></Link><div className="flex gap-1"><Link className="icon-button" href={`/friends/chat/${friend.uid}`} aria-label={`${sanitizeDisplayName(friend.name)}にメッセージ`}><MessageCircle size={20} /></Link><button className="icon-button" onClick={()=>{setError("");setRemove(friend);}} aria-label={`${sanitizeDisplayName(friend.name)}とのフレンドを解除`}><Trash2 size={20} /></button></div></div>)}</section>
+    </div><aside className="workspace-rail" aria-label="あなたのつながり">    <div className="rail-section friends-identity"><div><p className="text-xs text-muted">あなたのUID</p><p className="font-mono text-xl font-bold select-all break-all">{profile.uid || "確認中…"}</p></div><button disabled={!profile.uid} className="secondary-button" onClick={()=>void copy()}>{copied?<Check size={18} />:<Copy size={18} />}{copied?"コピー済み":"UIDをコピー"}</button></div>
+<section className="rail-section"><h2>あなたのつながり</h2><dl className="rail-numbers"><div><dt>フレンド</dt><dd>{friends.length}人</dd></div><div><dt>オンライン</dt><dd>{onlineFriends.length}人</dd></div></dl><Link className="rail-link" href="/conversations">会話を開く →</Link></section></aside></div>
+    <Dialog open={Boolean(remove)} onClose={()=>{if(!removing)setRemove(null);}} title="フレンドを解除"><div className="space-y-4"><p>「{sanitizeDisplayName(remove?.name)}」さんとのフレンド関係を解除します。</p>{error && <p role="alert" className="text-sm text-danger">{error}</p>}<div className="flex flex-wrap gap-2"><button className="secondary-button" disabled={removing} onClick={()=>setRemove(null)}>キャンセル</button><button className="primary-button" disabled={removing} onClick={()=>void removeFriend()}>{removing?"解除中…":"解除する"}</button></div></div></Dialog>
+  </div>;
 }

@@ -32,7 +32,7 @@ function ToggleRow({
   onChange: (next: boolean) => void;
 }) {
   return (
-    <div className="grid grid-cols-[1fr_auto] items-center gap-3 border-b p-3" style={{ borderColor: "var(--card-border)" }}>
+    <div className="option-toggle-row" style={{ borderColor: "var(--card-border)" }}>
       <div>
         <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>{title}</p>
         <p className="text-xs" style={{ color: "var(--muted)" }}>{description}</p>
@@ -40,6 +40,7 @@ function ToggleRow({
       <button
         type="button"
         role="switch"
+        aria-label={title}
         aria-checked={checked}
         onClick={() => onChange(!checked)}
         className="relative w-12 h-7 rounded-full transition-colors"
@@ -63,12 +64,13 @@ function SelectRow<T extends string>({
   onChange: (next: T) => void;
 }) {
   return (
-    <div className="grid grid-cols-[1fr_auto] items-center gap-3 border-b p-3" style={{ borderColor: "var(--card-border)" }}>
+    <div className="test-option-row" style={{ borderColor: "var(--card-border)" }}>
       <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>{title}</p>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
-        className="w-72 rounded-lg border px-3 py-1.5 text-sm"
+        aria-label={title}
+        className="rounded-lg border px-3 py-1.5 text-sm"
         style={{ borderColor: "var(--card-border)", background: "var(--background)", color: "var(--foreground)" }}
       >
         {options.map((row) => (
@@ -148,7 +150,7 @@ export default function DeckTestOptionPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4 pb-20">
+    <div className="screen-page deck-test-options">
       <div className="text-xs font-semibold" style={{ color: "var(--muted)" }}>
         <Link href="/memorize" className="hover:underline">ホーム</Link>
         <span> &gt; </span>
@@ -156,8 +158,8 @@ export default function DeckTestOptionPage() {
         <span> &gt; テスト</span>
       </div>
 
-      <section className="rounded-2xl border p-4 sm:p-6" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
-        <div className="flex items-center justify-between gap-3">
+      <section className="editor-panel" style={{ borderColor: "var(--card-border)" }}>
+        <div className="deck-heading">
           <h1 className="text-2xl sm:text-4xl font-black" style={{ color: "var(--foreground)" }}>
             {deck.name}
           </h1>

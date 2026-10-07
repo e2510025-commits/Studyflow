@@ -1,16 +1,11 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useStore } from "@/store/useStore";
 import Sidebar from "./Sidebar";
-import ThemePicker from "./ThemePicker";
-import HeaderMenu from "./HeaderMenu";
-import DesktopAppActions from "./DesktopAppActions";
-import RankingBadge from "@/components/ranking/RankingBadge";
-import NotificationBell from "./NotificationBell";
-import DmBell from "./DmBell";
-import FriendBell from "./FriendBell";
+import AppHeader from "./AppHeader";
+import { MotionConfig } from "framer-motion";
 import { subscribeStudyLogs } from "@/lib/firestore/studyLogs";
 import { saveUserProfile } from "@/lib/firestore/ranking";
 import { subscribeFriends } from "@/lib/firestore/friends";
@@ -28,7 +23,6 @@ import { updateUserPresence } from "@/lib/firestore/presence";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { AppNotification } from "@/types";
-import { getAchievementMeta } from "@/lib/achievements";
 
 const BARE_ROUTES = ["/login", "/register", "/onboarding"];
 
@@ -103,37 +97,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     setFriends,
     setSubjects,
     setBonusPoints,
-    updateUserProfile,
     userProfile,
-    studyLogs,
   } = useStore();
   const pathname = usePathname();
   const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
   const isBareRoute = BARE_ROUTES.includes(normalizedPathname);
-  const isTimerPage = normalizedPathname === "/timer" || normalizedPathname.startsWith("/timer/");
-  const [isTouchDevice] = useState(() =>
-    typeof navigator !== "undefined" ? (navigator.maxTouchPoints || 0) > 0 : false
-  );
-  const useTimerPeekSidebar = isTimerPage && !isTouchDevice;
-
-  // Sidebar hover-reveal on timer page
-  const [sidebarPeek, setSidebarPeek] = useState(false);
   const [criticalNotice, setCriticalNotice] = useState<AppNotification | null>(null);
   const [allNotifications, setAllNotifications] = useState<AppNotification[]>([]);
-  const [awardQueue, setAwardQueue] = useState<string[]>([]);
-  const [currentAward, setCurrentAward] = useState<string | null>(null);
-  const announcedAwardsRef = useRef<Set<string>>(new Set());
   const announcedBrowserNotificationIdsRef = useRef<Set<string>>(new Set());
   const timerLastTickMsRef = useRef<number>(0);
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (e.clientX <= 12) setSidebarPeek(true);
-  }, []);
-  useEffect(() => {
-    if (!useTimerPeekSidebar) return;
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, [useTimerPeekSidebar, handleMouseMove]);
 
   useEffect(() => {
     initializeDefaults();
@@ -263,6 +235,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               uid: appUid,
               name: resolvedName,
               avatar: resolvedAvatar,
+              dailyGoal: typeof storedProfile?.dailyGoal === "number" && Number.isFinite(storedProfile.dailyGoal)
+                ? storedProfile.dailyGoal
+                : switchedAccount ? 7200 : state.userProfile.dailyGoal,
               bonusPoints: resolvedBonusPoints,
               badges: Array.isArray(storedProfile?.badges) ? storedProfile.badges : [],
               achievementUnlockedAt:
@@ -432,84 +407,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!userProfile.uid) return;
-    let disposed = false;
-
-    const syncBadges = async () => {
-      try {
-        const profile = await fetchPublicProfile(userProfile.uid).catch(() => null);
-        if (!profile || disposed) return;
-
-        const nextBadges = Array.isArray(profile.badges)
-          ? profile.badges.filter((x) => typeof x === "string")
-          : [];
-        const nextUnlockMap =
-          profile.achievementUnlockedAt && typeof profile.achievementUnlockedAt === "object"
-            ? (profile.achievementUnlockedAt as Record<string, string>)
-            : {};
-        const nextEquipped = Array.isArray(profile.equippedBadges)
-          ? profile.equippedBadges.filter((x) => typeof x === "string").slice(0, 3)
-          : [];
-
-        const currentBadges = Array.isArray(useStore.getState().userProfile.badges)
-          ? (useStore.getState().userProfile.badges as string[])
-          : [];
-        const newlyUnlocked = nextBadges.filter(
-          (id) => !currentBadges.includes(id) && !announcedAwardsRef.current.has(id)
-        );
-
-        updateUserProfile({
-          badges: nextBadges,
-          achievementUnlockedAt: nextUnlockMap,
-          equippedBadges: nextEquipped,
-        });
-
-        if (newlyUnlocked.length > 0) {
-          newlyUnlocked.forEach((id) => announcedAwardsRef.current.add(id));
-          setAwardQueue((prev) => [...prev, ...newlyUnlocked.filter((id) => !prev.includes(id))]);
-        }
-      } catch {
-        // ignore profile polling errors
-      }
-    };
-
-    void syncBadges();
-    const intervalId = window.setInterval(syncBadges, 25_000);
-    return () => {
-      disposed = true;
-      window.clearInterval(intervalId);
-    };
-  }, [userProfile.uid, studyLogs.length, updateUserProfile]);
-
-  useEffect(() => {
-    if (currentAward || awardQueue.length === 0) return;
-    const [next, ...rest] = awardQueue;
-    setCurrentAward(next);
-    setAwardQueue(rest);
-
-    try {
-      const audioCtx = new (window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)();
-      const now = audioCtx.currentTime;
-      const notes = [523.25, 659.25, 783.99, 1046.5];
-      notes.forEach((freq, idx) => {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = "triangle";
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.0001, now + idx * 0.08);
-        gain.gain.exponentialRampToValueAtTime(0.08, now + idx * 0.08 + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.08 + 0.18);
-        osc.connect(gain).connect(audioCtx.destination);
-        osc.start(now + idx * 0.08);
-        osc.stop(now + idx * 0.08 + 0.2);
-      });
-      window.setTimeout(() => void audioCtx.close(), 600);
-    } catch {
-      // ignore sfx failures
-    }
-  }, [awardQueue, currentAward]);
-
-  useEffect(() => {
-    if (!userProfile.uid) return;
 
     const runDispatch = () => {
       void fetch("/api/announcements/dispatch-scheduled", {
@@ -607,77 +504,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <MotionConfig reducedMotion="user">
     <div className="bg-gradient-main">
-      {/* Sidebar: on timer page, auto-hide with hover-reveal */}
       {!immersiveMode && (
         <>
-          {useTimerPeekSidebar ? (
-            <>
-              {/* Invisible hover zone on left edge */}
-              <div
-                className="fixed top-0 left-0 w-3 h-full z-[55]"
-                onMouseEnter={() => setSidebarPeek(true)}
-                onTouchStart={() => setSidebarPeek(true)}
-              />
-              {/* Peek overlay to close */}
-              {sidebarPeek && (
-                <div
-                  className="fixed inset-0 z-[44]"
-                  onClick={() => setSidebarPeek(false)}
-                  onMouseEnter={(e) => {
-                    if (e.clientX > 288) setSidebarPeek(false);
-                  }}
-                />
-              )}
-              <div
-                className="transition-transform duration-300 ease-in-out z-[52]"
-                style={{
-                  transform: sidebarPeek ? "translateX(0)" : "translateX(-100%)",
-                  position: "fixed",
-                  top: 0,
-                  left: 0,
-                  height: "100%",
-                }}
-                onMouseLeave={() => setSidebarPeek(false)}
-              >
-                <Sidebar />
-              </div>
-            </>
-          ) : (
-            <Sidebar />
-          )}
+          <a className="skip-link" href="#main-content">本文へ移動</a>
+          <Sidebar />
+          <AppHeader />
         </>
       )}
-      {!immersiveMode && (
-        <>
-          <HeaderMenu />
-          <FriendBell />
-          <DmBell />
-          <NotificationBell />
-          <DesktopAppActions />
-          <RankingBadge />
-        </>
-      )}
-      <main
-        className={
-          immersiveMode
-            ? "min-h-screen"
-            : useTimerPeekSidebar
-            ? "min-h-screen transition-all duration-700"
-            : "lg:pl-72 min-h-screen transition-all duration-700"
-        }
-      >
-        <div
-          className={
-            immersiveMode
-              ? "w-full"
-              : useTimerPeekSidebar
-              ? "px-3 sm:px-5 lg:px-8 py-4 pt-16 w-full max-w-screen-2xl mx-auto"
-              : "px-3 sm:px-5 lg:px-8 py-4 pt-16 lg:pt-6 w-full"
-          }
-        >
-          {children}
-        </div>
+      <main id="main-content" tabIndex={-1} className={immersiveMode ? "immersive-main" : "app-main"}>
+        <div className={immersiveMode ? "w-full" : "app-content"} data-screen={pathname.split("/")[1] || "home"} data-detail={pathname.split("/").filter(Boolean).length > 1 ? "true" : undefined}>{children}</div>
       </main>
 
       {criticalNotice && (
@@ -743,44 +580,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      {currentAward && (
-        <div className="fixed inset-0 z-[145] flex items-center justify-center p-4" style={{ background: "rgba(3,7,18,0.72)" }}>
-          <div
-            className="w-full max-w-lg rounded-3xl p-6 border"
-            style={{
-              background: "linear-gradient(145deg, rgba(8,47,73,0.95), rgba(15,23,42,0.96))",
-              borderColor: "rgba(34,211,238,0.5)",
-              boxShadow: "0 28px 64px rgba(8,47,73,0.45)",
-            }}
-          >
-            <p className="text-xs font-black tracking-[0.18em]" style={{ color: "#67e8f9" }}>
-              ACHIEVEMENT UNLOCKED
-            </p>
-            <h2 className="text-2xl mt-2 font-black" style={{ color: "#f8fafc" }}>
-              勲章授与
-            </h2>
-            <div className="mt-4 rounded-2xl p-4" style={{ background: "rgba(15,23,42,0.78)", border: "1px solid rgba(34,211,238,0.35)" }}>
-              <p className="text-lg font-extrabold" style={{ color: "#e2e8f0" }}>
-                {getAchievementMeta(currentAward)?.title || currentAward}
-              </p>
-              <p className="text-sm mt-1" style={{ color: "#cbd5e1" }}>
-                {getAchievementMeta(currentAward)?.description || "新しい実績を獲得しました"}
-              </p>
-              <p className="text-xs mt-2 uppercase tracking-[0.14em]" style={{ color: "#a5f3fc" }}>
-                {getAchievementMeta(currentAward)?.rarity || "rare"}
-              </p>
-            </div>
-            <button
-              className="mt-5 w-full px-4 py-2.5 rounded-xl text-sm font-bold"
-              style={{ background: "#22d3ee", color: "#082f49" }}
-              onClick={() => setCurrentAward(null)}
-            >
-              受け取る
-            </button>
-          </div>
-        </div>
-      )}
-      {!immersiveMode && <ThemePicker />}
     </div>
+    </MotionConfig>
   );
 }

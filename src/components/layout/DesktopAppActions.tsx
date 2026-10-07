@@ -82,7 +82,7 @@ export default function DesktopAppActions() {
   return (
     <AnimatePresence>
       <motion.div
-        className="fixed top-4 right-64 z-50 hidden lg:flex items-center gap-2"
+        className="flex flex-wrap items-center gap-2"
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -8 }}
@@ -90,24 +90,24 @@ export default function DesktopAppActions() {
         {showNotificationEnable && (
           <button
             onClick={() => void requestNotificationPermission()}
-            className="h-10 px-3 rounded-xl glass-card inline-flex items-center gap-1.5 text-xs font-semibold"
+            className="secondary-button text-sm"
             style={{ color: "var(--foreground)" }}
             title="ブラウザ通知を有効化"
           >
             <BellRing size={14} />
-            通知ON
+            ブラウザ通知を有効にする
           </button>
         )}
 
         {showInstall && (
           <button
             onClick={() => void triggerInstall()}
-            className="h-10 px-3 rounded-xl glass-card inline-flex items-center gap-1.5 text-xs font-semibold"
+            className="secondary-button text-sm"
             style={{ color: "var(--foreground)" }}
-            title="PCでアプリとしてインストール"
+            title="アプリとしてインストール"
           >
             <Download size={14} />
-            アプリ化
+            アプリをインストール
           </button>
         )}
       </motion.div>

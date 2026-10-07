@@ -9,7 +9,14 @@
     "lint": "eslint",
     "migrate:firestore:mongo": "tsx scripts/migrate/firestore-to-mongodb.ts",
     "mongo:indexes": "tsx scripts/migrate/mongo-create-indexes.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "dev:ui": "node scripts/ui/dev.mjs",
+    "test:ui": "node scripts/ui/verify.mjs",
+    "test:profile": "tsx scripts/ui/check-profile.ts",
+    "test:ui:secondary": "node scripts/ui/verify-secondary.mjs",
+    "test:auth": "tsx scripts/ui/check-auth.ts",
+    "test:ui:auth": "node scripts/ui/verify-auth.mjs",
+    "test:ui:details": "node scripts/ui/verify-details.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
@@ -33,8 +40,6 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-easy-crop": "^5.5.6",
-    "react-grid-layout": "^2.2.3",
-    "react-resizable": "^3.1.3",
     "recharts": "^3.7.0",
     "uuid": "^13.0.0",
     "zustand": "^5.0.11"
@@ -48,6 +53,7 @@
     "@types/uuid": "^10.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "playwright": "^1.63.0",
     "tailwindcss": "^4",
     "tsx": "^4.20.6",
     "typescript": "^5"

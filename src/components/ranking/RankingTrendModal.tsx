@@ -1,8 +1,8 @@
 "use client";
 
 import React from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { X, TrendingUp, Trophy } from "lucide-react";
+import Dialog from "@/components/ui/Dialog";
+import { Trophy } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -42,78 +42,8 @@ export default function RankingTrendModal({
       : 0;
 
   return (
-    <AnimatePresence>
-      {open && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            className="fixed inset-0 z-[60]"
-            style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)" }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
-
-          {/* Modal */}
-          <motion.div
-            className="fixed inset-0 z-[61] flex items-center justify-center p-4"
-            initial={{ opacity: 0, scale: 0.92, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.92, y: 20 }}
-            transition={{ type: "spring", stiffness: 260, damping: 24 }}
-          >
-            <div
-              className="w-full max-w-2xl rounded-3xl p-6 relative glass-card"
-              style={{
-                backdropFilter: "blur(24px)",
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Close */}
-              <motion.button
-                onClick={onClose}
-                className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center"
-                style={{
-                  background: "var(--muted-bg)",
-                  color: "var(--muted)",
-                }}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <X size={16} />
-              </motion.button>
-
-              {/* Header */}
-              <div className="flex items-center gap-3 mb-6">
-                <div
-                  className="w-11 h-11 rounded-xl flex items-center justify-center"
-                  style={{ background: "var(--accent-light)" }}
-                >
-                  <TrendingUp size={22} style={{ color: "var(--accent)" }} />
-                </div>
-                <div>
-                  <h2 className="text-lg font-black" style={{ color: "var(--foreground)" }}>
-                    ランキング推移
-                  </h2>
-                  <p className="text-xs" style={{ color: "var(--muted)" }}>
-                    全期間のランキング変動グラフ
-                  </p>
-                </div>
-                <div
-                  className="ml-auto flex items-center gap-2 px-4 py-2 rounded-xl"
-                  style={{
-                    background: "rgba(255,215,0,0.08)",
-                    border: "1px solid rgba(255,215,0,0.15)",
-                  }}
-                >
-                  <Trophy size={16} style={{ color: "#FFD700" }} />
-                  <span className="font-black font-mono text-sm" style={{ color: "var(--foreground)" }}>
-                    #{currentRank.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-
+    <Dialog open={open} onClose={onClose} title="ランキング推移">
+      <p className="text-sm text-muted mb-4">全期間の順位と学習時間の変化</p>
               {/* Chart */}
               {rankHistory.length > 1 ? (
                 <div className="h-[280px] w-full">
@@ -286,10 +216,6 @@ export default function RankingTrendModal({
                 </div>
               </div>
 
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+    </Dialog>
   );
 }

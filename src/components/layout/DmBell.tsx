@@ -29,16 +29,16 @@ export default function DmBell() {
 
   return (
     <motion.div
-      className="fixed top-4 right-28 z-50"
+      className="relative"
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
     >
       <Link
         href="/conversations"
-        className="w-10 h-10 rounded-xl flex items-center justify-center glass-card relative"
-        title="DM"
-        aria-label="DM"
+        className="icon-button relative"
+        title="メッセージ"
+        aria-label={visibleUnreadTotal > 0 ? `メッセージ、未読${visibleUnreadTotal}件` : "メッセージ"}
       >
         {visibleUnreadTotal > 0 ? (
           <MailOpen size={18} style={{ color: "#ef4444" }} />

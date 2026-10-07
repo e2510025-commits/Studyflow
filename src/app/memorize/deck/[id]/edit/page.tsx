@@ -230,7 +230,7 @@ export default function DeckEditPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto pb-24 space-y-4">
+    <div className="screen-page deck-editor">
       <div className="text-xs font-semibold" style={{ color: "var(--muted)" }}>
         <Link href="/memorize" className="hover:underline">単語帳一覧</Link>
         <span> &gt; </span>
@@ -241,7 +241,7 @@ export default function DeckEditPage() {
       <motion.section
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border p-4 sm:p-6 space-y-5"
+        className="editor-panel space-y-5"
         style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
       >
         <h1 className="text-2xl sm:text-4xl font-black" style={{ color: "var(--foreground)" }}>単語帳を編集</h1>

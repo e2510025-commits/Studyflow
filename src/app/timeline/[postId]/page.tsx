@@ -8,6 +8,7 @@ import { useStore } from "@/store/useStore";
 import { sendTimelinePost, subscribeTimelinePosts } from "@/lib/firestore/community";
 import { fetchUserMiniProfileByDisplayName } from "@/lib/firestore/profile";
 import OfficialMark from "@/components/ui/OfficialMark";
+import CommunityRail from "@/components/layout/CommunityRail";
 import type { CommunityStreamMessage } from "@/types";
 
 function formatTime(iso: string) {
@@ -225,7 +226,7 @@ export default function TimelineDetailPage() {
 
   if (!post) {
     return (
-      <div className="max-w-[680px] mx-auto space-y-4">
+      <div className="screen-page timeline-detail">
         <button
           onClick={() => router.push("/timeline")}
           className="px-3 py-2 rounded-lg text-sm inline-flex items-center gap-1"
@@ -241,7 +242,7 @@ export default function TimelineDetailPage() {
   const isAvatarImage = post.avatar.startsWith("http") || post.avatar.startsWith("data:");
 
   return (
-    <div className="max-w-[680px] mx-auto space-y-4">
+    <div className="workspace-grid timeline-detail"><div className="thread-column">
       <button
         onClick={() => router.push("/timeline")}
         className="px-3 py-2 rounded-lg text-sm inline-flex items-center gap-1"
@@ -320,6 +321,7 @@ export default function TimelineDetailPage() {
 
       <section className="glass-card p-4 space-y-2">
         <textarea
+          aria-label="投稿への返信"
           value={replyBody}
           onChange={(e) => setReplyBody(e.target.value.slice(0, 800))}
           rows={3}
@@ -338,6 +340,6 @@ export default function TimelineDetailPage() {
           </button>
         </div>
       </section>
-    </div>
+    </div><CommunityRail /></div>
   );
 }

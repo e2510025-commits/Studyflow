@@ -63,13 +63,14 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen px-4 py-8 sm:py-10" style={{ background: "var(--background)" }}>
-      <div className="max-w-2xl mx-auto">
+    <div className="onboarding-page" style={{ background: "var(--background)" }}>
+      <div className="onboarding-workspace">
+        <aside className="onboarding-intro"><p className="onboarding-brand">StudyFlow</p><h2>あなたの学びを、<br />ここから。</h2><p>プロフィールを整えて、毎日の学習記録と仲間とのつながりを始めましょう。</p></aside>
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.32 }}
-          className="glass-card p-6 sm:p-7"
+          className="onboarding-form"
         >
           <p className="text-xs font-black tracking-[0.16em]" style={{ color: "var(--accent)" }}>
             FIRST SETUP
@@ -89,6 +90,7 @@ export default function OnboardingPage() {
               <div className="relative">
                 <UserRound size={17} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--muted)" }} />
                 <input
+                  aria-label="表示名"
                   value={name}
                   onChange={(e) => setName(e.target.value.slice(0, 20))}
                   placeholder="表示名を入力"
@@ -104,6 +106,7 @@ export default function OnboardingPage() {
                 自己紹介（任意）
               </label>
               <textarea
+                aria-label="自己紹介（任意）"
                 value={bio}
                 onChange={(e) => setBio(e.target.value.slice(0, 280))}
                 rows={4}
@@ -121,6 +124,7 @@ export default function OnboardingPage() {
                 公開範囲
               </label>
               <select
+                aria-label="公開範囲"
                 value={visibility}
                 onChange={(e) => setVisibility(e.target.value as ProfileVisibility)}
                 className="w-full px-3 py-2.5 rounded-xl text-sm"

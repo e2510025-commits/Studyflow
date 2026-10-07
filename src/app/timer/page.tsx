@@ -6,11 +6,11 @@ import { useStore } from "@/store/useStore";
 import { motion } from "framer-motion";
 
 export default function TimerPage() {
-  const { timer } = useStore();
-  const isIdle = timer.status === "idle";
+  const status = useStore((state) => state.timer.status);
+  const isIdle = status === "idle";
 
   return (
-    <div className="w-full max-w-5xl mx-auto space-y-6 md:flex md:flex-col md:items-center md:justify-center md:min-h-[calc(100vh-160px)] md:text-center">
+    <div className="screen-page timer-page">
       {/* Page heading — only shown when idle */}
       {isIdle && (
         <motion.div
@@ -18,7 +18,7 @@ export default function TimerPage() {
           animate={{ opacity: 1, y: 0 }}
         >
           <h1
-            className="text-2xl sm:text-4xl font-black"
+            className="text-2xl sm:text-3xl font-bold"
             style={{ color: "var(--foreground)" }}
           >
             学習タイマー
@@ -32,7 +32,7 @@ export default function TimerPage() {
         </motion.div>
       )}
 
-      <div className="w-full md:max-w-4xl md:mx-auto">
+      <div className="w-full">
         <StudyTimer />
       </div>
     </div>

@@ -1,7 +1,7 @@
 import type { StudyLog } from "@/types";
 import type { AchievementCategory, AchievementTemplate } from "@/types";
 
-export interface AchievementDefinition extends AchievementTemplate {}
+export type AchievementDefinition = AchievementTemplate;
 
 export const DEFAULT_ACHIEVEMENT_CATEGORIES: AchievementCategory[] = [
   { id: "total", label: "総学習時間", order: 0 },

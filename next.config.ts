@@ -1,6 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [{
+      source: "/:path*",
+      has: [{ type: "host", value: "studyflow-lake\\.vercel\\.app" }],
+      destination: "https://studyflow.studio/:path*",
+      permanent: false,
+    }];
+  },
   images: {
     remotePatterns: [
       {

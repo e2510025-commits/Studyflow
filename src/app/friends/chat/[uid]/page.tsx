@@ -418,14 +418,15 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="w-full max-w-3xl mx-auto flex flex-col dark:bg-zinc-950" style={{ height: "calc(100vh - 80px)" }}>
+    <div className="w-full max-w-3xl mx-auto chat-page flex flex-col dark:bg-zinc-950">
       {/* ─── Chat Header ──────────────────────────────── */}
       <div
         className="flex items-center gap-3 px-4 py-3 border-b flex-shrink-0 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700"
       >
         <motion.button
           onClick={() => router.push("/conversations")}
-          className="w-9 h-9 rounded-full flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
+          aria-label="メッセージ一覧へ戻る"
+          className="w-11 h-11 shrink-0 rounded-full flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
         >
@@ -435,7 +436,7 @@ export default function ChatPage() {
         <div className="flex-1 min-w-0">
           <Link
             href={`/profile/${friend.uid}`}
-            className="text-sm font-bold truncate hover:underline inline-flex items-center gap-1 text-zinc-900 dark:text-white"
+            className="max-w-full min-h-11 text-sm font-bold break-words hover:underline flex items-center gap-1 text-zinc-900 dark:text-white"
           >
             {safeFriendName}
             <OfficialMark uid={friend.uid} isOfficial={friend.isOfficial} size={13} />
@@ -457,9 +458,7 @@ export default function ChatPage() {
             <p className="text-xs mt-1 text-zinc-600 dark:text-zinc-400">
               メッセージを送って会話を始めましょう
             </p>
-            <p className="text-xs mt-2 text-zinc-500 dark:text-zinc-500 font-mono">
-              Debug: myUid={userProfile.uid}, friendUid={friendUid}
-            </p>
+
           </div>
         )}
 
@@ -480,15 +479,6 @@ export default function ChatPage() {
               const isMine = msg.fromUid === userProfile.uid;
               const msgAvatar = isMine ? sanitizeAvatar(userProfile.avatar || "👤") : safeFriendAvatar;
               const msgUid = isMine ? userProfile.uid : friend.uid;
-              
-              console.log("Rendering message:", {
-                id: msg.id,
-                fromUid: msg.fromUid,
-                toUid: msg.toUid,
-                myUid: userProfile.uid,
-                isMine,
-                content: msg.content.substring(0, 20)
-              });
               
               return (
                 <motion.div
@@ -808,6 +798,7 @@ export default function ChatPage() {
                 </p>
               </div>
               <button
+                aria-label="返信をキャンセル"
                 onClick={() => setReplyingTo(null)}
                 className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-zinc-100 dark:bg-zinc-800"
               >
@@ -832,6 +823,7 @@ export default function ChatPage() {
             className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
+            aria-label="画像・動画をアップロード"
             title="画像・動画をアップロード"
           >
             <Paperclip size={18} />
@@ -842,6 +834,7 @@ export default function ChatPage() {
             className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white"
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
+            aria-label="課題を共有"
             title="課題を共有"
           >
             <ListTodo size={18} />
@@ -849,7 +842,7 @@ export default function ChatPage() {
 
           {/* Text input */}
           <div
-            className="flex-1 rounded-2xl overflow-hidden bg-zinc-100 dark:bg-zinc-800"
+            className="flex-1 min-w-0 rounded-2xl overflow-hidden bg-zinc-100 dark:bg-zinc-800"
           >
             <textarea
               ref={textareaRef}
@@ -861,6 +854,7 @@ export default function ChatPage() {
               e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
             }}
             onKeyDown={handleKeyDown}
+            aria-label="メッセージ"
             placeholder="メッセージを入力..."
             rows={1}
             className="w-full px-4 py-2.5 text-sm outline-none resize-none bg-transparent text-zinc-900 dark:text-white"
@@ -872,6 +866,7 @@ export default function ChatPage() {
 
         {/* Send button */}
         <motion.button
+          aria-label="メッセージを送信"
           onClick={handleSend}
           disabled={sending || (!text.trim() && mediaQueue.length === 0)}
           className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white disabled:opacity-40 ${

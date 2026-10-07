@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { buildDisplayProfileUpdate } from '../../src/lib/profilePayload';
+const stored = { uid: '1000000001', name: '以前の名前', avatar: '🎓', bio: '志望校に向けて勉強中', statusMessage: '集中中', visibility: 'private', dailyGoal: 10800, totalPoints: 350, bonusPoints: 20, showFollowCount: false, helpfulReceived: 8, headerImage: 'saved-header' };
+const background = buildDisplayProfileUpdate({ uid: stored.uid, name: '新しい名前', avatar: '📘' });
+const merged = { ...stored, ...background };
+for (const key of ['bio','statusMessage','visibility','dailyGoal','totalPoints','bonusPoints','showFollowCount','helpfulReceived','headerImage'] as const) assert.equal(merged[key], stored[key], `Background sync changed ${key}`);
+assert.equal(merged.name, '新しい名前');
+const cleared = { ...stored, ...buildDisplayProfileUpdate({ uid: stored.uid, name: stored.name, avatar: stored.avatar, bio: '', statusMessage: '', visibility: 'public', showFollowCount: true, dailyGoal: 600 }) };
+assert.equal(cleared.bio, ''); assert.equal(cleared.statusMessage, ''); assert.equal(cleared.visibility, 'public'); assert.equal(cleared.showFollowCount, true); assert.equal(cleared.dailyGoal, 600); assert.equal(cleared.totalPoints, 350);
+const limited = buildDisplayProfileUpdate({ uid: stored.uid, name: ' Alice ', avatar: '📘', bio: 'あ'.repeat(300), statusMessage: 'a'.repeat(150), deviceLabel: 'b'.repeat(60), equippedBadges: ['a','b','c','d'], headerImage: 'image' });
+assert.equal(limited.name, 'Alice'); assert.equal(String(limited.bio).length,280); assert.equal(String(limited.statusMessage).length,120); assert.equal(String(limited.deviceLabel).length,40); assert.deepEqual(limited.equippedBadges,['a','b','c']); assert.equal(limited.headerImageUrl,'image');
+console.log('PASS: background profile sync preserves privacy, biography, status, goal and points; explicit clearing and existing limits remain supported');

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useStore } from "@/store/useStore";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Trophy, TrendingUp } from "lucide-react";
 import RankingTrendModal from "./RankingTrendModal";
 import { fetchRankingData, fetchUserRankHistory, type RankHistoryPoint } from "@/lib/firestore/ranking";
@@ -10,7 +10,6 @@ import { fetchRankingData, fetchUserRankHistory, type RankHistoryPoint } from "@
 export default function RankingBadge() {
   const { userProfile } = useStore();
   const [showModal, setShowModal] = useState(false);
-  const [hovered, setHovered] = useState(false);
   const [rank, setRank] = useState(0);
   const [loading, setLoading] = useState(true);
   const [rankHistory, setRankHistory] = useState<RankHistoryPoint[]>([]);
@@ -55,9 +54,9 @@ export default function RankingBadge() {
     <>
       <motion.button
         onClick={() => setShowModal(true)}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        className="fixed top-4 right-52 z-40 h-10 flex items-center gap-2 px-3 rounded-xl glass-card cursor-pointer"
+        className="secondary-button"
+        aria-label="ランキング推移を開く"
+        aria-haspopup="dialog"
         style={{ padding: "0 12px" }}
         initial={{ opacity: 0, y: -20, scale: 0.9 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -70,21 +69,15 @@ export default function RankingBadge() {
         {/* Trophy icon with live pulse */}
         <div className="relative">
           <Trophy size={16} style={{ color: "#FFD700" }} />
-          <motion.div
-            className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full"
-            style={{ background: "#22c55e" }}
-            animate={{ scale: [1, 1.5, 1], opacity: [1, 0.5, 1] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          />
         </div>
 
         {/* Rank info */}
         <div className="flex flex-col items-start leading-none">
           <span
-            className="text-[8px] font-semibold uppercase tracking-widest"
+            className="text-xs font-semibold"
             style={{ color: "var(--muted)" }}
           >
-            Rank
+            ランキング
           </span>
           <span
             className="text-xs font-black font-mono"
@@ -99,26 +92,6 @@ export default function RankingBadge() {
           style={{ color: "var(--muted)", marginLeft: 2 }}
         />
 
-        {/* Tooltip on hover */}
-        <AnimatePresence>
-          {hovered && (
-            <motion.div
-              className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg whitespace-nowrap text-[11px] font-medium pointer-events-none"
-              style={{
-                background: "var(--card-bg)",
-                color: "var(--foreground)",
-                border: "1px solid var(--card-border)",
-                backdropFilter: "blur(8px)",
-                boxShadow: "var(--shadow)",
-              }}
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-            >
-              クリックして詳細を表示
-            </motion.div>
-          )}
-        </AnimatePresence>
       </motion.button>
 
       <RankingTrendModal

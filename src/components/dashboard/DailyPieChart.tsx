@@ -1,5 +1,6 @@
 "use client";
 
+import { useReducedMotion } from "framer-motion";
 import React, { useMemo } from "react";
 import { useStore } from "@/store/useStore";
 import { useLiveStudyLogs } from "@/components/dashboard/useLiveStudyLogs";
@@ -10,8 +11,28 @@ import EmptyState from "@/components/ui/EmptyState";
 import { PieChart as PieChartIcon } from "lucide-react";
 import { formatHoursMinutes } from "@/lib/utils";
 
+const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { color: string } }> }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div
+          className="glass-card-flat px-3 py-2"
+          style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}
+        >
+          <p className="text-sm font-medium" style={{ color: payload[0].payload.color }}>
+            {payload[0].name}
+          </p>
+          <p className="text-xs" style={{ color: "var(--muted)" }}>
+            {formatHoursMinutes(payload[0].value)}
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
 export default function DailyPieChart() {
-  const { subjects } = useStore();
+  const reduceMotion = useReducedMotion();
+  const subjects = useStore((state) => state.subjects);
   const studyLogs = useLiveStudyLogs();
 
   const data = useMemo(() => {
@@ -57,24 +78,7 @@ export default function DailyPieChart() {
     );
   }
 
-  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { color: string } }> }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div
-          className="glass-card-flat px-3 py-2"
-          style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}
-        >
-          <p className="text-sm font-medium" style={{ color: payload[0].payload.color }}>
-            {payload[0].name}
-          </p>
-          <p className="text-xs" style={{ color: "var(--muted)" }}>
-            {formatHoursMinutes(payload[0].value)}
-          </p>
-        </div>
-      );
-    }
-    return null;
-  };
+
 
   return (
     <GlassCard hover={false}>
@@ -90,6 +94,7 @@ export default function DailyPieChart() {
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
+                isAnimationActive={!reduceMotion}
                 data={data}
                 cx="50%"
                 cy="50%"

@@ -2,7 +2,7 @@ import {
   collection,
   query,
   where,
-  getDocs,
+  getDocsFromServer as getDocs,
   doc,
   setDoc,
   getDoc,
@@ -121,7 +121,8 @@ function getPeriodStart(period: string): Date {
  * and return sorted array (descending by totalDuration).
  */
 export async function fetchRankingData(
-  period: "today" | "week" | "month" | "all"
+  period: "today" | "week" | "month" | "all",
+  subjectName = ""
 ): Promise<AggregatedUser[]> {
   const periodStart = getPeriodStart(period);
 
@@ -144,6 +145,12 @@ export async function fetchRankingData(
 
   const [snapshot, rewardSnapshot] = await Promise.all([getDocs(q), getDocs(rewardsQuery)]);
 
+  const subjectIds = new Set<string>();
+  if (subjectName) {
+    const matchingSubjects = await getDocs(query(collection(db, "userSubjects"), where("name", "==", subjectName)));
+    matchingSubjects.docs.forEach((row) => subjectIds.add(row.id));
+  }
+
   // Aggregate
   const userMap = new Map<
     string,
@@ -153,7 +160,7 @@ export async function fetchRankingData(
   for (const d of snapshot.docs) {
     const data = d.data();
     const uid: string | undefined = data.userUid;
-    if (!uid) continue;
+    if (!uid || (subjectName && !subjectIds.has(String(data.subjectId || "")))) continue;
 
     const existing = userMap.get(uid) || {
       totalDuration: 0,
@@ -167,7 +174,7 @@ export async function fetchRankingData(
     userMap.set(uid, existing);
   }
 
-  for (const d of rewardSnapshot.docs) {
+  for (const d of subjectName ? [] : rewardSnapshot.docs) {
     const data = d.data();
     const uid: string | undefined = data.uid;
     if (!uid) continue;

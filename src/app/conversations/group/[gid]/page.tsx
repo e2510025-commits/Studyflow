@@ -177,7 +177,11 @@ export default function GroupConversationPage() {
     return map;
   }, [activeStudyUsers]);
 
-  const nowMs = Date.now();
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = window.setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const activeTasks = useMemo(() => {
     return tasks.filter((task) => {
@@ -560,18 +564,19 @@ export default function GroupConversationPage() {
   );
 
   return (
-    <div className="w-full max-w-none mx-auto h-[calc(100vh-88px)] flex flex-col gap-3 pb-16 lg:pb-0">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <div className="w-full max-w-none mx-auto chat-page flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <Link
+            aria-label="メッセージ一覧へ戻る"
             href="/conversations"
-            className="w-9 h-9 rounded-full flex items-center justify-center"
+            className="w-11 h-11 shrink-0 rounded-full flex items-center justify-center"
             style={{ background: "var(--muted-bg)" }}
           >
             <ArrowLeft size={16} style={{ color: "var(--foreground)" }} />
           </Link>
-          <div>
-            <h1 className="text-2xl font-black" style={{ color: "var(--foreground)" }}>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-black break-words" style={{ color: "var(--foreground)" }}>
               {currentGroup.name}
             </h1>
             <p className="text-xs" style={{ color: "var(--muted)" }}>
@@ -591,7 +596,7 @@ export default function GroupConversationPage() {
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-[1fr_360px] gap-3 flex-1 min-h-0">
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-3 flex-1 min-h-0">
         <section className="glass-card p-4 flex flex-col min-h-0">
           <div className="flex items-center gap-2 pb-3 border-b" style={{ borderColor: "var(--card-border)" }}>
             <MessageSquare size={16} style={{ color: "var(--accent)" }} />
@@ -675,6 +680,7 @@ export default function GroupConversationPage() {
               onClick={() => setTaskMenuOpen((prev) => !prev)}
               className="w-10 h-10 rounded-xl flex items-center justify-center"
               style={{ background: "var(--muted-bg)", color: taskMenuOpen ? "var(--accent)" : "var(--muted)" }}
+              aria-label="画像・課題の追加メニュー"
               title="追加"
             >
               <Plus size={18} />
@@ -711,11 +717,13 @@ export default function GroupConversationPage() {
                   void sendMessage();
                 }
               }}
+              aria-label="グループメッセージ"
               placeholder="メッセージを入力"
-              className="flex-1 px-3 py-2 rounded-xl text-sm"
+              className="flex-1 min-w-0 px-3 py-2 rounded-xl text-sm"
               style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
             />
             <button
+              aria-label="グループメッセージを送信"
               onClick={sendMessage}
               className="px-3 py-2 rounded-xl text-sm font-semibold text-white"
               style={{ background: "var(--accent)" }}
@@ -724,14 +732,15 @@ export default function GroupConversationPage() {
             </button>
           </div>
 
-          <div className="lg:hidden fixed left-0 right-0 bottom-14 z-30 px-3">
+          <div className="group-chat-composer lg:hidden fixed right-0 z-30 px-3">
             <div className="rounded-2xl p-2 border relative" style={{ background: "var(--card-bg)", borderColor: "var(--card-border)" }}>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setTaskMenuOpen((prev) => !prev)}
                   className="w-9 h-9 rounded-xl flex items-center justify-center"
                   style={{ background: "var(--muted-bg)", color: taskMenuOpen ? "var(--accent)" : "var(--muted)" }}
-                  title="追加"
+                  aria-label="画像・課題の追加メニュー"
+              title="追加"
                 >
                   <Plus size={16} />
                 </button>
@@ -745,13 +754,15 @@ export default function GroupConversationPage() {
                       void sendMessage();
                     }
                   }}
-                  placeholder="メッセージを入力"
-                  className="flex-1 px-3 py-2 rounded-xl text-sm"
+                  aria-label="グループメッセージ"
+              placeholder="メッセージを入力"
+                  className="flex-1 min-w-0 px-3 py-2 rounded-xl text-sm"
                   style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
                 />
 
                 <button
-                  onClick={sendMessage}
+                  aria-label="グループメッセージを送信"
+              onClick={sendMessage}
                   className="px-3 py-2 rounded-xl text-sm font-semibold text-white"
                   style={{ background: chatInput.trim() ? "#2563eb" : "#94a3b8" }}
                 >

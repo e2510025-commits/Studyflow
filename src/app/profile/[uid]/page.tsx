@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Cropper, { type Area } from "react-easy-crop";
+import { withTimeout } from "@/lib/async";
 import { useStore } from "@/store/useStore";
 import {
   canViewProfile,
@@ -39,7 +40,6 @@ import {
   type PresenceAgentInfo,
   subscribeUsersOnlineStatus,
 } from "@/lib/firestore/presence";
-import { getAchievementMeta } from "@/lib/achievements";
 import { formatHoursMinutes } from "@/lib/utils";
 import { Clock3, Flame, MessageCircle, PenLine, Repeat2, Search, Send, Share2, UserRound } from "lucide-react";
 import OfficialMark from "@/components/ui/OfficialMark";
@@ -164,10 +164,13 @@ export default function PublicProfilePage() {
     return Array.isArray(value) ? value[0] : value || "";
   }, [params.uid]);
 
-  const { userProfile, updateUserProfile } = useStore();
+  const userProfile = useStore((state) => state.userProfile);
+  const updateUserProfile = useStore((state) => state.updateUserProfile);
   const isSelf = !!uid && uid === userProfile.uid;
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [profileRetry, setProfileRetry] = useState(0);
   const [allowed, setAllowed] = useState(false);
   const [profile, setProfile] = useState<Awaited<ReturnType<typeof fetchPublicProfile>>>(null);
   const [stats, setStats] = useState({ totalSeconds: 0, totalSessions: 0 });
@@ -230,21 +233,21 @@ export default function PublicProfilePage() {
     let cancelled = false;
 
     void (async () => {
-      setLoading(true);
+      setLoading(true); setLoadError("");
       try {
-        const visible = await canViewProfile(uid, userProfile.uid);
+        const visible = await withTimeout(canViewProfile(uid, userProfile.uid));
         if (cancelled) return;
         setAllowed(visible);
         if (!visible) return;
 
-        const [p, s, hm, follow, cheer, recent] = await Promise.all([
+        const [p, s, hm, follow, cheer, recent] = await withTimeout(Promise.all([
           fetchPublicProfile(uid),
           fetchUserStudyStats(uid),
           fetchUserHeatmap(uid, 84),
           fetchFollowLists(uid, 300),
           fetchProfileCheerSummary(uid, userProfile.uid),
           fetchRecentProfileActivity(uid, 9),
-        ]);
+        ]));
 
         if (cancelled) return;
         setProfile(p);
@@ -257,7 +260,7 @@ export default function PublicProfilePage() {
         setFriendCount(follow.friends.length);
         setCheerCount(cheer.count);
         setCheered(cheer.cheeredByViewer);
-        setActivities(recent);
+        setActivities(recent.filter((item) => item.type !== "badge"));
 
         if (p) {
           setEditName(p.name || "");
@@ -266,6 +269,8 @@ export default function PublicProfilePage() {
           setEditAvatar(p.avatar || "👤");
           setEditHeader(p.headerImage || "");
         }
+      } catch {
+        if (!cancelled) setLoadError("プロフィールを読み込めませんでした。接続を確認して再試行してください。");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -274,7 +279,7 @@ export default function PublicProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [uid, userProfile.uid]);
+  }, [uid, userProfile.uid, profileRetry]);
 
   useEffect(() => {
     return subscribeActiveStudyUsers((rows) => {
@@ -390,7 +395,6 @@ export default function PublicProfilePage() {
   }[statusColor];
 
   const isImageAvatar = Boolean(profile?.avatar?.startsWith("http") || profile?.avatar?.startsWith("data:"));
-  const equipped = (profile?.equippedBadges || []).slice(0, 3);
   const modalRows =
     followModalTab === "following"
       ? followLists.following
@@ -637,6 +641,8 @@ export default function PublicProfilePage() {
     }
   };
 
+  if (loadError) return <div role="alert" className="glass-card max-w-3xl mx-auto p-5 space-y-3"><p>{loadError}</p><button className="secondary-button" onClick={() => setProfileRetry((value) => value + 1)}>プロフィールを再読み込み</button></div>;
+
   if (loading) {
     return <div className="max-w-5xl mx-auto py-12 text-sm" style={{ color: "var(--muted)" }}>読み込み中...</div>;
   }
@@ -664,45 +670,45 @@ export default function PublicProfilePage() {
   const canShowFriendCount = isSelf || profile.showFriendCount !== false;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-5">
+    <div className="screen-page profile-page">
       <section className="glass-card overflow-hidden">
         <div className="relative">
-          <div className="h-[170px] sm:h-[250px]" style={{ background: headerBackground }} />
-          <div className="absolute left-5 sm:left-7 -bottom-[50px]">
+          <div className="profile-cover" style={{ background: headerBackground }} />
+          <div className="profile-avatar">
             <div className="relative">
               {isImageAvatar ? (
                 <img
                   src={profile.avatar}
                   alt={profile.name}
                   className="w-[100px] h-[100px] sm:w-[110px] sm:h-[110px] rounded-full object-cover border-[5px] shadow-xl"
-                  style={{ borderColor: "#ffffff" }}
+                  style={{ borderColor: "var(--card-bg)" }}
                 />
               ) : (
                 <div
                   className="w-[100px] h-[100px] sm:w-[110px] sm:h-[110px] rounded-full flex items-center justify-center text-4xl border-[5px] shadow-xl"
-                  style={{ borderColor: "#ffffff", background: "var(--accent-light)" }}
+                  style={{ borderColor: "var(--card-bg)", background: "var(--accent-light)" }}
                 >
                   {profile.avatar}
                 </div>
               )}
               <span
                 className="absolute right-1.5 bottom-1.5 w-4 h-4 rounded-full border-2"
-                style={{ background: statusStyle.bg, borderColor: "#ffffff" }}
+                style={{ background: statusStyle.bg, borderColor: "var(--card-bg)" }}
                 title={statusStyle.label}
               />
             </div>
           </div>
         </div>
 
-        <div className="px-5 sm:px-6 pt-[62px] pb-5">
+        <div className="profile-details">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="min-w-0 flex-1 space-y-2">
               <div className="flex flex-col md:flex-row md:items-end md:gap-4">
-                <h1 className="text-3xl sm:text-4xl font-black leading-none inline-flex items-center gap-2" style={{ color: "var(--foreground)" }}>
+                <h1 className="text-3xl sm:text-4xl font-black leading-tight break-words min-w-0 flex-wrap inline-flex items-center gap-2" style={{ color: "var(--foreground)" }}>
                   {profile.name}
                   <OfficialMark uid={profile.uid} isOfficial={profile.isOfficial} size={20} />
                 </h1>
-                <p className="text-sm mt-2 md:mt-0 md:max-w-[560px]" style={{ color: "var(--foreground)" }}>
+                <p className="text-sm break-words mt-2 md:mt-0 md:max-w-[560px]" style={{ color: "var(--foreground)" }}>
                   {profile.bio || "一言メッセージはまだ設定されていません"}
                 </p>
               </div>
@@ -822,6 +828,7 @@ export default function PublicProfilePage() {
             value={composerText}
             onChange={(e) => setComposerText(e.target.value.slice(0, 1200))}
             rows={3}
+            aria-label="プロフィールから投稿"
             placeholder="いまの学習や気づきを投稿しよう"
             className="mt-2 w-full px-3 py-2 rounded-xl text-sm resize-none"
             style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
@@ -863,7 +870,7 @@ export default function PublicProfilePage() {
         </section>
       )}
 
-      <section className="grid md:grid-cols-4 gap-3">
+      <section className="profile-metrics">
         <div className="glass-card p-4">
           <p className="text-xs" style={{ color: "var(--muted)" }}>学習時間</p>
           <p className="text-xl font-black" style={{ color: "var(--accent)" }}>{formatHoursMinutes(stats.totalSeconds)}</p>
@@ -1001,35 +1008,6 @@ export default function PublicProfilePage() {
         </div>
       </section>
 
-      <section className="glass-card p-4">
-        <h2 className="text-base font-black" style={{ color: "var(--foreground)" }}>装備中の勲章</h2>
-        <div className="mt-3 flex flex-wrap gap-3">
-          {equipped.length === 0 ? (
-            <p className="text-sm" style={{ color: "var(--muted)" }}>装備中の勲章はありません</p>
-          ) : (
-            equipped.map((id) => {
-              const meta = getAchievementMeta(id);
-              return (
-                <div key={id} className="min-w-[120px] rounded-xl p-3" style={{ background: "var(--muted-bg)" }}>
-                  <div
-                    className="w-12 h-12 mx-auto flex items-center justify-center text-[10px] font-black"
-                    style={{
-                      clipPath: "polygon(25% 6%, 75% 6%, 100% 50%, 75% 94%, 25% 94%, 0 50%)",
-                      background: "linear-gradient(145deg,#334155,#06b6d4)",
-                      color: "#ecfeff",
-                    }}
-                  >
-                    {String(meta?.rarity || "R").slice(0, 2).toUpperCase()}
-                  </div>
-                  <p className="text-xs font-bold mt-2 text-center" style={{ color: "var(--foreground)" }}>
-                    {meta?.title || id}
-                  </p>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </section>
 
       <section className="glass-card p-5">
         <h3 className="text-sm font-black" style={{ color: "var(--foreground)" }}>アクティビティ</h3>
@@ -1040,7 +1018,7 @@ export default function PublicProfilePage() {
             activities.map((item) => (
               <div key={item.id} className="rounded-xl px-3 py-2" style={{ background: "var(--muted-bg)" }}>
                 <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                  {item.type === "badge" ? "勲章" : "学習"}・{item.label}
+                  学習・{item.label}
                 </p>
                 <p className="text-xs" style={{ color: "var(--muted)" }}>
                   {item.detail || ""} {formatRelativeTime(item.createdAt)}
@@ -1051,7 +1029,7 @@ export default function PublicProfilePage() {
         </div>
       </section>
 
-      <section className="grid xl:grid-cols-[1.3fr_0.7fr] gap-4">
+      <section className="profile-activity">
         <div className="glass-card p-4">
           <h3 className="text-sm font-black" style={{ color: "var(--foreground)" }}>学習ヒートマップ</h3>
           <div className="mt-3 grid grid-cols-12 gap-1.5">

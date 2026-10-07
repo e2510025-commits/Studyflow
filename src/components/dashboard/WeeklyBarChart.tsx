@@ -1,5 +1,6 @@
 "use client";
 
+import { useReducedMotion } from "framer-motion";
 import React, { useMemo, useState } from "react";
 import { useStore } from "@/store/useStore";
 import { useLiveStudyLogs } from "@/components/dashboard/useLiveStudyLogs";
@@ -88,7 +89,8 @@ function ChartTooltip({
 }
 
 export default function WeeklyBarChart() {
-  const { subjects } = useStore();
+  const reduceMotion = useReducedMotion();
+  const subjects = useStore((state) => state.subjects);
   const studyLogs = useLiveStudyLogs();
   const [period, setPeriod] = useState<Period>("week");
 
@@ -165,7 +167,7 @@ export default function WeeklyBarChart() {
 
   return (
     <GlassCard hover={false}>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
           <h3 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
             学習時間の推移
@@ -179,7 +181,8 @@ export default function WeeklyBarChart() {
             <button
               key={p}
               onClick={() => setPeriod(p)}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+              aria-pressed={period === p}
+              className="min-h-11 px-3 py-2 rounded-lg text-sm font-medium transition-all"
               style={{
                 background: period === p ? "var(--accent-light)" : "transparent",
                 color: period === p ? "var(--accent)" : "var(--muted)",
@@ -207,23 +210,24 @@ export default function WeeklyBarChart() {
         <div className="w-full h-72 sm:h-80">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} barGap={2}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <CartesianGrid stroke="var(--card-border)" strokeDasharray="3 3" vertical={false} />
               <XAxis
                 dataKey="date"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fontSize: 12 }}
+                tick={{ fontSize: 12, fill: "var(--muted)" }}
               />
               <YAxis
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={formatYAxis}
                 width={40}
-                tick={{ fontSize: 11 }}
+                tick={{ fontSize: 11, fill: "var(--muted)" }}
               />
               <Tooltip content={<ChartTooltip subjects={subjects} />} />
               {subjects.map((sub) => (
                 <Bar
+                  isAnimationActive={!reduceMotion}
                   key={sub.id}
                   dataKey={sub.id}
                   stackId="a"
@@ -253,12 +257,12 @@ export default function WeeklyBarChart() {
                   </linearGradient>
                 ))}
               </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <CartesianGrid stroke="var(--card-border)" strokeDasharray="3 3" vertical={false} />
               <XAxis
                 dataKey="date"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fontSize: 11 }}
+                tick={{ fontSize: 11, fill: "var(--muted)" }}
                 interval="preserveStartEnd"
               />
               <YAxis
@@ -266,11 +270,12 @@ export default function WeeklyBarChart() {
                 tickLine={false}
                 tickFormatter={formatYAxis}
                 width={40}
-                tick={{ fontSize: 11 }}
+                tick={{ fontSize: 11, fill: "var(--muted)" }}
               />
               <Tooltip content={<ChartTooltip subjects={subjects} />} />
               {subjects.map((sub) => (
                 <Area
+                  isAnimationActive={!reduceMotion}
                   key={sub.id}
                   type="monotone"
                   dataKey={sub.id}

@@ -63,7 +63,7 @@ export default function SubjectSelector({
   selectedId,
   onSelect,
 }: SubjectSelectorProps) {
-  const { subjects } = useStore();
+  const subjects = useStore((state) => state.subjects);
 
   return (
     <div className="w-full">
@@ -73,31 +73,32 @@ export default function SubjectSelector({
       >
         教科を選択
       </h3>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      <div className="subject-choice-grid grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {subjects.map((subject: Subject) => {
           const isSelected = selectedId === subject.id;
           return (
             <motion.button
               key={subject.id}
               onClick={() => onSelect(subject.id)}
-              className="relative flex flex-col items-center gap-2 py-5 px-4 rounded-xl transition-all duration-200"
+              aria-pressed={isSelected}
+              className="relative flex items-center gap-2 min-h-12 py-2 px-3 rounded-xl transition-all duration-200"
               style={{
                 background: isSelected
                   ? `${subject.color}2e`
                   : "var(--muted-bg)",
                 border: isSelected
-                  ? `3px solid ${subject.color}`
+                  ? `2px solid ${subject.color}`
                   : "2px solid transparent",
                 color: isSelected ? subject.color : "var(--muted)",
                 boxShadow: isSelected
-                  ? `0 10px 22px ${subject.color}40`
+                  ? "none"
                   : "0 0 0 transparent",
               }}
-              whileHover={{ scale: 1.04 }}
+              whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.97 }}
             >
               <div
-                className="w-12 h-12 rounded-full flex items-center justify-center"
+                className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center"
                 style={{
                   background: isSelected
                     ? `${subject.color}46`
@@ -108,7 +109,7 @@ export default function SubjectSelector({
               >
                 <SubjectIcon iconName={subject.icon} size={20} />
               </div>
-              <span className="text-sm font-semibold truncate w-full text-center">
+              <span className="text-sm font-semibold truncate text-left">
                 {subject.name}
               </span>
             </motion.button>

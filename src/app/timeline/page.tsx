@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Clock3, Flag, Flame, ImagePlus, MessageCircle, MoreHorizontal, Pencil, Plus, Repeat2, Send, Share2, Trash2, Waves, X } from "lucide-react";
+import { Clock3, Flag, Flame, ImagePlus, MessageCircle, MoreHorizontal, Pencil, Repeat2, Send, Share2, Trash2, Waves } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import {
   deleteTimelinePost,
@@ -27,10 +27,13 @@ import {
   fetchUserMiniProfilesByUids,
   type UserMiniProfile,
 } from "@/lib/firestore/profile";
+import Dialog from "@/components/ui/Dialog";
+import EmptyState from "@/components/ui/EmptyState";
 import OfficialMark from "@/components/ui/OfficialMark";
 import ImageLightbox from "@/components/ui/ImageLightbox";
 import { useR2CompressedImageUpload } from "@/hooks/useR2CompressedImageUpload";
 import type { CommunityStreamMessage } from "@/types";
+import CommunityRail from "@/components/layout/CommunityRail";
 
 function formatTime(iso: string) {
   const d = new Date(iso);
@@ -81,7 +84,7 @@ function renderBodyWithMentions(
         <button
           type="button"
           key={`${lineIndex}_${match.index}_${token}`}
-          className="font-semibold hover:underline"
+          className="font-semibold hover:underline break-all"
           style={{ color: "var(--accent)" }}
           onClick={(event) => {
             if (options?.stopPropagation) event.stopPropagation();
@@ -180,12 +183,17 @@ function renderQuoteNestedCard(
 
 export default function TimelinePage() {
   const router = useRouter();
-  const { userProfile } = useStore();
+  const userProfile = useStore((state) => state.userProfile);
+  const friends = useStore((state) => state.friends);
+  const [feedScope, setFeedScope] = useState<"all" | "friends" | "mine">("all");
   const [rows, setRows] = useState<CommunityStreamMessage[]>([]);
   const [respectIds, setRespectIds] = useState<Set<string>>(new Set());
   const [likeIds, setLikeIds] = useState<Set<string>>(new Set());
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  const [fabBootLog, setFabBootLog] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [feedError, setFeedError] = useState("");
+  const [retry, setRetry] = useState(0);
+  const [composeError, setComposeError] = useState("");
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeBody, setComposeBody] = useState("");
   const [composeImage, setComposeImage] = useState("");
@@ -211,10 +219,15 @@ export default function TimelinePage() {
   const composeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
-    return subscribeTimelinePosts((next) =>
-      setRows(next.filter((row) => row.kind === "user" && isVisibleTimelinePost(row)))
-    );
-  }, []);
+    return subscribeTimelinePosts((next) => {
+      setRows(next.filter((row) => row.kind === "user" && isVisibleTimelinePost(row)));
+      setLoading(false);
+      setFeedError("");
+    }, 140, () => {
+      setLoading(false);
+      setFeedError("投稿を読み込めませんでした。接続を確認して再試行してください。");
+    });
+  }, [retry]);
 
   useEffect(() => {
     if (!userProfile.uid) return;
@@ -280,7 +293,7 @@ export default function TimelinePage() {
     };
   }, [composeOpen, userProfile.uid]);
 
-  const feed = useMemo(() => [...rows].slice(0, 120), [rows]);
+  const feed = useMemo(() => rows.filter((row) => feedScope === "all" || (feedScope === "mine" ? row.uid === userProfile.uid : friends.some((friend) => friend.uid === row.uid))).slice(0, 120), [rows, feedScope, userProfile.uid, friends]);
 
   const resolveMentionUid = useCallback(
     async (token: string): Promise<string | null> => {
@@ -348,13 +361,8 @@ export default function TimelinePage() {
     };
   }, [feed, mentionUidByToken]);
 
-  const openComposer = () => {
-    setFabBootLog(true);
-    window.setTimeout(() => {
-      setFabBootLog(false);
-      setComposeOpen(true);
-    }, 650);
-  };
+  const openComposer = () => { setComposeError(""); setComposeOpen(true); };
+  const closeComposer = () => { if (!sending && !imageUploading) { setComposeOpen(false); setQuoteTarget(null); } };
 
   const onSelectImage = async (file?: File | null) => {
     if (!file) return;
@@ -371,6 +379,7 @@ export default function TimelinePage() {
     if (sending || !userProfile.uid) return;
     if (!composeBody.trim() && !composeImage) return;
     setSending(true);
+    setComposeError("");
     try {
       if (composeImage) {
         await sendTimelineImagePost({
@@ -407,6 +416,8 @@ export default function TimelinePage() {
       setComposeOpen(false);
       setMentionOpen(false);
       setMentionKeyword("");
+    } catch {
+      setComposeError("投稿できませんでした。入力は保持されています。もう一度お試しください。");
     } finally {
       setSending(false);
     }
@@ -566,18 +577,18 @@ export default function TimelinePage() {
   };
 
   return (
-    <div className="max-w-[600px] mx-auto space-y-4 px-2 sm:px-0">
-      <div className="flex items-center gap-3">
-        <Waves size={24} style={{ color: "var(--accent)" }} />
-        <div>
-          <h1 className="text-3xl font-black" style={{ color: "var(--foreground)" }}>タイムライン</h1>
-          <p className="text-sm" style={{ color: "var(--muted)" }}>学習ログと投稿を時系列で表示</p>
-        </div>
+    <div className="timeline-page screen-page">
+      <div className="page-heading">
+        <div><h1>タイムライン</h1><p>仲間の学びや、今日の気づきを共有しよう。</p></div>
+        <button type="button" className="primary-button" onClick={openComposer}><Pencil size={17} aria-hidden="true" />投稿する</button>
       </div>
+      <div className="workspace-grid community-workspace"><div className="workspace-main feed-column">
+      <button type="button" onClick={openComposer} className="timeline-compose-prompt"><span className="person-initial" aria-hidden="true">{Array.from(userProfile.name || "自分")[0]}</span><span>今日の学びをシェアしよう</span><Pencil size={20} aria-hidden="true" /></button>
+      <div className="feed-tabs" aria-label="投稿の表示範囲">{([["all", "すべて"], ["friends", "フレンド"], ["mine", "自分の投稿"]] as const).map(([scope, label]) => <button key={scope} type="button" aria-pressed={feedScope === scope} onClick={() => setFeedScope(scope)}>{label}</button>)}</div>
 
-      <section className="glass-card p-4 space-y-3">
-        {feed.length === 0 ? (
-          <p className="text-sm" style={{ color: "var(--muted)" }}>投稿はまだありません。</p>
+      <section className="feed-surface overflow-hidden" aria-label="投稿一覧">
+        {loading ? <div className="p-6 space-y-4" role="status"><p className="text-sm text-muted">投稿を読み込み中…</p><div className="feed-skeleton" /><div className="feed-skeleton" /></div> : feedError ? <div className="p-6"><p role="alert" className="text-sm text-danger">{feedError}</p><button type="button" className="secondary-button mt-4" onClick={() => { setFeedError(""); setLoading(true); setRetry((value) => value + 1); }}>再試行する</button></div> : feed.length === 0 ? (
+          <EmptyState title={feedScope === "all" ? "最初の学びをシェアしよう" : "この範囲の投稿はまだありません"} description="投稿や学習記録が、ここに表示されます。" icon={<Waves size={30} />} />
         ) : (
           feed.map((row) => {
             const isAvatarImage = row.avatar.startsWith("http") || row.avatar.startsWith("data:");
@@ -588,8 +599,7 @@ export default function TimelinePage() {
             return (
               <motion.article
                 key={row.id}
-                className="rounded-xl p-3 cursor-pointer"
-                style={{ background: "var(--muted-bg)" }}
+                className="timeline-post"
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 onClick={() => router.push(`/timeline/${row.id}`)}
@@ -604,10 +614,11 @@ export default function TimelinePage() {
                     {isAvatarImage ? <img src={row.avatar} alt={row.name} className="w-full h-full object-cover" /> : row.avatar}
                   </Link>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-xs" style={{ color: "var(--muted)" }}>
+                    <Link href={`/timeline/${row.id}`} className="sr-only">{row.name}の投稿詳細を開く</Link>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" style={{ color: "var(--muted)" }}>
                       <Link
                         href={`/profile/${row.uid}`}
-                        className="font-semibold hover:underline"
+                        className="font-semibold hover:underline break-all"
                         style={{ color: "var(--foreground)" }}
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -620,7 +631,9 @@ export default function TimelinePage() {
                           e.stopPropagation();
                           setMenuPostId((prev) => (prev === row.id ? "" : row.id));
                         }}
-                        className="ml-auto p-1 rounded-md"
+                        className="icon-button ml-auto"
+                        aria-label={`${row.name}の投稿メニュー`}
+                        aria-expanded={menuPostId === row.id}
                         style={{ background: "var(--card-bg)", color: "var(--muted)" }}
                         title="メニュー"
                       >
@@ -643,7 +656,7 @@ export default function TimelinePage() {
                               void saveEdit();
                             }}
                             className="px-2 py-1 rounded-md text-[11px] font-semibold text-white"
-                            style={{ background: "var(--accent)" }}
+                            style={{ background: "var(--accent)", color: "var(--primary-foreground)" }}
                           >
                             保存
                           </button>
@@ -661,7 +674,7 @@ export default function TimelinePage() {
                         </div>
                       </div>
                     ) : (
-                      <p className="text-sm mt-1 whitespace-pre-wrap" style={{ color: "var(--foreground)" }}>
+                      <p className="text-base mt-2 whitespace-pre-wrap break-words" style={{ color: "var(--foreground)" }}>
                         {renderBodyWithMentions(row.body, {
                           stopPropagation: true,
                           onMentionClick: (token) => {
@@ -730,46 +743,46 @@ export default function TimelinePage() {
                         }}
                       />
                     )}
-                    <div className="mt-2 grid grid-cols-4 gap-2 text-xs" onClick={(e) => e.stopPropagation()}>
+                    <div className="timeline-reactions" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           router.push(`/timeline/${row.id}`);
                         }}
-                        className="inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg"
+                        className="inline-flex flex-wrap items-center justify-center gap-1 min-h-11 py-2 rounded-lg"
                         style={{ color: "var(--muted)" }}
                       >
-                        <MessageCircle size={14} /> 返信 {Math.max(0, Number(row.replyCount || 0))}
+                        <MessageCircle size={16} /> 返信 {Math.max(0, Number(row.replyCount || 0))}
                       </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setRepostMenuPostId((prev) => (prev === row.id ? "" : row.id));
                         }}
-                        className="inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg"
+                        className="inline-flex flex-wrap items-center justify-center gap-1 min-h-11 py-2 rounded-lg"
                         style={{ color: respectedByMe ? "#0284c7" : "var(--muted)" }}
                       >
-                        <Repeat2 size={14} /> リポスト {Math.max(0, Number(row.respectCount || 0))}
+                        <Repeat2 size={16} /> リポスト {Math.max(0, Number(row.respectCount || 0))}
                       </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           void toggleTimelineLike({ postId: row.id, uid: userProfile.uid });
                         }}
-                        className="inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg"
+                        className="inline-flex flex-wrap items-center justify-center gap-1 min-h-11 py-2 rounded-lg"
                         style={{ color: likedByMe ? "#f97316" : "var(--muted)" }}
                       >
-                        <Flame size={14} /> いいね {Math.max(0, Number(row.likeCount || 0))}
+                        <Flame size={16} /> いいね {Math.max(0, Number(row.likeCount || 0))}
                       </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           void sharePost(row.id);
                         }}
-                        className="inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg"
+                        className="inline-flex flex-wrap items-center justify-center gap-1 min-h-11 py-2 rounded-lg"
                         style={{ color: "var(--muted)" }}
                       >
-                        <Share2 size={14} /> 共有
+                        <Share2 size={16} /> 共有
                       </button>
                     </div>
                     {repostMenuPostId === row.id && (
@@ -800,6 +813,7 @@ export default function TimelinePage() {
           })
         )}
       </section>
+      </div><CommunityRail /></div>
 
       <ImageLightbox src={lightboxUrl} open={Boolean(lightboxUrl)} onClose={() => setLightboxUrl(null)} zIndexClass="z-30" />
 
@@ -815,41 +829,8 @@ export default function TimelinePage() {
         }}
       />
 
-      {fabBootLog && (
-        <div className="fixed right-5 bottom-24 z-40 px-3 py-2 rounded-lg text-xs font-mono" style={{ background: "rgba(15,23,42,0.92)", color: "#22d3ee" }}>
-          INITIALIZING POST INTERFACE...
-        </div>
-      )}
-
-      <button
-        onClick={openComposer}
-        className="fixed right-5 bottom-5 z-40 w-14 h-14 rounded-full text-white grid place-items-center shadow-xl"
-        style={{ background: "linear-gradient(135deg,#8b5cf6,#7c3aed)" }}
-      >
-        <Plus size={24} />
-      </button>
-
-      {composeOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/45 grid place-items-center p-4"
-          onClick={() => {
-            setComposeOpen(false);
-            setQuoteTarget(null);
-          }}
-        >
-          <div className="w-full max-w-lg rounded-2xl p-4 space-y-3" style={{ background: "var(--card-bg)" }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-black" style={{ color: "var(--foreground)" }}>新しいポスト</h3>
-              <button
-                onClick={() => {
-                  setComposeOpen(false);
-                  setQuoteTarget(null);
-                }}
-                style={{ color: "var(--muted)" }}
-              >
-                <X size={16} />
-              </button>
-            </div>
+      <Dialog open={composeOpen} onClose={closeComposer} title={quoteTarget ? "引用して投稿" : "新しい投稿"}>
+        <div className="space-y-4">
             {mentionOpen && mentionResults.length > 0 && (
               <div className="rounded-xl border p-2 max-h-44 overflow-y-auto" style={{ background: "var(--card-bg)", borderColor: "var(--glass-border)" }}>
                 {mentionResults.map((candidate) => {
@@ -880,14 +861,16 @@ export default function TimelinePage() {
             )}
             <textarea
               ref={composeTextareaRef}
+              autoFocus
+              aria-label="投稿の本文"
               value={composeBody}
               onChange={(e) => {
                 const next = e.target.value.slice(0, 1200);
                 handleComposerChange(next, e.target.selectionStart || 0);
               }}
               rows={5}
-              placeholder="いまどうしてる？（@UID でメンション）"
-              className="w-full px-3 py-2 rounded-xl text-sm resize-none"
+              placeholder="今日の学びや気づきを書いてみよう（@でメンション）"
+              className="app-input w-full resize-none"
               style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
             />
             {quoteTarget && (
@@ -927,14 +910,15 @@ export default function TimelinePage() {
                 onClick={() => void submitPost()}
                 disabled={sending || imageUploading || (!composeBody.trim() && !composeImage)}
                 className="px-3 py-2 rounded-lg text-sm font-semibold text-white inline-flex items-center gap-1 disabled:opacity-50"
-                style={{ background: "var(--accent)" }}
+                style={{ background: "var(--accent)", color: "var(--primary-foreground)" }}
               >
                 <Send size={14} /> {imageUploading ? "画像処理中..." : "投稿"}
               </button>
             </div>
-          </div>
+          {composeError && <p role="alert" className="text-sm text-danger">{composeError}</p>}
+          <p className="text-xs text-muted text-right">{composeBody.length} / 1200</p>
         </div>
-      )}
+      </Dialog>
 
       {reportTarget && (
         <div className="fixed inset-0 z-50 bg-black/45 grid place-items-center p-4" onClick={() => setReportTarget(null)}>
@@ -957,7 +941,7 @@ export default function TimelinePage() {
               onChange={(e) => setReportDetail(e.target.value.slice(0, 1200))}
               rows={4}
               placeholder="詳細（任意）"
-              className="w-full px-3 py-2 rounded-xl text-sm resize-none"
+              className="app-input w-full resize-none"
               style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
             />
             <div className="flex justify-end gap-2">

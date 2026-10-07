@@ -2,11 +2,10 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import AchievementManager from "@/components/admin/AchievementManager";
 import MissionManager from "@/components/admin/MissionManager";
 import SupportManager from "@/components/admin/SupportManager";
 
-type AdminSection = "overview" | "support" | "announcements" | "missions" | "achievements" | "users" | "reports" | "timelineDeletes";
+type AdminSection = "overview" | "support" | "announcements" | "missions" | "users" | "reports" | "timelineDeletes";
 
 interface AdminOverview {
   users: number;
@@ -355,7 +354,7 @@ export default function AdminPage() {
       <div>
         <h1 className="text-3xl font-black" style={{ color: "var(--foreground)" }}>管理者ページ</h1>
         <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
-          ユーザー管理・警告/利用停止・ミッション/勲章設定・お知らせ発信
+          ユーザー管理・警告/利用停止・ミッション設定・お知らせ発信
         </p>
       </div>
 
@@ -365,7 +364,6 @@ export default function AdminPage() {
           ["support", "お問い合わせ"],
           ["announcements", "お知らせ"],
           ["missions", "ミッション"],
-          ["achievements", "勲章"],
           ["users", "ユーザー管理"],
           ["reports", "違反報告"],
           ["timelineDeletes", "削除履歴"],
@@ -563,7 +561,6 @@ export default function AdminPage() {
 
       {section === "missions" && <MissionManager />}
 
-      {section === "achievements" && <AchievementManager />}
 
       {section === "users" && (
         <section className="glass-card p-4 space-y-3">

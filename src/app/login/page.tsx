@@ -1,16 +1,48 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState, useSyncExternalStore } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
+import { loginErrorMessage } from "@/lib/auth/provider-config";
 
 type AuthMode = "login" | "register";
+function subscribeLocation(callback: () => void) {
+  window.addEventListener("popstate", callback);
+  return () => window.removeEventListener("popstate", callback);
+}
+const locationError = () => new URLSearchParams(window.location.search).get("error") || "";
 
 export default function LoginPage() {
   const [mode, setMode] = useState<AuthMode>("login");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [queryDismissed, setQueryDismissed] = useState(false);
+  const errorCode = useSyncExternalStore(subscribeLocation, locationError, () => "");
+  const visibleError = error || (!queryDismissed && errorCode ? loginErrorMessage(errorCode) : "");
+  const [providerAttempt, setProviderAttempt] = useState(0);
+  const [providers, setProviders] = useState<{ status: "loading" | "ready" | "error"; google: boolean; credentials: boolean }>({ status: "loading", google: false, credentials: false });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 10000);
+    let active = true;
+    async function loadProviders() {
+      try {
+        const response = await fetch("/api/auth/providers", { signal: controller.signal, cache: "no-store" });
+        if (!response.ok) throw new Error("Providers unavailable");
+        const data = await response.json();
+        if (!data || typeof data !== "object" || !data.credentials) throw new Error("Providers unavailable");
+        if (active) setProviders({ status: "ready", google: !!data.google, credentials: !!data.credentials });
+      } catch {
+        if (active) setProviders({ status: "error", google: false, credentials: false });
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    }
+    void loadProviders();
+    return () => { active = false; controller.abort(); window.clearTimeout(timeout); };
+  }, [providerAttempt]);
 
   const [form, setForm] = useState({
     email: "",
@@ -20,10 +52,12 @@ export default function LoginPage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
     setError("");
+    setQueryDismissed(true);
   };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading || providers.status !== "ready" || !providers.credentials) return;
     setLoading(true);
     setError("");
 
@@ -51,7 +85,9 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError("メールアドレスまたはパスワードが間違っています");
+        setError(loginErrorMessage(result.error));
+      } else if (!result?.ok) {
+        setError("ログイン処理を完了できませんでした。もう一度お試しください。");
       } else {
         window.location.href = "/";
       }
@@ -62,6 +98,7 @@ export default function LoginPage() {
   };
 
   const handleOAuth = async (provider: string) => {
+    if (loading || providers.status !== "ready" || !providers.google) return;
     setLoading(true);
     setError("");
     try {
@@ -72,11 +109,17 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError("認証に失敗しました");
+        setError(loginErrorMessage(result.error));
         return;
       }
 
       if (result?.url) {
+        const destination = new URL(result.url, window.location.origin);
+        const code = destination.searchParams.get("error");
+        if (destination.origin === window.location.origin && code) {
+          setError(loginErrorMessage(code));
+          return;
+        }
         window.location.assign(result.url);
         return;
       }
@@ -111,15 +154,6 @@ export default function LoginPage() {
       >
         {/* Logo */}
         <div className="text-center mb-8">
-          <motion.div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-            style={{ background: "var(--accent)", color: "#fff" }}
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-          >
-            <GraduationCap size={32} />
-          </motion.div>
           <h1 className="text-3xl font-black" style={{ color: "var(--foreground)" }}>
             StudyFlow
           </h1>
@@ -131,7 +165,7 @@ export default function LoginPage() {
         {/* Card */}
         <div className="glass-card p-8">
           {/* OAuth button (Google credentialsが設定されている場合のみ表示) */}
-          <div className="space-y-3 mb-6">
+          {providers.google && <div className="space-y-3 mb-6">
             <button
               onClick={() => handleOAuth("google")}
               disabled={loading}
@@ -146,16 +180,25 @@ export default function LoginPage() {
               </svg>
               Googleでログイン
             </button>
-          </div>
+          </div>}
 
           {/* Divider */}
-          <div className="flex items-center gap-3 mb-6">
+          {providers.google && <div className="flex items-center gap-3 mb-6">
             <div className="flex-1 h-px" style={{ background: "var(--card-border)" }} />
             <span className="text-xs font-medium" style={{ color: "var(--muted)" }}>
               または
             </span>
             <div className="flex-1 h-px" style={{ background: "var(--card-border)" }} />
-          </div>
+          </div>}
+
+          {providers.status === "loading" && <p role="status" className="text-sm mb-4" style={{ color: "var(--muted)" }}>ログイン方法を確認中…</p>}
+          {providers.status === "error" && <div role="alert" className="text-sm mb-4" style={{ color: "var(--danger)" }}>
+            <p>現在ログインを利用できません。時間をおいて再確認してください。</p>
+            <button type="button" className="min-h-11 underline font-semibold" onClick={() => {
+              setProviders({ status: "loading", google: false, credentials: false });
+              setProviderAttempt((attempt) => attempt + 1);
+            }}>ログイン方法を再確認</button>
+          </div>}
 
           {/* Email form */}
           <form onSubmit={handleEmailAuth} className="space-y-4">
@@ -185,6 +228,8 @@ export default function LoginPage() {
                 value={form.email}
                 onChange={handleChange}
                 placeholder="メールアドレス"
+                aria-label="メールアドレス"
+                autoComplete="email"
                 className="w-full pl-10 pr-4 py-3 rounded-xl text-sm font-medium outline-none transition-all"
                 style={{
                   background: "var(--muted-bg)",
@@ -209,6 +254,8 @@ export default function LoginPage() {
                 value={form.password}
                 onChange={handleChange}
                 placeholder="パスワード"
+                aria-label="パスワード"
+                autoComplete={mode === "register" ? "new-password" : "current-password"}
                 className="w-full pl-10 pr-12 py-3 rounded-xl text-sm font-medium outline-none transition-all"
                 style={{
                   background: "var(--muted-bg)",
@@ -222,8 +269,9 @@ export default function LoginPage() {
               />
               <button
                 type="button"
+                aria-label={showPassword ? "パスワードを隠す" : "パスワードを表示"}
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2"
+                className="absolute right-0 top-1/2 -translate-y-1/2 min-h-11 min-w-11 flex items-center justify-center"
                 style={{ color: "var(--muted)" }}
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -232,15 +280,16 @@ export default function LoginPage() {
 
             {/* Error */}
             <AnimatePresence>
-              {error && (
+              {visibleError && (
                 <motion.div
+                  role="alert"
                   className="text-sm font-medium px-3 py-2 rounded-lg"
                   style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
                 >
-                  {error}
+                  {visibleError}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -248,7 +297,7 @@ export default function LoginPage() {
             {/* Submit */}
             <motion.button
               type="submit"
-              disabled={loading}
+              disabled={loading || providers.status !== "ready" || !providers.credentials}
               className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl font-bold text-sm text-white transition-all disabled:opacity-50"
               style={{ background: "var(--accent)" }}
               whileHover={{ scale: 1.02 }}
@@ -268,6 +317,7 @@ export default function LoginPage() {
           {/* Toggle mode */}
           <div className="mt-6 text-center">
             <button
+              disabled={loading}
               onClick={() => {
                 setMode(mode === "login" ? "register" : "login");
                 setError("");

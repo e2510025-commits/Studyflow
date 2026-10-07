@@ -6,14 +6,12 @@ import { useStore } from "@/store/useStore";
 import { motion } from "framer-motion";
 import { BookPlus, Flag, ImagePlus, Loader2, Plus, RadioTower, Send, Sparkles } from "lucide-react";
 import {
-  createBulletinPost,
   deleteGlobalStreamMessage,
   editGlobalStreamMessage,
   sendGlobalStreamImageMessage,
   sendGlobalStreamMessage,
   subscribeMyRespectedGlobalPostIds,
   subscribeGlobalStreamMessages,
-  syncAchievementSystemEvents,
   toggleGlobalStreamRespect,
 } from "@/lib/firestore/community";
 import { getProfilesBatch } from "@/lib/firestore/ranking";
@@ -21,7 +19,7 @@ import { submitViolationReport } from "@/lib/firestore/moderation";
 import OfficialMark from "@/components/ui/OfficialMark";
 import ImageLightbox from "@/components/ui/ImageLightbox";
 import { useR2CompressedImageUpload } from "@/hooks/useR2CompressedImageUpload";
-import type { BulletinCategory, CommunityStreamMessage } from "@/types";
+import type { CommunityStreamMessage } from "@/types";
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
@@ -43,12 +41,6 @@ function isMentioned(body: string, uid: string, name: string): boolean {
   return normalized.includes(n1) || (name ? normalized.includes(n2) : false);
 }
 
-function defaultForwardTitle(message: CommunityStreamMessage): string {
-  const text = (message.body || "").trim();
-  if (!text) return "チャットから転送";
-  return text.length > 42 ? `${text.slice(0, 42)}...` : text;
-}
-
 export default function GlobalChatPage() {
   const { userProfile, studyLogs, timer } = useStore();
   const [rows, setRows] = useState<CommunityStreamMessage[]>([]);
@@ -58,10 +50,6 @@ export default function GlobalChatPage() {
   const [errorText, setErrorText] = useState("");
   const [menuMessageId, setMenuMessageId] = useState("");
   const [myRespectIds, setMyRespectIds] = useState<Set<string>>(new Set());
-  const [forwardSource, setForwardSource] = useState<CommunityStreamMessage | null>(null);
-  const [forwardTitle, setForwardTitle] = useState("");
-  const [forwardCategory, setForwardCategory] = useState<BulletinCategory>("tips");
-  const [forwarding, setForwarding] = useState(false);
   const [editingId, setEditingId] = useState("");
   const [editingBody, setEditingBody] = useState("");
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -75,7 +63,7 @@ export default function GlobalChatPage() {
   });
 
   useEffect(() => {
-    return subscribeGlobalStreamMessages(setRows);
+    return subscribeGlobalStreamMessages((messages) => setRows(messages.filter((row) => !row.id.startsWith("achv_"))));
   }, []);
 
   useEffect(() => {
@@ -116,13 +104,6 @@ export default function GlobalChatPage() {
     };
   }, [rows]);
 
-  useEffect(() => {
-    void syncAchievementSystemEvents().catch(() => {});
-    const timer = window.setInterval(() => {
-      void syncAchievementSystemEvents().catch(() => {});
-    }, 120_000);
-    return () => window.clearInterval(timer);
-  }, []);
 
   const grouped = useMemo(() => [...rows].slice(0, 120).reverse(), [rows]);
 
@@ -243,12 +224,6 @@ export default function GlobalChatPage() {
     }
   };
 
-  const openForwardModal = (message: CommunityStreamMessage) => {
-    setForwardSource(message);
-    setForwardTitle(defaultForwardTitle(message));
-    setForwardCategory("tips");
-    setMenuMessageId("");
-  };
 
   const startEdit = (message: CommunityStreamMessage) => {
     setEditingId(message.id);
@@ -299,27 +274,9 @@ export default function GlobalChatPage() {
     }
   };
 
-  const forwardToBulletin = async () => {
-    if (!forwardSource || !forwardTitle.trim() || forwarding) return;
-    setForwarding(true);
-    setErrorText("");
-    try {
-      const imageLine = forwardSource.messageType === "image" ? "\n[画像あり]" : "";
-      await createBulletinPost({
-        title: forwardTitle.trim(),
-        category: forwardCategory,
-        content: `> from #global-chat by ${forwardSource.name}\n> ${forwardSource.body}${imageLine}`,
-      });
-      setForwardSource(null);
-    } catch (error) {
-      setErrorText(error instanceof Error ? error.message : "掲示板転送に失敗しました");
-    } finally {
-      setForwarding(false);
-    }
-  };
 
   return (
-    <div className="max-w-5xl mx-auto w-full h-[calc(100dvh-7.5rem)] sm:h-[calc(100dvh-7rem)] lg:h-[calc(100dvh-6.5rem)] flex flex-col gap-3 pb-[max(env(safe-area-inset-bottom),0.25rem)]">
+    <div className="max-w-5xl mx-auto w-full chat-page flex flex-col gap-3 pb-[max(env(safe-area-inset-bottom),0.25rem)]">
       <div className="flex items-center gap-3">
         <RadioTower size={24} style={{ color: "var(--accent)" }} />
         <div>
@@ -490,13 +447,7 @@ export default function GlobalChatPage() {
                             <Flag size={11} /> 通報
                           </button>
                         )}
-                        <button
-                          onClick={() => openForwardModal(row)}
-                          className="px-2 py-1 rounded-md text-[11px] font-semibold"
-                          style={{ background: "var(--card-bg)", color: "var(--foreground)" }}
-                        >
-                          掲示板へ転送
-                        </button>
+
                       </div>
                     )}
                   </div>
@@ -520,6 +471,8 @@ export default function GlobalChatPage() {
           }}
         />
         <button
+          aria-label="画像・進捗の追加メニュー"
+          aria-expanded={quickOpen}
           onClick={() => setQuickOpen((v) => !v)}
           className="px-2.5 py-2 rounded-xl text-sm font-semibold"
           style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
@@ -552,9 +505,10 @@ export default function GlobalChatPage() {
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value.slice(0, 800))}
+          aria-label="公開チャットのメッセージ"
           placeholder="メッセージ入力... (/stats /timer)"
           rows={2}
-          className="flex-1 px-3 py-2 rounded-xl text-sm resize-none"
+          className="flex-1 min-w-0 px-3 py-2 rounded-xl text-sm resize-none"
           style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
         />
         <button
@@ -568,51 +522,6 @@ export default function GlobalChatPage() {
       </section>
       {errorText && <p className="text-xs" style={{ color: "#ef4444" }}>{errorText}</p>}
 
-      {forwardSource && (
-        <div className="fixed inset-0 z-20 bg-black/40 grid place-items-center p-4" onClick={() => setForwardSource(null)}>
-          <div className="w-full max-w-lg rounded-2xl p-4 space-y-3" style={{ background: "var(--card-bg)" }} onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-black" style={{ color: "var(--foreground)" }}>掲示板へ転送</h3>
-            <input
-              value={forwardTitle}
-              onChange={(e) => setForwardTitle(e.target.value.slice(0, 120))}
-              placeholder="転送タイトル"
-              className="w-full px-3 py-2 rounded-xl text-sm"
-              style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-            />
-            <select
-              value={forwardCategory}
-              onChange={(e) => setForwardCategory(e.target.value as BulletinCategory)}
-              className="w-full px-3 py-2 rounded-xl text-sm"
-              style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-            >
-              <option value="qa">❓質問</option>
-              <option value="tips">💡Tips</option>
-              <option value="chat">☕雑談</option>
-            </select>
-            <div className="rounded-xl p-3 text-sm" style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}>
-              <p className="text-xs mb-1" style={{ color: "var(--muted)" }}>転送内容プレビュー</p>
-              <p className="whitespace-pre-wrap break-words">{forwardSource.body}</p>
-            </div>
-            <div className="flex items-center justify-end gap-2">
-              <button
-                onClick={() => setForwardSource(null)}
-                className="px-3 py-1.5 rounded-lg text-sm"
-                style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
-              >
-                キャンセル
-              </button>
-              <button
-                onClick={() => void forwardToBulletin()}
-                disabled={forwarding || !forwardTitle.trim()}
-                className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-                style={{ background: "var(--accent)" }}
-              >
-                {forwarding ? "転送中..." : "転送"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {reportTarget && (
         <div className="fixed inset-0 z-[65] bg-black/45 grid place-items-center p-4" onClick={() => setReportTarget(null)}>

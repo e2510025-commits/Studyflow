@@ -1,96 +1,54 @@
 "use client";
 
-import React from "react";
-import { motion } from "framer-motion";
-import { Responsive, WidthProvider, type LayoutItem, type ResponsiveLayouts } from "react-grid-layout/legacy";
-import "react-grid-layout/css/styles.css";
-import "react-resizable/css/styles.css";
+import Link from "next/link";
+import { ArrowRight, Brain, Play, Timer, Waves } from "lucide-react";
+import { useStore } from "@/store/useStore";
+import { formatTime } from "@/lib/utils";
 import StatsCards from "@/components/dashboard/StatsCards";
 import DailyPieChart from "@/components/dashboard/DailyPieChart";
 import WeeklyBarChart from "@/components/dashboard/WeeklyBarChart";
 import HeatMap from "@/components/dashboard/HeatMap";
 import MotivationPanel from "@/components/dashboard/MotivationPanel";
+import RecentLogs from "@/components/dashboard/RecentLogs";
 
-const ResponsiveGridLayout = WidthProvider(Responsive);
-
-type WidgetId = "stats" | "trend" | "dailyPie" | "heatMap" | "motivation";
-
-interface WidgetMeta {
-  defaultLayout: LayoutItem;
-  render: () => React.ReactElement;
+function ActiveTimer() {
+  const timer = useStore((state) => state.timer);
+  if (timer.status === "idle") return null;
+  const elapsed = timer.mode === "stopwatch" ? timer.elapsed : Math.max(0, timer.countdownTotal - timer.elapsed);
+  return (
+    <Link href="/timer" className="active-timer-card">
+      <span className="more-nav-icon"><Timer size={22} aria-hidden="true" /></span>
+      <span className="flex-1"><span className="block font-semibold">{timer.status === "running" ? "学習を計測中" : "タイマーを一時停止中"}</span><span className="block text-sm text-muted">タイマーに戻って学習を続ける</span></span>
+      <span className="font-mono font-bold tabular-nums">{formatTime(elapsed)}</span>
+      <ArrowRight size={20} aria-hidden="true" />
+    </Link>
+  );
 }
 
-const WIDGETS: Record<WidgetId, WidgetMeta> = {
-  stats: {
-    defaultLayout: { i: "stats", x: 0, y: 0, w: 12, h: 6, minW: 6, minH: 4 },
-    render: () => <StatsCards />,
-  },
-  trend: {
-    defaultLayout: { i: "trend", x: 0, y: 6, w: 8, h: 12, minW: 4, minH: 8 },
-    render: () => <WeeklyBarChart />,
-  },
-  dailyPie: {
-    defaultLayout: { i: "dailyPie", x: 8, y: 6, w: 4, h: 12, minW: 3, minH: 8 },
-    render: () => <DailyPieChart />,
-  },
-  heatMap: {
-    defaultLayout: { i: "heatMap", x: 0, y: 18, w: 12, h: 10, minW: 6, minH: 8 },
-    render: () => <HeatMap />,
-  },
-  motivation: {
-    defaultLayout: { i: "motivation", x: 0, y: 28, w: 12, h: 8, minW: 6, minH: 6 },
-    render: () => <MotivationPanel />,
-  },
-};
-
-const allWidgetIds = Object.keys(WIDGETS) as WidgetId[];
-
-const buildDefaultLayouts = (): ResponsiveLayouts => {
-  const base = allWidgetIds.map((id) => ({ ...WIDGETS[id].defaultLayout }));
-  return {
-    xl: base,
-    lg: base.map((item) => ({ ...item })),
-    md: base.map((item, idx) => ({ ...item, x: (idx % 2) * 4, w: 4 })),
-    sm: base.map((item, idx) => ({ ...item, x: 0, y: idx * 8, w: 1 })),
-  };
-};
-
 export default function DashboardPage() {
-  const layouts = buildDefaultLayouts();
-
+  const status = useStore((state) => state.timer.status);
   return (
-    <div className="space-y-5">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-2xl sm:text-4xl font-black" style={{ color: "var(--foreground)" }}>
-              ダッシュボード
-            </h1>
-            <p className="text-base mt-1 font-medium" style={{ color: "var(--muted)" }}>
-              学習の進捗を一覧で確認できます
-            </p>
-          </div>
+    <div className="dashboard-page screen-page">
+      <header className="page-heading screen-heading">
+        <div>
+          <p className="section-kicker">あなたの学習スペース</p>
+          <h1>ホーム</h1>
+          <p>今日の積み重ねと、次に取り組むこと。</p>
         </div>
-      </motion.div>
-
-      <ResponsiveGridLayout
-        className="dashboard-grid"
-        layouts={layouts}
-        breakpoints={{ xl: 1280, lg: 1024, md: 768, sm: 0 }}
-        cols={{ xl: 12, lg: 12, md: 8, sm: 1 }}
-        rowHeight={20}
-        margin={[16, 16]}
-        containerPadding={[0, 0]}
-        compactType="vertical"
-        preventCollision={false}
-        isBounded
-        isDraggable={false}
-        isResizable={false}
-      >
-        {allWidgetIds.map((widgetId) => (
-          <div key={widgetId}>{WIDGETS[widgetId].render()}</div>
-        ))}
-      </ResponsiveGridLayout>
+        <Link href="/timer" className="primary-button"><Play size={17} aria-hidden="true" />{status === "idle" ? "学習を始める" : "タイマーに戻る"}</Link>
+      </header>
+      <ActiveTimer />
+      <section aria-label="学習の概要"><StatsCards /></section>
+      <div className="workspace-grid home-workspace">
+        <div className="workspace-main"><WeeklyBarChart /><RecentLogs /><MotivationPanel /></div>
+        <aside className="workspace-rail" aria-label="今日の学習と継続">
+          <section className="rail-section" aria-label="次の学習へ"><h2>次に取り組む</h2>
+            <Link href="/memorize" className="rail-link"><Brain size={21} aria-hidden="true" /><span><strong>暗記を進める</strong><small>単語帳と今日の復習</small></span><ArrowRight size={17} /></Link>
+            <Link href="/timeline" className="rail-link"><Waves size={21} aria-hidden="true" /><span><strong>仲間の学びを見る</strong><small>学習記録と気づき</small></span><ArrowRight size={17} /></Link>
+          </section>
+          <DailyPieChart /><HeatMap />
+        </aside>
+      </div>
     </div>
   );
 }

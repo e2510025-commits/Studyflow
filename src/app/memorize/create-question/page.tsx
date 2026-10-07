@@ -223,7 +223,7 @@ export default function CreateQuestionPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-5 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
+    <div className="screen-page question-editor-page">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <Link href="/memorize" className="inline-flex items-center gap-2 mb-3 font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
           <ArrowLeft size={20} />
@@ -237,7 +237,7 @@ export default function CreateQuestionPage() {
         </p>
       </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-5">
+      <div className="question-editor-workspace">
         <aside className="p-4 rounded-2xl border bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 h-fit">
           <div className="text-sm font-bold mb-3">カードナビゲーター</div>
           <div className="grid grid-cols-4 lg:grid-cols-3 gap-2">
@@ -250,6 +250,7 @@ export default function CreateQuestionPage() {
                   key={card.id}
                   type="button"
                   onClick={() => setActiveIndex(index)}
+                  aria-pressed={isActive}
                   className={`rounded-lg h-10 font-bold border transition-colors ${
                     isActive
                       ? "bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 border-zinc-900 dark:border-zinc-100"
@@ -323,6 +324,7 @@ export default function CreateQuestionPage() {
                 <button
                   type="button"
                   onClick={() => updateCurrentCard({ mode: "sequential" })}
+                  aria-pressed={currentCard?.mode === "sequential"}
                   className={`flex-1 py-2 rounded-xl font-semibold transition-all border ${
                     currentCard?.mode === "sequential"
                       ? "bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 border-zinc-900 dark:border-zinc-100"
@@ -334,6 +336,7 @@ export default function CreateQuestionPage() {
                 <button
                   type="button"
                   onClick={() => updateCurrentCard({ mode: "all-at-once" })}
+                  aria-pressed={currentCard?.mode === "all-at-once"}
                   className={`flex-1 py-2 rounded-xl font-semibold transition-all border ${
                     currentCard?.mode === "all-at-once"
                       ? "bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 border-zinc-900 dark:border-zinc-100"

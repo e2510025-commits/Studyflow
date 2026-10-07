@@ -37,7 +37,7 @@ export default function QuestionsPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5">
+    <div className="screen-page question-library">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <Link href="/memorize" className="inline-flex items-center gap-2 mb-3 font-medium" style={{ color: "var(--primary)" }}>
           <ArrowLeft size={20} />
@@ -55,7 +55,7 @@ export default function QuestionsPage() {
           問題がありません。新しい問題を作成しましょう。
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="question-library-list">
           {questions.map((question) => (
             <QuestionCard key={question.id} question={question} />
           ))}
@@ -72,7 +72,7 @@ function QuestionCard({ question }: { question: Question }) {
   const accuracy = totalAttempts > 0 ? Math.round((correctCount / totalAttempts) * 100) : 0;
 
   return (
-    <motion.div whileHover={{ scale: 1.02 }} className="p-5 rounded-2xl" style={{ background: "var(--card)" }}>
+    <motion.div className="question-library-row" style={{ background: "var(--card-bg)" }}>
       <h3 className="text-lg font-bold mb-2" style={{ color: "var(--foreground)" }}>{question.title}</h3>
       <p className="text-sm mb-3 line-clamp-2" style={{ color: "var(--muted)" }}>
         {question.content.replace(/\{\{[^}]+\}\}/g, "___")}

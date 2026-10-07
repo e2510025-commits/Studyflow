@@ -12,7 +12,6 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { StudyLog } from "@/types";
-import { recomputeAndSaveAchievements } from "@/lib/firestore/achievements";
 
 const LOGS_COLLECTION = "studyLogs";
 
@@ -77,7 +76,6 @@ export async function addStudyLogToFirestore(
     ).catch(() => {});
   }
 
-  void recomputeAndSaveAchievements(userUid).catch(() => {});
 
   return docRef.id;
 }
@@ -93,6 +91,7 @@ export async function upsertStudyLogById(
   options?: {
     userProfile?: { name: string; avatar: string };
     createdAt?: Date;
+    /** @deprecated 実績機能終了。互換性のため引数のみ保持。 */
     recomputeAchievements?: boolean;
   }
 ): Promise<void> {
@@ -127,9 +126,6 @@ export async function upsertStudyLogById(
     ).catch(() => {});
   }
 
-  if (options?.recomputeAchievements) {
-    void recomputeAndSaveAchievements(userUid).catch(() => {});
-  }
 }
 
 /**
