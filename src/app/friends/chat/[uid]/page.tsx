@@ -418,7 +418,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="w-full max-w-3xl mx-auto flex flex-col dark:bg-zinc-950" style={{ height: "calc(100vh - 80px)" }}>
+    <div className="w-full max-w-3xl mx-auto chat-page flex flex-col dark:bg-zinc-950">
       {/* ─── Chat Header ──────────────────────────────── */}
       <div
         className="flex items-center gap-3 px-4 py-3 border-b flex-shrink-0 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700"

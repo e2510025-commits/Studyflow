@@ -177,7 +177,11 @@ export default function GroupConversationPage() {
     return map;
   }, [activeStudyUsers]);
 
-  const nowMs = Date.now();
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = window.setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const activeTasks = useMemo(() => {
     return tasks.filter((task) => {
@@ -560,7 +564,7 @@ export default function GroupConversationPage() {
   );
 
   return (
-    <div className="w-full max-w-none mx-auto h-[calc(100vh-88px)] flex flex-col gap-3 pb-16 lg:pb-0">
+    <div className="w-full max-w-none mx-auto chat-page flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link

@@ -39,7 +39,6 @@ import {
   type PresenceAgentInfo,
   subscribeUsersOnlineStatus,
 } from "@/lib/firestore/presence";
-import { getAchievementMeta } from "@/lib/achievements";
 import { formatHoursMinutes } from "@/lib/utils";
 import { Clock3, Flame, MessageCircle, PenLine, Repeat2, Search, Send, Share2, UserRound } from "lucide-react";
 import OfficialMark from "@/components/ui/OfficialMark";
@@ -257,7 +256,7 @@ export default function PublicProfilePage() {
         setFriendCount(follow.friends.length);
         setCheerCount(cheer.count);
         setCheered(cheer.cheeredByViewer);
-        setActivities(recent);
+        setActivities(recent.filter((item) => item.type !== "badge"));
 
         if (p) {
           setEditName(p.name || "");
@@ -390,7 +389,6 @@ export default function PublicProfilePage() {
   }[statusColor];
 
   const isImageAvatar = Boolean(profile?.avatar?.startsWith("http") || profile?.avatar?.startsWith("data:"));
-  const equipped = (profile?.equippedBadges || []).slice(0, 3);
   const modalRows =
     followModalTab === "following"
       ? followLists.following
@@ -1001,35 +999,6 @@ export default function PublicProfilePage() {
         </div>
       </section>
 
-      <section className="glass-card p-4">
-        <h2 className="text-base font-black" style={{ color: "var(--foreground)" }}>装備中の勲章</h2>
-        <div className="mt-3 flex flex-wrap gap-3">
-          {equipped.length === 0 ? (
-            <p className="text-sm" style={{ color: "var(--muted)" }}>装備中の勲章はありません</p>
-          ) : (
-            equipped.map((id) => {
-              const meta = getAchievementMeta(id);
-              return (
-                <div key={id} className="min-w-[120px] rounded-xl p-3" style={{ background: "var(--muted-bg)" }}>
-                  <div
-                    className="w-12 h-12 mx-auto flex items-center justify-center text-[10px] font-black"
-                    style={{
-                      clipPath: "polygon(25% 6%, 75% 6%, 100% 50%, 75% 94%, 25% 94%, 0 50%)",
-                      background: "linear-gradient(145deg,#334155,#06b6d4)",
-                      color: "#ecfeff",
-                    }}
-                  >
-                    {String(meta?.rarity || "R").slice(0, 2).toUpperCase()}
-                  </div>
-                  <p className="text-xs font-bold mt-2 text-center" style={{ color: "var(--foreground)" }}>
-                    {meta?.title || id}
-                  </p>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </section>
 
       <section className="glass-card p-5">
         <h3 className="text-sm font-black" style={{ color: "var(--foreground)" }}>アクティビティ</h3>
@@ -1040,7 +1009,7 @@ export default function PublicProfilePage() {
             activities.map((item) => (
               <div key={item.id} className="rounded-xl px-3 py-2" style={{ background: "var(--muted-bg)" }}>
                 <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                  {item.type === "badge" ? "勲章" : "学習"}・{item.label}
+                  学習・{item.label}
                 </p>
                 <p className="text-xs" style={{ color: "var(--muted)" }}>
                   {item.detail || ""} {formatRelativeTime(item.createdAt)}

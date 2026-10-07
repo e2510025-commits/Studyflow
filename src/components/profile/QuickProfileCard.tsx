@@ -11,7 +11,6 @@ import {
   type PresenceAgentInfo,
 } from "@/lib/firestore/presence";
 import { subscribeActiveStudyUsers } from "@/lib/firestore/focusRoom";
-import { getAchievementMeta } from "@/lib/achievements";
 
 interface QuickProfileCardProps {
   open: boolean;
@@ -36,21 +35,22 @@ function avatarNode(avatar: string, name: string) {
 }
 
 export default function QuickProfileCard({ open, uid, viewerUid, onClose }: QuickProfileCardProps) {
-  const [loading, setLoading] = useState(false);
-  const [profile, setProfile] = useState<Awaited<ReturnType<typeof fetchPublicProfile>>>(null);
+  const [result, setResult] = useState<{ uid: string; profile: Awaited<ReturnType<typeof fetchPublicProfile>>; error: boolean } | null>(null);
+  const profile = result?.uid === uid ? result.profile : null;
+  const loading = result?.uid !== uid;
   const [presence, setPresence] = useState<{ isOnline: boolean; updatedAtMs: number }>({ isOnline: false, updatedAtMs: 0 });
   const [presenceAgents, setPresenceAgents] = useState<PresenceAgentInfo[]>([]);
   const [activeSet, setActiveSet] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!open || !uid) {
-      setProfile(null);
-      return;
-    }
-    setLoading(true);
-    void fetchPublicProfile(uid)
-      .then((row) => setProfile(row))
-      .finally(() => setLoading(false));
+    if (!open || !uid) return;
+    let disposed = false;
+    void fetchPublicProfile(uid).then((row) => {
+      if (!disposed) setResult({ uid, profile: row, error: false });
+    }).catch(() => {
+      if (!disposed) setResult({ uid, profile: null, error: true });
+    });
+    return () => { disposed = true; };
   }, [open, uid]);
 
   useEffect(() => {
@@ -70,20 +70,22 @@ export default function QuickProfileCard({ open, uid, viewerUid, onClose }: Quic
     });
   }, [open]);
 
-  const title = useMemo(() => {
-    const badge = profile?.equippedBadges?.[0];
-    if (!badge) return "New Challenger";
-    return getAchievementMeta(badge)?.title || badge;
-  }, [profile?.equippedBadges]);
+
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!open) return;
+    const interval = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(interval);
+  }, [open]);
 
   const status = useMemo(() => {
     if (!uid) return { label: "オフライン", color: "#9ca3af" };
     if (activeSet.has(uid)) return { label: "集中モード", color: "#38bdf8" };
     if (!presence.isOnline) return { label: "オフライン", color: "#9ca3af" };
-    const age = Date.now() - (presence.updatedAtMs || 0);
+    const age = now - (presence.updatedAtMs || 0);
     if (age <= 90_000) return { label: "オンライン", color: "#22c55e" };
     return { label: "離席", color: "#f59e0b" };
-  }, [activeSet, presence.isOnline, presence.updatedAtMs, uid]);
+  }, [activeSet, presence.isOnline, presence.updatedAtMs, uid, now]);
 
   const canMessage = Boolean(uid && viewerUid && uid !== viewerUid);
 
@@ -120,7 +122,7 @@ export default function QuickProfileCard({ open, uid, viewerUid, onClose }: Quic
               </div>
 
               {loading || !profile ? (
-                <p className="text-sm py-8 text-center" style={{ color: "var(--muted)" }}>読み込み中...</p>
+                <p className="text-sm py-8 text-center" style={{ color: "var(--muted)" }}>{loading ? "読み込み中..." : result?.error ? "プロフィールを読み込めませんでした" : "プロフィールが見つかりません"}</p>
               ) : (
                 <>
                   <div className="mt-3 flex items-center gap-3">
@@ -132,9 +134,6 @@ export default function QuickProfileCard({ open, uid, viewerUid, onClose }: Quic
                       />
                     </span>
                     <div className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: "#22d3ee" }}>
-                        {title}
-                      </p>
                       <p className="text-base font-black truncate flex items-center gap-1" style={{ color: "var(--foreground)" }}>
                         {profile.name}
                         {profile.isOfficial ? <BadgeCheck size={14} style={{ color: "#38bdf8" }} /> : null}

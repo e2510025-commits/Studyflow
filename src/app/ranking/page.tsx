@@ -21,7 +21,6 @@ import {
 } from "lucide-react";
 import { formatHoursMinutes } from "@/lib/utils";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
-import { getAchievementMeta } from "@/lib/achievements";
 import { subscribeActiveStudyUsers } from "@/lib/firestore/focusRoom";
 import {
   fetchDailyRankMap,
@@ -492,7 +491,6 @@ export default function RankingPage() {
                 const isTop3 = user.rank <= 3;
                 const trend = dailyTrend.get(user.userId) || 0;
                 const isStudying = activeStudySet.has(user.userId);
-                const title = (profiles.get(user.userId)?.equippedBadges || [])[0];
 
                 return (
                   <motion.div
@@ -553,11 +551,6 @@ export default function RankingPage() {
                         />
                       </button>
                       <div className="min-w-0">
-                        {title ? (
-                          <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "#22d3ee" }}>
-                            {getAchievementMeta(title)?.title || title}
-                          </span>
-                        ) : null}
                         <Link href={`/profile/${user.userId}`} className="text-sm font-bold truncate flex items-center gap-1 hover:underline" style={{ color: isMe ? "var(--accent)" : "var(--foreground)" }}>
                           {isMe ? `${user.name} (あなた)` : user.name}
                           {profiles.get(user.userId)?.isOfficial ? <BadgeCheck size={14} style={{ color: "#38bdf8" }} /> : null}
@@ -568,15 +561,6 @@ export default function RankingPage() {
                         >
                           {user.sessions} セッション
                         </span>
-                        {(profiles.get(user.userId)?.equippedBadges || []).length > 0 ? (
-                          <span className="text-[10px] inline-flex items-center gap-1" style={{ color: "#22d3ee" }}>
-                            {(profiles.get(user.userId)?.equippedBadges || []).map((b) => (
-                              <span key={b} className="px-1 py-0.5 rounded" style={{ background: "#22d3ee22" }}>
-                                {b}
-                              </span>
-                            ))}
-                          </span>
-                        ) : null}
                         <span className="text-[10px] inline-flex items-center gap-1" style={{ color: trend > 0 ? "#16a34a" : trend < 0 ? "#ef4444" : "var(--muted)" }}>
                           {trend > 0 ? <ArrowUp size={12} /> : trend < 0 ? <ArrowDown size={12} /> : null}
                           前日比 {trend > 0 ? `+${trend}` : trend < 0 ? `${trend}` : "±0"}

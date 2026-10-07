@@ -1,739 +1,148 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import {
-  BookOpen,
-  Calendar,
-  Ellipsis,
-  Edit,
-  Heart,
-  MessageSquare,
-  Pencil,
-  Plus,
-  Search,
-  Share2,
-  Trash2,
-  User,
-} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { BookOpen, Heart, MoreHorizontal, Plus, Search, Trash2 } from "lucide-react";
+import Dialog from "@/components/ui/Dialog";
 
 interface Deck {
-  id: string;
-  name: string;
-  description: string;
-  color: string;
-  cardCount: number;
-  dueCount: number;
-  masteredCount: number;
-  createdAt?: string | null;
-  userName?: string;
-  subjectId?: string | null;
+  id: string; name: string; description: string; color: string;
+  cardCount: number; dueCount: number; masteredCount: number;
+  createdAt?: string | null; subjectId?: string | null;
 }
-
-interface Subject {
-  id: string;
-  name: string;
-  color: string;
-}
-
-type TopTab = "decks" | "users" | "messages";
-type ScopeTab = "mine" | "favorites" | "recent" | "due";
-
+interface Subject { id: string; name: string; color: string }
+type Scope = "mine" | "favorites" | "recent" | "due";
 const FAVORITES_KEY = "memorize-deck-favorites";
+const COLORS = ["#7c83ff", "#3b82f6", "#14b8a6", "#f59e0b", "#ec4899", "#ef4444"];
 
 export default function MemorizePage() {
   const router = useRouter();
-  const searchInputRef = useRef<HTMLInputElement>(null);
-
   const [decks, setDecks] = useState<Deck[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState("");
   const [totalDue, setTotalDue] = useState(0);
-
-  const [topTab, setTopTab] = useState<TopTab>("decks");
-  const [scopeTab, setScopeTab] = useState<ScopeTab>("mine");
-  const [selectedSubject, setSelectedSubject] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
-
-  const [contextMenu, setContextMenu] = useState<{ deckId: string; x: number; y: number } | null>(null);
-  const [editingDeckId, setEditingDeckId] = useState<string | null>(null);
+  const [scope, setScope] = useState<Scope>("mine");
+  const [subject, setSubject] = useState("all");
+  const [search, setSearch] = useState("");
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [now] = useState(() => Date.now());
+  const [createOpen, setCreateOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [color, setColor] = useState(COLORS[0]);
+  const [selected, setSelected] = useState<Deck | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState("");
 
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newDeckName, setNewDeckName] = useState("");
-  const [newDeckColor, setNewDeckColor] = useState("#7c83ff");
-
-  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
-
-  useEffect(() => {
-    void fetchDecks();
-    void fetchSubjects();
-
-    try {
-      const saved = localStorage.getItem(FAVORITES_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved) as string[];
-        if (Array.isArray(parsed)) {
-          setFavoriteIds(parsed);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to restore favorite deck ids:", error);
-    }
-  }, []);
-
-  useEffect(() => {
-    const handleClick = () => setContextMenu(null);
-    window.addEventListener("click", handleClick);
-    return () => window.removeEventListener("click", handleClick);
-  }, []);
-
-  const persistFavorites = (ids: string[]) => {
-    setFavoriteIds(ids);
-    try {
-      localStorage.setItem(FAVORITES_KEY, JSON.stringify(ids));
-    } catch (error) {
-      console.error("Failed to persist favorite deck ids:", error);
-    }
-  };
-
-  const toggleFavorite = (deckId: string) => {
-    if (favoriteIds.includes(deckId)) {
-      persistFavorites(favoriteIds.filter((id) => id !== deckId));
-      return;
-    }
-    persistFavorites([...favoriteIds, deckId]);
-  };
-
-  const fetchDecks = async () => {
+  const loadDecks = useCallback(async () => {
+    setLoading(true); setError("");
     try {
       const res = await fetch("/api/memorize/decks", { cache: "no-store" });
+      if (!res.ok) throw new Error("単語帳を読み込めませんでした。再読み込みしてください。");
       const data = await res.json();
-      setDecks(data.decks || []);
-      setTotalDue(data.totalDue || 0);
-    } catch (error) {
-      console.error("Failed to fetch decks:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      if (!Array.isArray(data.decks)) throw new Error("単語帳の応答を確認できませんでした。");
+      setDecks(data.decks); setTotalDue(data.totalDue || 0);
+    } catch (e) { setError(e instanceof Error ? e.message : "読み込みに失敗しました。"); }
+    finally { setLoading(false); }
+  }, []);
 
-  const fetchSubjects = async () => {
+  useEffect(() => {
+    void loadDecks();
+    void fetch("/api/subjects", { cache: "no-store" }).then(async (res) => {
+      if (!res.ok) return;
+      const data = await res.json(); setSubjects(data.subjects || []);
+    }).catch(() => {});
     try {
-      const res = await fetch("/api/subjects", { cache: "no-store" });
-      const data = await res.json();
-      setSubjects(data.subjects || []);
-    } catch (error) {
-      console.error("Failed to fetch subjects:", error);
-    }
+      const saved = JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]");
+      if (Array.isArray(saved)) setFavorites(saved.filter((id) => typeof id === "string"));
+    } catch { /* A malformed preference must not prevent loading decks. */ }
+  }, [loadDecks]);
+
+  const persistFavorites = (ids: string[]) => {
+    setFavorites(ids);
+    try { localStorage.setItem(FAVORITES_KEY, JSON.stringify(ids)); } catch { /* Optional local preference. */ }
   };
+  const visible = useMemo(() => decks.filter((deck) => {
+    if (subject !== "all" && deck.subjectId !== subject) return false;
+    const query = search.trim().toLowerCase();
+    if (query && !`${deck.name} ${deck.description || ""}`.toLowerCase().includes(query)) return false;
+    if (scope === "favorites" && !favorites.includes(deck.id)) return false;
+    if (scope === "due" && deck.dueCount <= 0) return false;
+    if (scope === "recent" && (!deck.createdAt || new Date(deck.createdAt).getTime() < now - 14 * 86400000)) return false;
+    return true;
+  }), [decks, subject, search, scope, favorites, now]);
 
-  const handleCreateDeck = async () => {
-    if (!newDeckName.trim()) return;
-
-    setCreating(true);
+  const create = async () => {
+    if (!name.trim() || busy) return;
+    setBusy(true); setFormError("");
     try {
       const res = await fetch("/api/memorize/decks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newDeckName,
-          description: "",
-          color: newDeckColor,
-          subjectId: selectedSubject !== "all" ? selectedSubject : undefined,
-        }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), description: "", color, subjectId: subject !== "all" ? subject : undefined }),
       });
-
-      if (!res.ok) {
-        alert("デッキの作成に失敗しました");
-        return;
-      }
-
+      if (!res.ok) throw new Error("単語帳を作成できませんでした。入力を確認して再試行してください。");
       const data = await res.json();
-      setShowCreateModal(false);
-      setNewDeckName("");
-      setNewDeckColor("#7c83ff");
-      await fetchDecks();
+      if (!data.deckId) throw new Error("作成結果を確認できませんでした。閉じて一覧を再読み込みしてください。");
+      setCreateOpen(false); setName(""); setColor(COLORS[0]);
       router.push(`/memorize/deck/${data.deckId}`);
-    } catch (error) {
-      console.error("Failed to create deck:", error);
-      alert("デッキの作成に失敗しました");
-    } finally {
-      setCreating(false);
-    }
+    } catch (e) { setFormError(e instanceof Error ? e.message : "作成に失敗しました。"); }
+    finally { setBusy(false); }
   };
-
-  const handleRename = (deck: Deck) => {
-    setEditingDeckId(deck.id);
-    setEditingName(deck.name);
-    setContextMenu(null);
-  };
-
-  const saveRename = async (deckId: string) => {
-    if (!editingName.trim()) {
-      setEditingDeckId(null);
-      return;
-    }
-
+  const update = async (remove: boolean) => {
+    if (!selected || busy || (!remove && !editingName.trim())) return;
+    setBusy(true); setFormError("");
     try {
-      await fetch(`/api/memorize/decks/${deckId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: editingName.trim() }),
+      const res = await fetch(`/api/memorize/decks/${selected.id}`, remove ? { method: "DELETE" } : {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: editingName.trim() }),
       });
-      await fetchDecks();
-    } catch (error) {
-      console.error("Failed to rename deck:", error);
-    } finally {
-      setEditingDeckId(null);
-    }
+      if (!res.ok) throw new Error(remove ? "削除に失敗しました。再試行してください。" : "名前を変更できませんでした。再試行してください。");
+      if (remove) persistFavorites(favorites.filter((id) => id !== selected.id));
+      setSelected(null); setConfirmDelete(false); await loadDecks();
+    } catch (e) { setFormError(e instanceof Error ? e.message : "保存に失敗しました。"); }
+    finally { setBusy(false); }
   };
 
-  const handleDelete = async (deckId: string) => {
-    if (!confirm("このデッキを削除しますか？")) return;
-
-    try {
-      await fetch(`/api/memorize/decks/${deckId}`, { method: "DELETE" });
-      await fetchDecks();
-      persistFavorites(favoriteIds.filter((id) => id !== deckId));
-    } catch (error) {
-      console.error("Failed to delete deck:", error);
-    } finally {
-      setContextMenu(null);
-    }
-  };
-
-  const filteredDecks = useMemo(() => {
-    let list = decks;
-
-    if (selectedSubject !== "all") {
-      list = list.filter((deck) => deck.subjectId === selectedSubject);
-    }
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      list = list.filter((deck) => deck.name.toLowerCase().includes(q) || deck.description.toLowerCase().includes(q));
-    }
-
-    switch (scopeTab) {
-      case "favorites":
-        list = list.filter((deck) => favoriteIds.includes(deck.id));
-        break;
-      case "recent": {
-        const threshold = Date.now() - 14 * 24 * 60 * 60 * 1000;
-        list = list.filter((deck) => {
-          if (!deck.createdAt) return false;
-          return new Date(deck.createdAt).getTime() >= threshold;
-        });
-        break;
-      }
-      case "due":
-        list = list.filter((deck) => deck.dueCount > 0);
-        break;
-      default:
-        break;
-    }
-
-    return list;
-  }, [decks, favoriteIds, scopeTab, searchQuery, selectedSubject]);
-
-  const categories = [{ id: "all", name: "全教科", color: "#7c83ff" }, ...subjects.map((s) => ({ id: s.id, name: s.name, color: s.color }))];
-
-  const totalCards = decks.reduce((sum, deck) => sum + deck.cardCount, 0);
-
-  return (
-    <div className="mx-auto max-w-6xl space-y-5">
-      <div className="text-xs font-semibold" style={{ color: "var(--muted)" }}>
-        ホーム &gt; 暗記
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <TopActionCard icon={<Pencil size={24} />} label="つくる" onClick={() => setShowCreateModal(true)} />
-        <TopActionCard
-          icon={<Search size={24} />}
-          label="さがす"
-          onClick={() => {
-            searchInputRef.current?.focus();
-          }}
-        />
-        <TopActionCard
-          icon={<BookOpen size={24} />}
-          label="リスト"
-          onClick={() => {
-            setTopTab("decks");
-            setScopeTab("mine");
-            setSearchQuery("");
-          }}
-        />
-      </div>
-
-      <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
-        <div className="grid grid-cols-3 text-sm font-bold">
-          <TopTabButton active={topTab === "decks"} icon={<BookOpen size={16} />} label="単語帳" onClick={() => setTopTab("decks")} />
-          <TopTabButton active={topTab === "users"} icon={<User size={16} />} label="ユーザー" onClick={() => setTopTab("users")} />
-          <TopTabButton active={topTab === "messages"} icon={<MessageSquare size={16} />} label="メッセージ" onClick={() => setTopTab("messages")} />
-        </div>
-
-        <div className="p-3 border-t" style={{ borderColor: "var(--card-border)" }}>
-          {topTab === "decks" ? (
-            <>
-              <div className="flex flex-wrap gap-2 mb-3">
-                <ScopePill active={scopeTab === "mine"} onClick={() => setScopeTab("mine")} label="あなたの単語帳" />
-                <ScopePill active={scopeTab === "favorites"} onClick={() => setScopeTab("favorites")} label="お気に入りの単語帳" />
-                <ScopePill active={scopeTab === "recent"} onClick={() => setScopeTab("recent")} label="最近使った単語帳" />
-                <ScopePill active={scopeTab === "due"} onClick={() => setScopeTab("due")} label="復習待ち" />
-              </div>
-
-              <div className="flex flex-wrap gap-2 mb-3">
-                {categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setSelectedSubject(cat.id)}
-                    className="px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors"
-                    style={{
-                      borderColor: selectedSubject === cat.id ? cat.color : "var(--card-border)",
-                      background: selectedSubject === cat.id ? `${cat.color}1f` : "transparent",
-                      color: selectedSubject === cat.id ? cat.color : "var(--muted)",
-                    }}
-                  >
-                    {cat.name}
-                  </button>
-                ))}
-              </div>
-
-              <div className="relative mb-4">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2" size={16} style={{ color: "var(--muted)" }} />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="単語帳を検索"
-                  className="w-full rounded-xl border pl-9 pr-3 py-2 text-sm outline-none"
-                  style={{
-                    background: "var(--background)",
-                    color: "var(--foreground)",
-                    borderColor: "var(--card-border)",
-                  }}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                {loading ? (
-                  <div className="col-span-full text-center py-10 text-sm" style={{ color: "var(--muted)" }}>
-                    読み込み中...
-                  </div>
-                ) : filteredDecks.length === 0 ? (
-                  <div className="col-span-full text-center py-10 text-sm" style={{ color: "var(--muted)" }}>
-                    条件に一致する単語帳がありません。
-                  </div>
-                ) : (
-                  filteredDecks.map((deck) => (
-                    <DeckBoardCard
-                      key={deck.id}
-                      deck={deck}
-                      isFavorite={favoriteIds.includes(deck.id)}
-                      isEditing={editingDeckId === deck.id}
-                      editingName={editingName}
-                      onEditingNameChange={setEditingName}
-                      onOpen={() => router.push(`/memorize/deck/${deck.id}`)}
-                      onSaveRename={() => void saveRename(deck.id)}
-                      onCancelRename={() => setEditingDeckId(null)}
-                      onToggleFavorite={() => toggleFavorite(deck.id)}
-                      onOpenMenu={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setContextMenu({ deckId: deck.id, x: e.clientX, y: e.clientY });
-                      }}
-                    />
-                  ))
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="text-sm rounded-xl border p-5" style={{ color: "var(--muted)", borderColor: "var(--card-border)" }}>
-              {topTab === "users" ? "ユーザー発見機能は準備中です。" : "メッセージ機能は準備中です。"}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="fixed right-5 bottom-5 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setScopeTab("favorites")}
-          className="h-11 w-11 rounded-xl border flex items-center justify-center"
-          style={{ background: "var(--card)", borderColor: "var(--card-border)", color: "var(--muted)" }}
-          title="お気に入りを表示"
-        >
-          <Heart size={18} />
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowCreateModal(true)}
-          className="h-11 w-11 rounded-xl border flex items-center justify-center"
-          style={{
-            background: "var(--primary)",
-            borderColor: "var(--primary)",
-            color: "var(--primary-foreground)",
-          }}
-          title="新規作成"
-        >
-          <Plus size={18} />
-        </button>
-      </div>
-
-      <AnimatePresence>
-        {contextMenu && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="fixed z-50 p-2 rounded-xl shadow-2xl border"
-            style={{
-              background: "var(--card)",
-              borderColor: "var(--card-border)",
-              left: contextMenu.x,
-              top: contextMenu.y,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {[
-              {
-                icon: <Edit size={16} />,
-                label: "名前変更",
-                onClick: () => {
-                  const targetDeck = decks.find((d) => d.id === contextMenu.deckId);
-                  if (targetDeck) handleRename(targetDeck);
-                },
-              },
-              {
-                icon: <Share2 size={16} />,
-                label: "共有",
-                onClick: () => {
-                  alert("共有機能は開発中です");
-                  setContextMenu(null);
-                },
-              },
-              {
-                icon: <Trash2 size={16} />,
-                label: "削除",
-                danger: true,
-                onClick: () => void handleDelete(contextMenu.deckId),
-              },
-            ].map((item) => (
-              <button
-                key={item.label}
-                onClick={item.onClick}
-                className="w-full min-w-[140px] flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
-                style={{
-                  color: item.danger ? "var(--danger)" : "var(--foreground)",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "var(--muted-bg)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "transparent";
-                }}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showCreateModal && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 bg-black/45"
-              onClick={() => setShowCreateModal(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 16 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 16 }}
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md rounded-2xl p-5 border shadow-2xl"
-              style={{ background: "var(--background)", borderColor: "var(--card-border)" }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 className="text-xl font-black mb-4" style={{ color: "var(--foreground)" }}>
-                新しい単語帳を作成
-              </h2>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>
-                    単語帳名
-                  </label>
-                  <input
-                    type="text"
-                    value={newDeckName}
-                    onChange={(e) => setNewDeckName(e.target.value)}
-                    placeholder="例: 世界史 第一次世界大戦"
-                    className="w-full rounded-xl border px-3 py-2.5 outline-none"
-                    style={{
-                      background: "var(--muted-bg)",
-                      color: "var(--foreground)",
-                      borderColor: "var(--card-border)",
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>
-                    テーマカラー
-                  </label>
-                  <div className="flex gap-2 flex-wrap">
-                    {["#7c83ff", "#ef8f95", "#5ea7ff", "#50c878", "#f7b267", "#9d7dfd"].map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => setNewDeckColor(color)}
-                        className="h-9 w-9 rounded-lg border-2"
-                        style={{
-                          background: color,
-                          borderColor: newDeckColor === color ? "var(--foreground)" : "transparent",
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    className="flex-1 py-2.5 rounded-xl border font-semibold"
-                    style={{
-                      background: "var(--muted-bg)",
-                      color: "var(--foreground)",
-                      borderColor: "var(--card-border)",
-                    }}
-                  >
-                    キャンセル
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleCreateDeck()}
-                    disabled={creating || !newDeckName.trim()}
-                    className="flex-1 py-2.5 rounded-xl border font-bold disabled:opacity-60"
-                    style={{
-                      background: "var(--primary)",
-                      color: "var(--primary-foreground)",
-                      borderColor: "var(--primary)",
-                    }}
-                  >
-                    {creating ? "作成中..." : "作成して開始"}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      <div className="text-xs" style={{ color: "var(--muted)" }}>
-        合計 {decks.length} 単語帳 / {totalCards} カード / 復習待ち {totalDue} 枚
-      </div>
+  return <div className="space-y-6">
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div><h1 className="text-2xl sm:text-3xl font-bold">暗記</h1><p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>単語帳を開いて、今日の復習を始めましょう。</p></div>
+      <button className="primary-button" onClick={() => { setFormError(""); setCreateOpen(true); }}><Plus size={20} />新しい単語帳</button>
     </div>
-  );
-}
-
-function TopActionCard({
-  icon,
-  label,
-  onClick,
-}: {
-  icon: ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="rounded-2xl border p-4 flex flex-col items-center justify-center gap-2 transition-transform hover:scale-[1.01]"
-      style={{ background: "var(--card)", borderColor: "var(--card-border)", color: "var(--primary)" }}
-    >
-      {icon}
-      <span className="text-sm font-bold">{label}</span>
-    </button>
-  );
-}
-
-function TopTabButton({
-  active,
-  icon,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  icon: ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="py-3 flex items-center justify-center gap-2 border-r last:border-r-0 transition-colors"
-      style={{
-        color: active ? "var(--primary)" : "var(--muted)",
-        background: active ? "var(--primary)1f" : "transparent",
-        borderColor: "var(--card-border)",
-      }}
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
-
-function ScopePill({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="px-3 py-1.5 text-xs rounded-full border font-semibold transition-colors"
-      style={{
-        background: active ? "var(--primary)" : "var(--muted-bg)",
-        color: active ? "var(--primary-foreground)" : "var(--foreground)",
-        borderColor: active ? "var(--primary)" : "var(--card-border)",
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
-function DeckBoardCard({
-  deck,
-  isFavorite,
-  isEditing,
-  editingName,
-  onEditingNameChange,
-  onOpen,
-  onSaveRename,
-  onCancelRename,
-  onToggleFavorite,
-  onOpenMenu,
-}: {
-  deck: Deck;
-  isFavorite: boolean;
-  isEditing: boolean;
-  editingName: string;
-  onEditingNameChange: (name: string) => void;
-  onOpen: () => void;
-  onSaveRename: () => void;
-  onCancelRename: () => void;
-  onToggleFavorite: () => void;
-  onOpenMenu: (e: MouseEvent<HTMLButtonElement>) => void;
-}) {
-  const progress = deck.cardCount > 0 ? Math.min(100, Math.round((deck.masteredCount / deck.cardCount) * 100)) : 0;
-  const statusLabel = progress >= 90 ? "ほぼ定着" : progress >= 50 ? "1回実施" : "未実施";
-  const createdLabel = deck.createdAt
-    ? new Date(deck.createdAt).toLocaleDateString("ja-JP", { year: "numeric", month: "short", day: "numeric" })
-    : "日付なし";
-
-  return (
-    <motion.div whileHover={{ y: -2 }} className="rounded-xl border p-3" style={{ background: "var(--background)", borderColor: "var(--card-border)" }}>
-      <div className="flex items-start gap-3">
-        <div className="flex-1 min-w-0 cursor-pointer" onClick={onOpen}>
-          {isEditing ? (
-            <input
-              type="text"
-              value={editingName}
-              onChange={(e) => onEditingNameChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") onSaveRename();
-                if (e.key === "Escape") onCancelRename();
-              }}
-              onBlur={onSaveRename}
-              autoFocus
-              className="w-full rounded-lg border px-2 py-1.5 text-sm font-bold outline-none"
-              style={{
-                background: "var(--muted-bg)",
-                color: "var(--foreground)",
-                borderColor: "var(--card-border)",
-              }}
-            />
-          ) : (
-            <h3 className="text-sm font-bold truncate" style={{ color: "var(--foreground)" }}>
-              {deck.name}
-            </h3>
-          )}
-          <p className="text-xs mt-0.5 truncate" style={{ color: "var(--muted)" }}>
-            {deck.description || "説明なし"}
-          </p>
-
-          <div className="flex items-center gap-3 mt-2 text-[11px]" style={{ color: "var(--muted)" }}>
-            <span className="inline-flex items-center gap-1"><User size={12} />{deck.userName || "あなた"}</span>
-            <span className="inline-flex items-center gap-1"><Calendar size={12} />{createdLabel}</span>
-            <span className="inline-flex items-center gap-1"><BookOpen size={12} />カード {deck.cardCount}</span>
-          </div>
-        </div>
-
-        <div className="flex flex-col items-end gap-2">
-          <button
-            type="button"
-            onClick={onOpenMenu}
-            className="h-7 w-7 rounded-full border flex items-center justify-center"
-            style={{ borderColor: "var(--card-border)", color: "var(--muted)" }}
-          >
-            <Ellipsis size={14} />
-          </button>
-
-          <button
-            type="button"
-            onClick={onToggleFavorite}
-            className="h-7 w-7 rounded-full border flex items-center justify-center"
-            style={{
-              borderColor: isFavorite ? "#f59e0b" : "var(--card-border)",
-              color: isFavorite ? "#f59e0b" : "var(--muted)",
-              background: isFavorite ? "#f59e0b1f" : "transparent",
-            }}
-            title="お気に入り"
-          >
-            <Heart size={14} fill={isFavorite ? "currentColor" : "none"} />
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: "var(--card-border)" }}>
-        <span className="text-xs font-semibold" style={{ color: "var(--muted)" }}>
-          {statusLabel}
-        </span>
-        <DonutProgress value={progress} color={deck.color} />
-      </div>
-    </motion.div>
-  );
-}
-
-function DonutProgress({ value, color }: { value: number; color: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div
-        className="h-11 w-11 rounded-full grid place-items-center"
-        style={{
-          background: `conic-gradient(${color} ${value}%, #d4d4d8 ${value}% 100%)`,
-        }}
-      >
-        <div
-          className="h-8 w-8 rounded-full grid place-items-center text-[10px] font-bold"
-          style={{ background: "var(--background)", color: "var(--foreground)" }}
-        >
-          {value}%
-        </div>
-      </div>
+    <div className="grid grid-cols-3 gap-3">
+      {[["単語帳", decks.length], ["カード", decks.reduce((sum, deck) => sum + deck.cardCount, 0)], ["復習待ち", totalDue]].map(([label, value]) => <div className="glass-card p-4" key={label}><p className="text-xs sm:text-sm" style={{ color: "var(--muted)" }}>{label}</p><p className="mt-2 text-2xl font-bold">{value}</p></div>)}
     </div>
-  );
+    <div className="flex flex-col sm:flex-row gap-3">
+      <label className="flex flex-1 items-center gap-3 rounded-xl px-4 min-h-12" style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}><Search size={20} aria-hidden="true" /><input className="w-full min-w-0 bg-transparent outline-none" aria-label="単語帳を検索" placeholder="単語帳を検索" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
+      <select aria-label="教科で絞り込む" className="rounded-xl px-4 min-h-12" style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }} value={subject} onChange={(e) => setSubject(e.target.value)}><option value="all">すべての教科</option>{subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+    </div>
+    <div className="flex flex-wrap gap-2" aria-label="単語帳の表示範囲">
+      {([["mine", "すべて"], ["due", "復習待ち"], ["favorites", "お気に入り"], ["recent", "最近作成"]] as const).map(([id, label]) => <button key={id} onClick={() => setScope(id)} aria-pressed={scope === id} className="min-h-11 px-4 rounded-full text-sm font-semibold" style={{ background: scope === id ? "var(--accent-light)" : "var(--card-bg)", color: scope === id ? "var(--accent)" : "var(--muted)" }}>{label}</button>)}
+    </div>
+    {loading ? <p role="status" className="py-12 text-center" style={{ color: "var(--muted)" }}>単語帳を読み込み中…</p> : error ? <div className="glass-card p-6 space-y-4"><p role="alert">{error}</p><button className="secondary-button" onClick={() => void loadDecks()}>再読み込み</button></div> : visible.length === 0 ? <div className="glass-card p-8 text-center space-y-3"><BookOpen className="mx-auto" size={36} style={{ color: "var(--accent)" }} /><h2 className="font-bold">{decks.length === 0 ? "最初の単語帳を作りましょう" : "条件に合う単語帳がありません"}</h2><p className="text-sm" style={{ color: "var(--muted)" }}>{decks.length === 0 ? "覚えたい言葉や問題を、自分のペースで復習できます。" : "検索や絞り込みの条件を変えてみてください。"}</p></div> : <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+      {visible.map((deck) => <article key={deck.id} className="glass-card p-5 min-w-0 flex flex-col" style={{ borderTop: `3px solid ${deck.color}` }}>
+        <div className="flex justify-between gap-2 items-start"><Link href={`/memorize/deck/${deck.id}`} className="flex-1 min-w-0 text-lg font-bold break-words hover:underline">{deck.name}</Link><button className="icon-button shrink-0" aria-label={`${deck.name}のメニュー`} onClick={() => { setSelected(deck); setEditingName(deck.name); setFormError(""); setConfirmDelete(false); }}><MoreHorizontal size={20} /></button></div>
+        <p className="text-sm mt-2 break-words line-clamp-2" style={{ color: "var(--muted)" }}>{deck.description || "カードを追加して学習を始めましょう"}</p>
+        <p className="text-sm mt-4">{deck.cardCount} カード <span className="ml-2" style={{ color: "var(--muted)" }}>習得 {deck.masteredCount}</span></p>
+        <div className="flex justify-between items-center gap-2 mt-4"><Link href={`/memorize/deck/${deck.id}`} className="secondary-button">{deck.dueCount > 0 ? `${deck.dueCount} 枚を復習` : "単語帳を開く"}</Link><button className="icon-button" aria-label={`${deck.name}をお気に入り`} aria-pressed={favorites.includes(deck.id)} onClick={() => persistFavorites(favorites.includes(deck.id) ? favorites.filter((id) => id !== deck.id) : [...favorites, deck.id])}><Heart size={20} fill={favorites.includes(deck.id) ? "currentColor" : "none"} style={{ color: favorites.includes(deck.id) ? "var(--accent)" : "var(--muted)" }} /></button></div>
+      </article>)}
+    </div>}
+    <Dialog open={createOpen} onClose={() => { if (!busy) setCreateOpen(false); }} title="新しい単語帳">
+      <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); void create(); }}>
+        <label className="block space-y-2"><span className="font-semibold text-sm">単語帳の名前</span><input autoFocus required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl px-4 min-h-12" style={{ background: "var(--muted-bg)" }} placeholder="例：英検2級の単語" /></label>
+        <fieldset><legend className="font-semibold text-sm mb-2">カラー</legend><div className="flex flex-wrap gap-2">{COLORS.map((c, index) => <button type="button" key={c} className="w-11 h-11 rounded-full" aria-label={`カラー ${index + 1}`} aria-pressed={color === c} onClick={() => setColor(c)} style={{ background: c, outline: color === c ? "3px solid var(--foreground)" : undefined, outlineOffset: 2 }} />)}</div></fieldset>
+        {formError && <p role="alert" className="text-sm">{formError}</p>}
+        <button className="primary-button w-full justify-center" disabled={busy || !name.trim()}>{busy ? "作成中…" : "作成する"}</button>
+      </form>
+    </Dialog>
+    <Dialog open={Boolean(selected)} onClose={() => { if (!busy) setSelected(null); }} title="単語帳の編集">
+      <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void update(false); }}>
+        <label className="block space-y-2"><span className="text-sm font-semibold">名前</span><input required maxLength={100} value={editingName} onChange={(e) => setEditingName(e.target.value)} className="w-full rounded-xl px-4 min-h-12" style={{ background: "var(--muted-bg)" }} /></label>
+        {formError && <p role="alert" className="text-sm">{formError}</p>}
+        <button className="primary-button" disabled={busy || !editingName.trim()}>{busy ? "処理中…" : "名前を保存"}</button>
+        <div className="pt-4 border-t" style={{ borderColor: "var(--card-border)" }}>{confirmDelete ? <div className="space-y-3"><p className="text-sm">この単語帳とカードを削除します。この操作は取り消せません。</p><button type="button" className="secondary-button" disabled={busy} onClick={() => void update(true)}>削除を確定</button><button type="button" className="secondary-button ml-2" disabled={busy} onClick={() => setConfirmDelete(false)}>戻る</button></div> : <button type="button" className="secondary-button" disabled={busy} onClick={() => setConfirmDelete(true)}><Trash2 size={18} />単語帳を削除</button>}</div>
+      </form>
+    </Dialog>
+  </div>;
 }
