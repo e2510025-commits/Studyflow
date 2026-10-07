@@ -17,7 +17,7 @@ import {
 import { formatHoursMinutes, getTodayLogs, getTotalDuration } from "@/lib/utils";
 
 export default function StatsCards() {
-  const { userProfile } = useStore();
+  const userProfile = useStore((state) => state.userProfile);
   const studyLogs = useLiveStudyLogs();
 
   const stats = useMemo(() => {

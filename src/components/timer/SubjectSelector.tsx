@@ -63,7 +63,7 @@ export default function SubjectSelector({
   selectedId,
   onSelect,
 }: SubjectSelectorProps) {
-  const { subjects } = useStore();
+  const subjects = useStore((state) => state.subjects);
 
   return (
     <div className="w-full">

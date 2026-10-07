@@ -6,8 +6,8 @@ import { useStore } from "@/store/useStore";
 import { motion } from "framer-motion";
 
 export default function TimerPage() {
-  const { timer } = useStore();
-  const isIdle = timer.status === "idle";
+  const status = useStore((state) => state.timer.status);
+  const isIdle = status === "idle";
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6">

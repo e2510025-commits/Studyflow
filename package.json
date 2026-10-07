@@ -9,7 +9,9 @@
     "lint": "eslint",
     "migrate:firestore:mongo": "tsx scripts/migrate/firestore-to-mongodb.ts",
     "mongo:indexes": "tsx scripts/migrate/mongo-create-indexes.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "dev:ui": "node scripts/ui/dev.mjs",
+    "test:ui": "node scripts/ui/verify.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

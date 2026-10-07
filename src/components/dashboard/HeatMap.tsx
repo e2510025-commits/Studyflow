@@ -115,8 +115,9 @@ export default function HeatMap() {
                 style={{
                   color: "var(--muted)",
                   position: "absolute",
-                  left: m.weekIndex * (CELL_SIZE + GAP),
-                  width: 20,
+                  left: Math.min(m.weekIndex * (CELL_SIZE + GAP), grid.length * (CELL_SIZE + GAP) - 30),
+                  width: 30,
+                  whiteSpace: "nowrap",
                 }}
               >
                 {m.label}

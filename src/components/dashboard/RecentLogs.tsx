@@ -14,7 +14,7 @@ import { formatHoursMinutes } from "@/lib/utils";
 import { motion } from "framer-motion";
 
 export default function RecentLogs() {
-  const { subjects } = useStore();
+  const subjects = useStore((state) => state.subjects);
   const studyLogs = useLiveStudyLogs();
 
   const recentLogs = useMemo(() => {

@@ -931,7 +931,7 @@ export default function StudyTimer() {
             <button
               key={preset.value}
               onClick={() => setCountdownTotal(preset.value)}
-              className="px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+              className="min-h-11 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
               style={{
                 background: timer.countdownTotal === preset.value ? `${accentColor}20` : "var(--muted-bg)",
                 color: timer.countdownTotal === preset.value ? accentColor : "var(--muted)",
@@ -949,7 +949,7 @@ export default function StudyTimer() {
         <motion.div className="mb-8 w-full max-w-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <button
             onClick={() => setShowPomSettings(!showPomSettings)}
-            className="flex items-center gap-2 mx-auto px-4 py-2 rounded-xl text-sm font-medium transition-all"
+            className="min-h-11 flex items-center gap-2 mx-auto px-4 py-2 rounded-xl text-sm font-medium transition-all"
             style={{ background: "var(--muted-bg)", color: "var(--muted)" }}
           >
             <Settings size={14} />
@@ -1030,7 +1030,7 @@ export default function StudyTimer() {
                         setPresetName("");
                       }}
                       className="px-3 py-2 rounded-lg text-sm font-semibold text-white"
-                      style={{ background: "var(--accent)" }}
+                      style={{ background: "var(--accent)", color: "var(--primary-foreground)" }}
                     >
                       現在設定を保存
                     </button>
@@ -1450,7 +1450,7 @@ export default function StudyTimer() {
                   setNewTodoPages("");
                 }}
                 className="px-3 py-2 rounded-lg text-sm font-semibold text-white"
-                style={{ background: "var(--accent)" }}
+                style={{ background: "var(--accent)", color: "var(--primary-foreground)" }}
               >
                 追加
               </button>

@@ -1,3 +1,11 @@
+# StudyFlow
+
+現行運用は **Vercel + Firebase / Firestore + NextAuth** です。既存環境変数・DB・権限を維持して改修します。下記のCloudflare Pages / MongoDB関連の記載は以前の移行案です。現行環境のデプロイ手順として使用しないでください。
+
+- [UI/UX仕様書](docs/ui-ux-spec.md)
+- [UI検証手順・結果](docs/ui-verification.md)
+- 改修は `redesign/responsive-ui` ブランチで実施。`main`へのマージ・本番公開は別途確認します。
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Development policy (cost-first)
@@ -49,7 +57,7 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Cloudflare Pages
+## 旧移行案: Cloudflare Pages（現行運用には適用しない）
 
 This project is configured for Cloudflare Pages with [`@cloudflare/next-on-pages`](https://github.com/cloudflare/next-on-pages).
 

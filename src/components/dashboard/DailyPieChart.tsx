@@ -1,5 +1,6 @@
 "use client";
 
+import { useReducedMotion } from "framer-motion";
 import React, { useMemo } from "react";
 import { useStore } from "@/store/useStore";
 import { useLiveStudyLogs } from "@/components/dashboard/useLiveStudyLogs";
@@ -30,7 +31,8 @@ const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<
   };
 
 export default function DailyPieChart() {
-  const { subjects } = useStore();
+  const reduceMotion = useReducedMotion();
+  const subjects = useStore((state) => state.subjects);
   const studyLogs = useLiveStudyLogs();
 
   const data = useMemo(() => {
@@ -92,6 +94,7 @@ export default function DailyPieChart() {
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
+                isAnimationActive={!reduceMotion}
                 data={data}
                 cx="50%"
                 cy="50%"
