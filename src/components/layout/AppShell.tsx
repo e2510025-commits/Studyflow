@@ -235,6 +235,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               uid: appUid,
               name: resolvedName,
               avatar: resolvedAvatar,
+              dailyGoal: typeof storedProfile?.dailyGoal === "number" && Number.isFinite(storedProfile.dailyGoal)
+                ? storedProfile.dailyGoal
+                : switchedAccount ? 7200 : state.userProfile.dailyGoal,
               bonusPoints: resolvedBonusPoints,
               badges: Array.isArray(storedProfile?.badges) ? storedProfile.badges : [],
               achievementUnlockedAt:

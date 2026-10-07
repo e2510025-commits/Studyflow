@@ -11,7 +11,8 @@
     "mongo:indexes": "tsx scripts/migrate/mongo-create-indexes.ts",
     "postinstall": "prisma generate",
     "dev:ui": "node scripts/ui/dev.mjs",
-    "test:ui": "node scripts/ui/verify.mjs"
+    "test:ui": "node scripts/ui/verify.mjs",
+    "test:profile": "tsx scripts/ui/check-profile.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

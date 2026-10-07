@@ -76,7 +76,9 @@ function Avatar({
 
 export default function RankingPage() {
   const [period, setPeriod] = useState<RankingPeriod>("today");
-  const { userProfile, friends, subjects } = useStore();
+  const userProfile = useStore((state) => state.userProfile);
+  const friends = useStore((state) => state.friends);
+  const subjects = useStore((state) => state.subjects);
 
   /* ── State ─────────────────────────────────────── */
   const [rawData, setRawData] = useState<AggregatedUser[]>([]);
@@ -89,6 +91,10 @@ export default function RankingPage() {
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [rivalBusy, setRivalBusy] = useState<string | null>(null);
+  const requestGeneration = useRef(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [quickProfileUid, setQuickProfileUid] = useState<string | null>(null);
   const [activeStudySet, setActiveStudySet] = useState<Set<string>>(new Set());
@@ -108,43 +114,38 @@ export default function RankingPage() {
 
   /* ── Fetch ranking when period changes ─────────── */
   const loadRanking = useCallback(async () => {
-    setLoading(true);
-    setVisibleCount(PAGE_SIZE);
+    const generation = ++requestGeneration.current;
+    setLoading(true); setError(""); setVisibleCount(PAGE_SIZE);
     try {
-      const data = await fetchRankingData(period);
+      const data = await fetchRankingData(period, selectedSubject);
+      if (generation !== requestGeneration.current) return;
       setRawData(data);
-
-      const [todayRankMap, yesterdayRankMap] = await Promise.all([
-        fetchDailyRankMap(0),
-        fetchDailyRankMap(1),
+      // Daily movement is for all subjects; do not show an unrelated trend in a subject filter.
+      const [todayRankMap, yesterdayRankMap] = selectedSubject ? [new Map<string, number>(), new Map<string, number>()] : await Promise.all([
+        fetchDailyRankMap(0).catch(() => new Map<string, number>()),
+        fetchDailyRankMap(1).catch(() => new Map<string, number>()),
       ]);
+      if (generation !== requestGeneration.current) return;
       const trendMap = new Map<string, number>();
       data.forEach((row, idx) => {
-        const todayRank = todayRankMap.get(row.userId) || idx + 1;
         const yesterdayRank = yesterdayRankMap.get(row.userId);
-        if (yesterdayRank) {
-          // Positive means ranking improved (e.g. 10 -> 7 => +3)
-          trendMap.set(row.userId, yesterdayRank - todayRank);
-        }
+        if (yesterdayRank) trendMap.set(row.userId, yesterdayRank - (todayRankMap.get(row.userId) || idx + 1));
       });
       setDailyTrend(trendMap);
-
-      // Fetch profiles for first page + own uid
-      const uids = data.slice(0, PAGE_SIZE).map((u) => u.userId);
-      if (userProfile.uid && !uids.includes(userProfile.uid)) {
-        uids.push(userProfile.uid);
-      }
+      const uids = data.slice(0, PAGE_SIZE).map((row) => row.userId);
+      if (userProfile.uid && !uids.includes(userProfile.uid)) uids.push(userProfile.uid);
       const profs = await getProfilesBatch(uids);
-      setProfiles(profs);
-    } catch (err) {
-      console.error("ランキング取得エラー:", err);
+      if (generation === requestGeneration.current) setProfiles(profs);
+    } catch {
+      if (generation === requestGeneration.current) setError("ランキングを読み込めませんでした。再読み込みしてください。");
     } finally {
-      setLoading(false);
+      if (generation === requestGeneration.current) setLoading(false);
     }
-  }, [period, userProfile.uid]);
+  }, [period, userProfile.uid, selectedSubject]);
 
   useEffect(() => {
-    loadRanking();
+    void loadRanking();
+    return () => { requestGeneration.current += 1; };
   }, [loadRanking]);
 
   useEffect(() => {
@@ -169,7 +170,9 @@ export default function RankingPage() {
 
   /* ── Load more ─────────────────────────────────── */
   const handleLoadMore = useCallback(async () => {
-    setLoadingMore(true);
+    if (loadingMore) return;
+    const generation = requestGeneration.current;
+    setLoadingMore(true); setActionError("");
     try {
       const source = rivalOnly
         ? rawData.filter((u) => u.userId === userProfile.uid || rivalUids.has(u.userId))
@@ -181,17 +184,18 @@ export default function RankingPage() {
 
       if (newUids.length > 0) {
         const newProfs = await getProfilesBatch(newUids);
+        if (generation !== requestGeneration.current) return;
         setProfiles((prev) => {
           const merged = new Map(prev);
           newProfs.forEach((v, k) => merged.set(k, v));
           return merged;
         });
       }
-      setVisibleCount((prev) => prev + PAGE_SIZE);
-    } finally {
+      if (generation === requestGeneration.current) setVisibleCount((prev) => prev + PAGE_SIZE);
+    } catch { setActionError("追加のプロフィールを読み込めませんでした。再試行してください。"); } finally {
       setLoadingMore(false);
     }
-  }, [visibleCount, rawData, rivalOnly, userProfile.uid, rivalUids, profiles]);
+  }, [loadingMore, visibleCount, rawData, rivalOnly, userProfile.uid, rivalUids, profiles]);
 
   /* ── Derived data ──────────────────────────────── */
   const filteredData = rivalOnly
@@ -226,14 +230,14 @@ export default function RankingPage() {
   ];
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-6">
+    <div className="w-full max-w-4xl mx-auto space-y-6 ranking-page">
       {/* ── Header ─────────────────────────────────── */}
       <motion.div
-        className="text-center"
+        className="text-left"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <div className="flex items-center justify-center gap-3 mb-2">
+        <div className="flex items-center gap-3 mb-2">
           <Trophy size={32} style={{ color: "#FFD700" }} />
           <h1
             className="text-3xl sm:text-4xl font-black"
@@ -249,7 +253,7 @@ export default function RankingPage() {
 
       {/* ── Period Tabs ─────────────────────────────── */}
       <motion.div
-        className="flex items-center justify-center gap-2"
+        className="segmented-control"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
@@ -257,8 +261,9 @@ export default function RankingPage() {
         {periods.map((p) => (
           <button
             key={p.key}
+            aria-pressed={period === p.key}
             onClick={() => setPeriod(p.key)}
-            className="px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
+            className="min-h-11 flex-1 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
             style={{
               background:
                 period === p.key ? "var(--accent-light)" : "var(--muted-bg)",
@@ -283,6 +288,7 @@ export default function RankingPage() {
         >
           <h3 className="text-sm font-bold mb-2" style={{ color: "var(--foreground)" }}>教科別ランキング</h3>
           <select
+            aria-label="ランキングの教科"
             value={selectedSubject}
             onChange={(e) => setSelectedSubject(e.target.value)}
             className="w-full px-3 py-2 rounded-lg text-sm"
@@ -303,7 +309,7 @@ export default function RankingPage() {
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>ライバル比較</h3>
           <label className="text-xs inline-flex items-center gap-2" style={{ color: "var(--muted)" }}>
             <input type="checkbox" checked={rivalOnly} onChange={(e) => setRivalOnly(e.target.checked)} />
@@ -319,14 +325,14 @@ export default function RankingPage() {
             return (
               <div
                 key={friend.uid}
-                className="px-2 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-2"
+                className="max-w-full px-2 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-2"
                 style={{
                   background: "var(--muted-bg)",
                 }}
               >
                 <button
                   onClick={() => setQuickProfileUid(friend.uid)}
-                  className="px-1.5 py-1 rounded-md transition-all"
+                  className="min-h-11 min-w-0 break-words px-1.5 py-1 rounded-md transition-all"
                   style={{ color: "var(--foreground)" }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = "scale(1.03)";
@@ -340,8 +346,17 @@ export default function RankingPage() {
                   {friend.name}
                 </button>
                 <button
-                  onClick={() => void (isRival ? removeRival(userProfile.uid, friend.uid) : addRival(userProfile.uid, friend.uid))}
-                  className="px-1.5 py-1 rounded-md inline-flex items-center gap-1 transition-colors"
+                  aria-label={`${friend.name}のライバル登録を${isRival ? "解除" : "追加"}`}
+                  aria-pressed={isRival}
+                  disabled={Boolean(rivalBusy)}
+                  onClick={() => {
+                    if (rivalBusy) return;
+                    setRivalBusy(friend.uid); setActionError("");
+                    void (isRival ? removeRival(userProfile.uid, friend.uid) : addRival(userProfile.uid, friend.uid))
+                      .catch(() => setActionError("ライバル設定を保存できませんでした。再試行してください。"))
+                      .finally(() => setRivalBusy(null));
+                  }}
+                  className="min-h-11 min-w-11 shrink-0 px-1.5 py-1 rounded-md inline-flex items-center gap-1 transition-colors"
                   style={{
                     color: isRival ? "#ef4444" : "var(--accent)",
                     background: isRival ? "rgba(239,68,68,0.1)" : "var(--accent-light)",
@@ -358,7 +373,7 @@ export default function RankingPage() {
 
       {/* ── My Stats Cards ──────────────────────────── */}
       <motion.div
-        className="grid grid-cols-3 gap-3"
+        className="grid grid-cols-1 min-[430px]:grid-cols-3 gap-3"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
@@ -422,7 +437,8 @@ export default function RankingPage() {
       </motion.div>
 
       {/* ── Loading / Empty / Ranking list ──────────── */}
-      {loading ? (
+      {actionError && <p role="alert" className="text-sm text-danger">{actionError}</p>}
+      {error ? <div role="alert" className="glass-card p-5 space-y-3"><p>{error}</p><button className="secondary-button" onClick={() => void loadRanking()}>ランキングを再読み込み</button></div> : loading ? (
         <motion.div
           className="flex flex-col items-center justify-center py-16 gap-3"
           initial={{ opacity: 0 }}
@@ -495,7 +511,7 @@ export default function RankingPage() {
                 return (
                   <motion.div
                     key={user.userId}
-                    className="flex items-center gap-4 px-5 py-4 transition-colors"
+                    className="flex items-center gap-2 sm:gap-4 px-3 sm:px-5 py-4 transition-colors"
                     style={{
                       background: isMe
                         ? "var(--accent-light)"
@@ -532,8 +548,9 @@ export default function RankingPage() {
                     {/* Avatar + Name */}
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <button
+                        aria-label={`${user.name}のプロフィールを開く`}
                         onClick={() => setQuickProfileUid(user.userId)}
-                        className="rounded-full transition-all"
+                        className="min-h-11 min-w-11 rounded-full transition-all"
                         style={{ cursor: "pointer" }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.transform = "scale(1.06)";
@@ -551,7 +568,7 @@ export default function RankingPage() {
                         />
                       </button>
                       <div className="min-w-0">
-                        <Link href={`/profile/${user.userId}`} className="text-sm font-bold truncate flex items-center gap-1 hover:underline" style={{ color: isMe ? "var(--accent)" : "var(--foreground)" }}>
+                        <Link href={`/profile/${user.userId}`} className="text-sm font-bold min-h-11 break-words flex items-center gap-1 hover:underline" style={{ color: isMe ? "var(--accent)" : "var(--foreground)" }}>
                           {isMe ? `${user.name} (あなた)` : user.name}
                           {profiles.get(user.userId)?.isOfficial ? <BadgeCheck size={14} style={{ color: "#38bdf8" }} /> : null}
                         </Link>
@@ -563,7 +580,7 @@ export default function RankingPage() {
                         </span>
                         <span className="text-[10px] inline-flex items-center gap-1" style={{ color: trend > 0 ? "#16a34a" : trend < 0 ? "#ef4444" : "var(--muted)" }}>
                           {trend > 0 ? <ArrowUp size={12} /> : trend < 0 ? <ArrowDown size={12} /> : null}
-                          前日比 {trend > 0 ? `+${trend}` : trend < 0 ? `${trend}` : "±0"}
+                          {selectedSubject ? "教科別の前日比は未集計" : dailyTrend.has(user.userId) ? `前日比 ${trend > 0 ? `+${trend}` : trend}` : "前日比 —"}
                         </span>
                       </div>
                     </div>
@@ -643,7 +660,7 @@ export default function RankingPage() {
           <div className="flex items-center gap-4">
             <button
               onClick={() => setQuickProfileUid(userProfile.uid)}
-              className="rounded-full transition-all"
+              className="min-h-11 min-w-11 rounded-full transition-all"
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = "scale(1.06)";
                 e.currentTarget.style.filter = "brightness(0.92)";

@@ -16,6 +16,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { buildDisplayProfileUpdate, type DisplayProfileUpdate } from "@/lib/profilePayload";
 import { sanitizeAvatar, sanitizeDisplayName } from "@/lib/identity";
 import type { Friend, ProfileVisibility, PublicProfile } from "@/types";
 
@@ -50,96 +51,18 @@ export interface UserMiniProfile {
   isOfficial: boolean;
 }
 
-export async function saveDisplayProfile(params: {
-  uid: string;
-  name: string;
-  avatar: string;
-  bio?: string;
-  visibility?: ProfileVisibility;
-  dailyGoal?: number;
-  totalPoints?: number;
-  bonusPoints?: number;
-  profileSetupDone?: boolean;
-  equippedBadges?: string[];
-  statusMessage?: string;
-  headerImage?: string;
-  deviceLabel?: string;
-  showFollowCount?: boolean;
-  showFollowerCount?: boolean;
-  showFriendCount?: boolean;
-  helpfulReceived?: number;
-  termsAccepted?: boolean;
-  privacyAccepted?: boolean;
-  agreementsAcceptedAt?: string;
-}) {
-  const safeName = sanitizeDisplayName(params.name);
-  const safeAvatar = sanitizeAvatar(params.avatar);
-  const safeBio = (params.bio || "").trim().slice(0, 280);
-  const safeStatus = typeof params.statusMessage === "string" ? params.statusMessage.trim().slice(0, 120) : "";
-  
-  const payload: Record<string, unknown> = {
-    uid: params.uid,
-    name: safeName,
-    avatar: safeAvatar,
-    bio: safeBio,
-    statusMessage: safeStatus,
-    visibility: params.visibility || "public",
-    dailyGoal: typeof params.dailyGoal === "number" ? params.dailyGoal : 0,
-    totalPoints: typeof params.totalPoints === "number" ? params.totalPoints : 0,
-    bonusPoints: typeof params.bonusPoints === "number" ? params.bonusPoints : 0,
-    updatedAt: serverTimestamp(),
-  };
-  if (typeof params.profileSetupDone === "boolean") {
-    payload.profileSetupDone = params.profileSetupDone;
-  }
-  if (Array.isArray(params.equippedBadges)) {
-    payload.equippedBadges = params.equippedBadges.slice(0, 3);
-  }
-  if (typeof params.headerImage === "string") {
-    const safeHeader = params.headerImage.slice(0, 2_000_000);
-    payload.headerImage = safeHeader;
-    payload.headerImageUrl = safeHeader;
-  }
-  if (typeof params.deviceLabel === "string") {
-    payload.deviceLabel = params.deviceLabel.trim().slice(0, 40);
-  }
-  if (typeof params.showFollowCount === "boolean") {
-    payload.showFollowCount = params.showFollowCount;
-  }
-  if (typeof params.showFollowerCount === "boolean") {
-    payload.showFollowerCount = params.showFollowerCount;
-  }
-  if (typeof params.showFriendCount === "boolean") {
-    payload.showFriendCount = params.showFriendCount;
-  }
-  if (typeof params.helpfulReceived === "number") {
-    payload.helpfulReceived = Math.max(0, Math.floor(params.helpfulReceived));
-  }
-  if (typeof params.termsAccepted === "boolean") {
-    payload.termsAccepted = params.termsAccepted;
-  }
-  if (typeof params.privacyAccepted === "boolean") {
-    payload.privacyAccepted = params.privacyAccepted;
-  }
-  if (typeof params.agreementsAcceptedAt === "string") {
-    payload.agreementsAcceptedAt = params.agreementsAcceptedAt;
-  }
+/** Update only the daily goal; never overwrite profile or ranking fields. */
+export async function saveDailyStudyGoal(uid: string, seconds: number): Promise<void> {
+  if (!uid || !Number.isInteger(seconds) || seconds < 600 || seconds > 28800) throw new Error("Invalid daily goal");
+  await setDoc(doc(db, "userProfiles", uid), { uid, dailyGoal: seconds, updatedAt: serverTimestamp() }, { merge: true });
+}
 
-  await setDoc(
-    doc(db, "userProfiles", params.uid),
-    payload,
-    { merge: true }
-  );
-
-  await setDoc(
-    doc(db, "users", params.uid),
-    {
-      name: safeName,
-      image: safeAvatar,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+export async function saveDisplayProfile(params: DisplayProfileUpdate) {
+  const payload = { ...buildDisplayProfileUpdate(params), updatedAt: serverTimestamp() };
+  await setDoc(doc(db, "userProfiles", params.uid), payload, { merge: true });
+  await setDoc(doc(db, "users", params.uid), {
+    name: payload.name, image: payload.avatar, updatedAt: serverTimestamp(),
+  }, { merge: true });
 }
 
 export async function fetchDisplayProfile(uid: string): Promise<{

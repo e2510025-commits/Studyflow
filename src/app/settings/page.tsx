@@ -5,6 +5,7 @@ import { useStore } from "@/store/useStore";
 import { motion } from "framer-motion";
 import { User, Copy, Check, Save, Upload, X, ImageIcon, Trash2, KeyRound, RefreshCw } from "lucide-react";
 import { fetchPublicProfile, saveDisplayProfile } from "@/lib/firestore/profile";
+import type { DisplayProfileUpdate } from "@/lib/profilePayload";
 import type { ProfileVisibility } from "@/types";
 
 type PairingCodeResponse = {
@@ -23,20 +24,35 @@ function formatRemaining(ms: number): string {
 }
 
 export default function SettingsPage() {
-  const {
-    userProfile,
-    updateUserProfile,
-  } = useStore();
-
-  const [name, setName] = useState(() => userProfile.name);
-  const [avatar, setAvatar] = useState(() => userProfile.avatar || "👤");
+  const userProfile = useStore((state) => state.userProfile);
+  const updateUserProfile = useStore((state) => state.updateUserProfile);
+  const [draft, setDraft] = useState<{ uid: string; fields: Partial<DisplayProfileUpdate> } | null>(null);
+  const [loaded, setLoaded] = useState<{ uid: string; fields: Partial<DisplayProfileUpdate> } | null>(null);
+  const fields = { ...(loaded?.uid === userProfile.uid ? loaded.fields : {}), ...(draft?.uid === userProfile.uid ? draft.fields : {}) };
+  const change = (patch: Partial<DisplayProfileUpdate>) => {
+    setDraft((previous) => ({ uid: userProfile.uid, fields: { ...(previous?.uid === userProfile.uid ? previous.fields : {}), ...patch } }));
+    setSaved(false);
+  };
+  const name = fields.name ?? userProfile.name;
+  const avatar = fields.avatar ?? userProfile.avatar ?? "👤";
+  const setName = (value: string) => change({ name: value });
+  const setAvatar = (value: string) => change({ avatar: value });
+  const bio = fields.bio ?? "";
+  const visibility = fields.visibility ?? "public";
+  const showFollowCount = fields.showFollowCount ?? true;
+  const showFollowerCount = fields.showFollowerCount ?? true;
+  const showFriendCount = fields.showFriendCount ?? true;
+  const setBio = (value: string) => change({ bio: value });
+  const setVisibility = (value: ProfileVisibility) => change({ visibility: value });
+  const setShowFollowCount = (value: boolean) => change({ showFollowCount: value });
+  const setShowFollowerCount = (value: boolean) => change({ showFollowerCount: value });
+  const setShowFriendCount = (value: boolean) => change({ showFriendCount: value });
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [profileRetry, setProfileRetry] = useState(0);
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [bio, setBio] = useState("");
-  const [visibility, setVisibility] = useState<ProfileVisibility>("public");
-  const [showFollowCount, setShowFollowCount] = useState(true);
-  const [showFollowerCount, setShowFollowerCount] = useState(true);
-  const [showFriendCount, setShowFriendCount] = useState(true);
   const [nameError, setNameError] = useState("");
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
@@ -51,17 +67,19 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!userProfile.uid) return;
-    void fetchPublicProfile(userProfile.uid)
-      .then((profile) => {
-        if (!profile) return;
-        setBio(profile.bio || "");
-        setVisibility(profile.visibility || "public");
-        setShowFollowCount(profile.showFollowCount ?? true);
-        setShowFollowerCount(profile.showFollowerCount ?? true);
-        setShowFriendCount(profile.showFriendCount ?? true);
-      })
-      .catch(() => {});
-  }, [userProfile.uid]);
+    let disposed = false;
+    const uid = userProfile.uid;
+    void fetchPublicProfile(uid).then((profile) => {
+      if (disposed) return;
+      setLoadError("");
+      if (!profile) return;
+      setLoaded({ uid, fields: { bio: profile.bio, visibility: profile.visibility,
+        showFollowCount: profile.showFollowCount ?? true,
+        showFollowerCount: profile.showFollowerCount ?? true,
+        showFriendCount: profile.showFriendCount ?? true } });
+    }).catch(() => { if (!disposed) setLoadError("プロフィールを読み込めませんでした。未編集の項目は保存時に維持されます。"); });
+    return () => { disposed = true; };
+  }, [userProfile.uid, profileRetry]);
 
   useEffect(() => {
     if (!userProfile.uid) return;
@@ -84,7 +102,7 @@ export default function SettingsPage() {
   }, []);
 
   const handleSave = async () => {
-    if (!userProfile.uid) return;
+    if (!userProfile.uid || saving) return;
     const trimmedName = name.trim();
     if (!trimmedName) {
       setNameError("表示名は必須です");
@@ -92,23 +110,16 @@ export default function SettingsPage() {
     }
     setNameError("");
 
-    await saveDisplayProfile({
-      uid: userProfile.uid,
-      name: trimmedName,
-      avatar,
-      bio,
-      visibility,
-      dailyGoal: userProfile.dailyGoal,
-      totalPoints: userProfile.totalPoints,
-      bonusPoints: userProfile.bonusPoints || 0,
-      profileSetupDone: true,
-      showFollowCount,
-      showFollowerCount,
-      showFriendCount,
-    });
-    updateUserProfile({ name: trimmedName, avatar });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    const uid = userProfile.uid;
+    setSaving(true); setSaved(false); setSaveError("");
+    try {
+      await saveDisplayProfile({ ...fields, uid, name: trimmedName, avatar, profileSetupDone: true });
+      if (useStore.getState().userProfile.uid !== uid) return;
+      updateUserProfile({ name: trimmedName, avatar });
+      setSaved(true);
+    } catch {
+      setSaveError("保存できませんでした。入力内容は保持されています。再試行してください。");
+    } finally { setSaving(false); }
   };
 
   const handleCopyUid = async () => {
@@ -237,7 +248,7 @@ export default function SettingsPage() {
   const hasActivePairing = Boolean(pairingCode) && pairingRemainingMs > 0;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6 settings-page">
       {/* Page header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -252,24 +263,7 @@ export default function SettingsPage() {
         </p>
       </motion.div>
 
-      <motion.div
-        className="glass-card p-5"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.02, duration: 0.4 }}
-      >
-        <h2 className="text-base font-bold" style={{ color: "var(--foreground)" }}>
-          設定ガイド
-        </h2>
-        <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
-          まず「表示名」と「アイコン」を設定して保存すると、他ユーザーから識別されやすくなります。
-        </p>
-        <div className="mt-3 grid sm:grid-cols-3 gap-2 text-xs">
-          <div className="rounded-lg px-3 py-2" style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}>1. 表示名を入力</div>
-          <div className="rounded-lg px-3 py-2" style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}>2. アイコンを設定</div>
-          <div className="rounded-lg px-3 py-2" style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}>3. 保存ボタンを押す</div>
-        </div>
-      </motion.div>
+      {loadError && <div role="alert" className="glass-card p-4 text-sm"><p>{loadError}</p><button className="secondary-button mt-3" onClick={() => setProfileRetry((value) => value + 1)}>プロフィールを再読み込み</button></div>}
 
       {/* UID Card */}
       <motion.div
@@ -347,7 +341,9 @@ export default function SettingsPage() {
             {isImageAvatar && (
               <button
                 onClick={() => setAvatar("👤")}
-                className="absolute -top-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-white"
+                aria-label="アイコン画像を削除"
+                disabled={saving}
+                className="absolute -top-1 -right-1 w-11 h-11 rounded-full flex items-center justify-center text-white"
                 style={{ background: "#ef4444", fontSize: 12 }}
                 title="画像を削除"
               >
@@ -360,6 +356,7 @@ export default function SettingsPage() {
               画像をアップロード
             </p>
             <button
+              disabled={saving}
               onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-105 active:scale-95"
               style={{ background: "var(--accent)", color: "#fff" }}
@@ -400,6 +397,10 @@ export default function SettingsPage() {
         </div>
         <input
           type="text"
+          aria-label="表示名"
+          aria-invalid={Boolean(nameError)}
+          aria-describedby={nameError ? "name-error" : undefined}
+          disabled={saving}
           value={name}
           onChange={(e) => {
             setName(e.target.value);
@@ -416,7 +417,7 @@ export default function SettingsPage() {
           onBlur={(e) => (e.target.style.borderColor = "transparent")}
         />
         {nameError && (
-          <p className="text-xs mt-2" style={{ color: "#ef4444" }}>
+          <p id="name-error" role="alert" className="text-xs mt-2" style={{ color: "#ef4444" }}>
             {nameError}
           </p>
         )}
@@ -435,6 +436,8 @@ export default function SettingsPage() {
           自己紹介
         </h2>
         <textarea
+          aria-label="自己紹介"
+          disabled={saving}
           value={bio}
           onChange={(e) => setBio(e.target.value.slice(0, 280))}
           rows={4}
@@ -460,6 +463,8 @@ export default function SettingsPage() {
           プロフィールを誰まで公開するかを選択できます。
         </p>
         <select
+          aria-label="プロフィールの公開範囲"
+          disabled={saving}
           value={visibility}
           onChange={(e) => setVisibility(e.target.value as ProfileVisibility)}
           className="w-full px-4 py-2.5 rounded-xl text-sm"
@@ -474,15 +479,15 @@ export default function SettingsPage() {
             関係情報の表示設定
           </p>
           <label className="text-xs inline-flex items-center gap-2" style={{ color: "var(--muted)" }}>
-            <input type="checkbox" checked={showFollowCount} onChange={(e) => setShowFollowCount(e.target.checked)} />
+            <input disabled={saving} type="checkbox" checked={showFollowCount} onChange={(e) => setShowFollowCount(e.target.checked)} />
             フォロー数を表示
           </label>
           <label className="text-xs inline-flex items-center gap-2" style={{ color: "var(--muted)" }}>
-            <input type="checkbox" checked={showFollowerCount} onChange={(e) => setShowFollowerCount(e.target.checked)} />
+            <input disabled={saving} type="checkbox" checked={showFollowerCount} onChange={(e) => setShowFollowerCount(e.target.checked)} />
             フォロワー数を表示
           </label>
           <label className="text-xs inline-flex items-center gap-2" style={{ color: "var(--muted)" }}>
-            <input type="checkbox" checked={showFriendCount} onChange={(e) => setShowFriendCount(e.target.checked)} />
+            <input disabled={saving} type="checkbox" checked={showFriendCount} onChange={(e) => setShowFriendCount(e.target.checked)} />
             フレンド数を表示
           </label>
         </div>
@@ -523,7 +528,7 @@ export default function SettingsPage() {
             {pairingCopied ? "コピー済" : "コピー"}
           </button>
         </div>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs" style={{ color: hasActivePairing ? "var(--muted)" : "#ef4444" }}>
             {hasActivePairing ? `有効期限: ${formatRemaining(pairingRemainingMs)}` : "コード未発行または期限切れ"}
           </p>
@@ -561,6 +566,7 @@ export default function SettingsPage() {
           アカウントに関連するデータ（プロフィール、投稿、返信、DM、フレンド、学習記録、通知など）を削除します。この操作は取り消せません。
         </p>
         <input
+          aria-label="アカウント削除の確認文字"
           value={deleteConfirmText}
           onChange={(e) => {
             setDeleteConfirmText(e.target.value);
@@ -593,13 +599,15 @@ export default function SettingsPage() {
         transition={{ delay: 0.22, duration: 0.4 }}
       >
         <button
-          onClick={handleSave}
-          className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-base font-bold text-white transition-all hover:scale-[1.02] active:scale-[0.98]"
-          style={{ background: saved ? "#22c55e" : "var(--accent)" }}
+          onClick={() => void handleSave()}
+          disabled={saving}
+          className="primary-button w-full"
         >
           {saved ? <Check size={20} /> : <Save size={20} />}
-          {saved ? "保存しました！" : "アカウント情報を保存"}
+          {saving ? "保存中…" : "アカウント情報を保存"}
         </button>
+        {saved && <p role="status" className="mt-3 text-sm">アカウント情報を保存しました。</p>}
+        {saveError && <p role="alert" className="mt-3 text-sm text-danger">{saveError}</p>}
       </motion.div>
     </div>
   );
