@@ -10,7 +10,7 @@ export default function TimerPage() {
   const isIdle = timer.status === "idle";
 
   return (
-    <div className="w-full max-w-5xl mx-auto space-y-6 md:flex md:flex-col md:items-center md:justify-center md:min-h-[calc(100vh-160px)] md:text-center">
+    <div className="w-full max-w-4xl mx-auto space-y-6">
       {/* Page heading — only shown when idle */}
       {isIdle && (
         <motion.div
@@ -18,7 +18,7 @@ export default function TimerPage() {
           animate={{ opacity: 1, y: 0 }}
         >
           <h1
-            className="text-2xl sm:text-4xl font-black"
+            className="text-2xl sm:text-3xl font-bold"
             style={{ color: "var(--foreground)" }}
           >
             学習タイマー

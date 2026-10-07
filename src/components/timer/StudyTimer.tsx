@@ -203,7 +203,7 @@ export default function StudyTimer() {
         {
           createdAt: session.createdAt,
           userProfile: { name: userProfile.name, avatar: userProfile.avatar },
-          recomputeAchievements: true, // 常にアチーブメントを再計算
+          recomputeAchievements: false, // 実績機能は終了。既存データは保持。
         }
       ).catch(() => {});
 
@@ -552,6 +552,8 @@ export default function StudyTimer() {
   /* ── Keyboard shortcuts ────────────────────────────── */
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.repeat || e.ctrlKey || e.metaKey || e.altKey || showMemo || document.querySelector("dialog[open]")) return;
+      if (e.target instanceof HTMLElement && e.target.closest("button, a, select, summary, [contenteditable=true]")) return;
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement
@@ -642,7 +644,8 @@ export default function StudyTimer() {
           <div className="absolute top-6 right-6 flex items-center gap-3">
             <motion.button
               onClick={toggleSound}
-              className="w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md"
+                  aria-label="サウンドを切り替える"
+              className="w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-md"
               style={{
                 background: "rgba(255,255,255,0.1)",
                 color: soundEnabled ? "#fff" : "rgba(255,255,255,0.4)",
@@ -654,7 +657,8 @@ export default function StudyTimer() {
             </motion.button>
             <motion.button
               onClick={() => setImmersiveMode(false)}
-              className="w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md"
+                  aria-label="集中モードを終了"
+              className="w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-md"
               style={{ background: "rgba(255,255,255,0.1)", color: "#fff" }}
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
@@ -771,6 +775,7 @@ export default function StudyTimer() {
               <>
                 <motion.button
                   onClick={handlePause}
+                  aria-label="一時停止"
                   className="w-16 h-16 rounded-full flex items-center justify-center backdrop-blur-md"
                   style={{ background: "rgba(255,255,255,0.12)", color: "#fff" }}
                   whileHover={{ scale: 1.1 }}
@@ -780,6 +785,7 @@ export default function StudyTimer() {
                 </motion.button>
                 <motion.button
                   onClick={handleFinish}
+                  aria-label="終了して記録"
                   className="w-20 h-20 rounded-full flex items-center justify-center text-white shadow-2xl"
                   style={{
                     background:
@@ -802,6 +808,7 @@ export default function StudyTimer() {
               <>
                 <motion.button
                   onClick={() => resumeTimer()}
+                  aria-label="学習を再開"
                   className="w-20 h-20 rounded-full flex items-center justify-center text-white shadow-2xl"
                   style={{ background: liquidColor }}
                   whileHover={{ scale: 1.1 }}
@@ -811,6 +818,7 @@ export default function StudyTimer() {
                 </motion.button>
                 <motion.button
                   onClick={handleFinish}
+                  aria-label="終了して記録"
                   className="w-14 h-14 rounded-full flex items-center justify-center backdrop-blur-md"
                   style={{ background: "rgba(255,255,255,0.12)", color: "#ef4444" }}
                   whileHover={{ scale: 1.1 }}
@@ -820,6 +828,7 @@ export default function StudyTimer() {
                 </motion.button>
                 <motion.button
                   onClick={handleFullReset}
+                  aria-label="タイマーをリセット"
                   className="w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-md"
                   style={{
                     background: "rgba(255,255,255,0.08)",
@@ -867,10 +876,16 @@ export default function StudyTimer() {
    * ══════════════════════════════════════════════════════ */
   return (
     <div className="w-full max-w-4xl mx-auto flex flex-col items-center">
+      {isIdle && <section className="w-full max-w-2xl mb-6" aria-label="学習する教科">
+          <SubjectSelector
+            selectedId={timer.selectedSubjectId}
+            onSelect={(id) => setTimerSubject(id)}
+          />
+      </section>}
       {/* ─── Mode selector (idle only) ───────────────── */}
       {isIdle && (
         <motion.div
-          className="flex items-center justify-center gap-2 mb-8"
+          className="timer-mode-tabs"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
@@ -890,7 +905,8 @@ export default function StudyTimer() {
                 pomodoroReset();
               }
             }}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all"
+            aria-pressed={timer.mode === mode}
+            className="timer-mode-tab"
             style={{
               background: timer.mode === mode ? `${accentColor}20` : "var(--muted-bg)",
               color: timer.mode === mode ? accentColor : "var(--muted)",
@@ -898,7 +914,7 @@ export default function StudyTimer() {
             }}
           >
             <Icon size={16} />
-            <span className="hidden sm:inline">{label}</span>
+            <span>{label}</span>
           </button>
         ))}
       </motion.div>
@@ -958,7 +974,7 @@ export default function StudyTimer() {
                       <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>{item.label}</span>
                       <span className="text-sm font-bold font-mono" style={{ color: accentColor }}>{Math.floor(item.value / 60)}分</span>
                     </div>
-                    <input type="range" min={item.min} max={item.max} step={item.step} value={item.value}
+                    <input aria-label={item.label} type="range" min={item.min} max={item.max} step={item.step} value={item.value}
                       onChange={(e) => setPomodoroConfig({ [item.key]: Number(e.target.value) })} className="w-full h-2 rounded-full" style={{ accentColor }} />
                   </div>
                 ))}
@@ -967,24 +983,26 @@ export default function StudyTimer() {
                     <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>セッション数</span>
                     <span className="text-sm font-bold font-mono" style={{ color: accentColor }}>{pomodoroConfig.sessionsBeforeLongBreak}回</span>
                   </div>
-                  <input type="range" min={2} max={8} step={1} value={pomodoroConfig.sessionsBeforeLongBreak}
+                  <input aria-label="セッション数" type="range" min={2} max={8} step={1} value={pomodoroConfig.sessionsBeforeLongBreak}
                     onChange={(e) => setPomodoroConfig({ sessionsBeforeLongBreak: Number(e.target.value) })} className="w-full h-2 rounded-full" style={{ accentColor }} />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>休憩自動開始</span>
-                  <button onClick={() => setPomodoroConfig({ autoStartBreaks: !pomodoroConfig.autoStartBreaks })}
-                    className="w-12 h-7 rounded-full transition-all relative"
+                  <button aria-label="休憩の自動開始" aria-pressed={pomodoroConfig.autoStartBreaks}
+                  onClick={() => setPomodoroConfig({ autoStartBreaks: !pomodoroConfig.autoStartBreaks })}
+                    className="w-12 h-11 rounded-full transition-all relative"
                     style={{ background: pomodoroConfig.autoStartBreaks ? accentColor : "var(--card-border)" }}>
-                    <div className="w-5 h-5 bg-white rounded-full absolute top-1 transition-all shadow"
+                    <div className="w-5 h-5 bg-white rounded-full absolute top-3 transition-all shadow"
                       style={{ left: pomodoroConfig.autoStartBreaks ? "calc(100% - 24px)" : "4px" }} />
                   </button>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>作業自動開始</span>
-                  <button onClick={() => setPomodoroConfig({ autoStartWork: !pomodoroConfig.autoStartWork })}
-                    className="w-12 h-7 rounded-full transition-all relative"
+                  <button aria-label="作業の自動開始" aria-pressed={pomodoroConfig.autoStartWork}
+                  onClick={() => setPomodoroConfig({ autoStartWork: !pomodoroConfig.autoStartWork })}
+                    className="w-12 h-11 rounded-full transition-all relative"
                     style={{ background: pomodoroConfig.autoStartWork ? accentColor : "var(--card-border)" }}>
-                    <div className="w-5 h-5 bg-white rounded-full absolute top-1 transition-all shadow"
+                    <div className="w-5 h-5 bg-white rounded-full absolute top-3 transition-all shadow"
                       style={{ left: pomodoroConfig.autoStartWork ? "calc(100% - 24px)" : "4px" }} />
                   </button>
                 </div>
@@ -998,6 +1016,7 @@ export default function StudyTimer() {
                   </p>
                   <div className="mt-2 grid sm:grid-cols-[1fr_auto] gap-2">
                     <input
+                      aria-label="ポモドーロプリセット名"
                       value={presetName}
                       onChange={(e) => setPresetName(e.target.value)}
                       placeholder="例: 受験集中25-5"
@@ -1107,7 +1126,7 @@ export default function StudyTimer() {
 
       {/* ─── GIANT TIMER DISPLAY ─────────────────────── */}
       <motion.div
-        className="flex flex-col items-center justify-center py-12"
+        className="flex flex-col items-center justify-center py-6 sm:py-10"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
@@ -1185,6 +1204,7 @@ export default function StudyTimer() {
         <div className="flex items-center justify-center gap-4 mb-8">
           <motion.button
             onClick={toggleSound}
+                  aria-label="サウンドを切り替える"
             className="w-11 h-11 rounded-full flex items-center justify-center"
             style={{
               background: "var(--muted-bg)",
@@ -1198,6 +1218,7 @@ export default function StudyTimer() {
           </motion.button>
           <motion.button
             onClick={handleStart}
+                  aria-label="学習を開始"
             disabled={!timer.selectedSubjectId}
             className="w-24 h-24 rounded-full flex items-center justify-center text-white shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
             style={{
@@ -1221,6 +1242,7 @@ export default function StudyTimer() {
               <>
                 <motion.button
                   onClick={handlePause}
+                  aria-label="一時停止"
                   className="w-14 h-14 rounded-full flex items-center justify-center"
                   style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
                   whileHover={{ scale: 1.1 }}
@@ -1230,6 +1252,7 @@ export default function StudyTimer() {
                 </motion.button>
                 <motion.button
                   onClick={handleFinish}
+                  aria-label="終了して記録"
                   className="w-20 h-20 rounded-full flex items-center justify-center text-white shadow-2xl"
                   style={{
                     background:
@@ -1252,6 +1275,7 @@ export default function StudyTimer() {
               <>
                 <motion.button
                   onClick={() => resumeTimer()}
+                  aria-label="学習を再開"
                   className="w-20 h-20 rounded-full flex items-center justify-center text-white shadow-2xl"
                   style={{ background: liquidColor }}
                   whileHover={{ scale: 1.1 }}
@@ -1261,6 +1285,7 @@ export default function StudyTimer() {
                 </motion.button>
                 <motion.button
                   onClick={handleFinish}
+                  aria-label="終了して記録"
                   className="w-14 h-14 rounded-full flex items-center justify-center"
                   style={{
                     background: "var(--muted-bg)",
@@ -1273,6 +1298,7 @@ export default function StudyTimer() {
                 </motion.button>
                 <motion.button
                   onClick={handleFullReset}
+                  aria-label="タイマーをリセット"
                   className="w-12 h-12 rounded-full flex items-center justify-center"
                   style={{
                     background: "var(--muted-bg)",
@@ -1290,7 +1316,8 @@ export default function StudyTimer() {
           <div className="flex items-center gap-3">
             <motion.button
               onClick={toggleSound}
-              className="w-10 h-10 rounded-full flex items-center justify-center"
+                  aria-label="サウンドを切り替える"
+              className="w-11 h-11 rounded-full flex items-center justify-center"
               style={{
                 background: "var(--muted-bg)",
                 color: soundEnabled ? "var(--foreground)" : "var(--muted)",
@@ -1302,7 +1329,8 @@ export default function StudyTimer() {
             </motion.button>
             <motion.button
               onClick={() => setImmersiveMode(true)}
-              className="w-10 h-10 rounded-full flex items-center justify-center"
+                  aria-label="集中モードを開く"
+              className="w-11 h-11 rounded-full flex items-center justify-center"
               style={{ background: "var(--muted-bg)", color: "var(--foreground)" }}
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
@@ -1316,7 +1344,7 @@ export default function StudyTimer() {
 
       {/* Keyboard shortcut hint */}
       <p
-        className="text-center text-xs mb-8"
+        className="hidden md:block text-center text-xs mb-8"
         style={{ color: "var(--muted)" }}
       >
         <kbd
@@ -1345,12 +1373,11 @@ export default function StudyTimer() {
       {/* ─── Subject selector (idle only) ────────────── */}
       {isIdle && (
         <div className="w-full max-w-2xl">
-          <SubjectSelector
-            selectedId={timer.selectedSubjectId}
-            onSelect={(id) => setTimerSubject(id)}
-          />
 
-          <div className="mt-4 rounded-xl p-4" style={{ background: "var(--muted-bg)" }}>
+
+          <details className="rounded-xl p-4 text-left" style={{ background: "var(--muted-bg)" }}>
+            <summary className="min-h-11 font-semibold">ToDo・自動投稿の設定</summary>
+            <div className="pt-3">
             <div className="flex items-center gap-2 mb-2">
               <ClipboardList size={15} style={{ color: "var(--accent)" }} />
               <h4 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
@@ -1359,6 +1386,7 @@ export default function StudyTimer() {
             </div>
 
             <select
+              aria-label="学習に紐づけるToDo"
               value={selectedTodoId}
               onChange={(e) => setSelectedTodoId(e.target.value)}
               className="w-full px-3 py-2 rounded-lg text-sm"
@@ -1392,6 +1420,7 @@ export default function StudyTimer() {
 
             <div className="mt-3 grid sm:grid-cols-[1fr_120px_auto] gap-2">
               <input
+                aria-label="新しいToDoの名前"
                 value={newTodoTitle}
                 onChange={(e) => setNewTodoTitle(e.target.value)}
                 placeholder="例: 数学ワーク"
@@ -1401,6 +1430,7 @@ export default function StudyTimer() {
               <input
                 type="number"
                 min={0}
+                aria-label="ToDoのページ数"
                 value={newTodoPages}
                 onChange={(e) => setNewTodoPages(e.target.value.replace(/[^0-9]/g, ""))}
                 placeholder="ページ数"
@@ -1425,7 +1455,8 @@ export default function StudyTimer() {
                 追加
               </button>
             </div>
-          </div>
+            </div>
+          </details>
         </div>
       )}
 
