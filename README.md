@@ -1,9 +1,12 @@
 # StudyFlow
 
+[StudyFlowを開く](https://studyflow.studio)
+
 現行運用は **Vercel + Firebase / Firestore + NextAuth** です。既存環境変数・DB・権限を維持して改修します。下記のCloudflare Pages / MongoDB関連の記載は以前の移行案です。現行環境のデプロイ手順として使用しないでください。
 
 - [UI/UX仕様書](docs/ui-ux-spec.md)
 - [UI検証手順・結果](docs/ui-verification.md)
+- [ログインの運用設定・復旧記録](docs/auth-configuration.md)
 - 改修は `redesign/responsive-ui` ブランチで実施。`main`へのマージ・本番公開は別途確認します。
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
